@@ -35,7 +35,7 @@ export const DEFAULT_JOINT_MAX_ROTATION_DEG = 45;
 export const DEFAULT_JOINT_MAX_SLIDE_MM = 5;
 
 // --- Grid ---
-export const DEFAULT_GRID_ENABLED = false;
+export const DEFAULT_GRID_ENABLED = true;
 export const DEFAULT_GRID_SPACING_MM = 4.0;
 
 export const DEFAULT_GRID_MIN_BRANCH_ANGLE_DEG = 60;

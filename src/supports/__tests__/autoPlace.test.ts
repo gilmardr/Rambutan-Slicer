@@ -13,14 +13,14 @@ function assertNoLeafPastBranchThreshold(): void {
 }
 
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
 import * as THREE from 'three';
 
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clearHistory, getUndoCount, undo, registerHistoryHandler } from '../../history/historyStore';
 import { SUPPORT_AUTO_PLACE } from '../history/actionTypes';
 import { registerSupportHistoryHandlers } from '../history/useSupportHistoryHandlers';
-import { runAutoPlace } from '../autoSupport/autoPlace';
+import { runAutoPlace, shouldCoverAutoSupportIsland } from '../autoSupport/autoPlace';
 import { DRAGONFRUIT_DENSITY_CALIBRATION } from './helpers/densityCalibration';
 import { setModelMesh } from '../autoSupport/meshStore';
 import { resetStore, getSnapshot, setSnapshot, resetKickstandsInState, getSupportTypeOf } from '../state';
@@ -39,6 +39,32 @@ import {
 } from '../supportTypeRegistry';
 import { entitiesIn, keyOf } from './helpers/typeCollections';
 import type { SupportEntityAny } from '../types';
+
+test('explicit support-check regions bypass the steep-flat stability filter', () => {
+    const checkedSteepFlat: Pick<DetectedIsland, 'steepFlat' | 'surfaceAreaMm2' | 'supportCheck'> = {
+        steepFlat: true,
+        surfaceAreaMm2: 1,
+        supportCheck: { cellMm: 5, reachMm: 1.5 },
+    };
+    assert.equal(shouldCoverAutoSupportIsland(checkedSteepFlat, false), true);
+});
+
+test('ordinary small steep flats remain filtered when pose stability says coverage is unnecessary', () => {
+    const ordinarySteepFlat: Pick<DetectedIsland, 'steepFlat' | 'surfaceAreaMm2' | 'supportCheck'> = {
+        steepFlat: true,
+        surfaceAreaMm2: 1,
+    };
+    assert.equal(shouldCoverAutoSupportIsland(ordinarySteepFlat, false), false);
+});
+
+// These fixtures exercise free placement (standalone trunks, fans, pillar
+// forests). The app ships grid mode on, so each test starts from defaults with
+// the lattice off; the grid tests below turn it back on explicitly.
+beforeEach(() => {
+    const settings = createDefaultSettings();
+    settings.grid.enabled = false;
+    setSettings(settings);
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1187,7 +1213,8 @@ for (const gridEnabled of [false, true]) {
         setSettings({ ...settings, autoSupport: { ...settings.autoSupport, sizingPreset: preset.id } });
 
         try {
-            for (const tipZ of [0.5, 5]) {
+            // 0.25 mm sits below even a compact stump's root joint (disk 0.1 + root 0.2).
+            for (const tipZ of [0.25, 5]) {
                 resetStore();
                 resetKickstandsInState();
                 clearHistory();

@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 
-import { registerContactOverride, type PlacedSupport } from '../../supportTypeRegistry';
+import { registerContactOverride, type ContactOverrideRequest, type ContactOverrideResult, type PlacedSupport } from '../../supportTypeRegistry';
 import { getFinalSocketPosition } from '../../SupportPrimitives/ContactCone';
 import { getOrCreateSDFCache } from '../../PlacementLogic/Pathfinding/SDFCachePool';
 import type { SDFCache } from '../../PlacementLogic/Pathfinding/SDFCache';
@@ -172,9 +172,26 @@ function stumpModelCollision(stump: Stump, mesh: THREE.Mesh | undefined): 'COLLI
  * type declares without importing this module.
  */
 registerContactOverride('stump', (request) => {
+    const along = buildStumpAlong(request, request.tipNormal);
+    if (!along.refusal) return along;
+    // A tilted tip (a horn, a claw) hanging just above the plate: a cone along
+    // the surface normal swings sideways and down, under its own root or into
+    // the model. Straight down from the lowest point there is nothing in the
+    // way, so stand the stump vertically before giving the point up.
+    const normal = request.tipNormal;
+    const isVertical = Math.abs(normal.x) < 1e-6 && Math.abs(normal.y) < 1e-6 && normal.z < 0;
+    if (isVertical) return along;
+    const vertical = buildStumpAlong(request, { x: 0, y: 0, z: -1 });
+    return vertical.refusal ? along : vertical;
+});
+
+function buildStumpAlong(
+    request: ContactOverrideRequest,
+    tipNormal: Vec3,
+): ContactOverrideResult {
     const built = buildStumpData({
         tipPos: request.tipPos,
-        tipNormal: request.tipNormal,
+        tipNormal,
         modelId: request.modelId,
         // The registry passes a structural mesh so it need not depend on the
         // renderer; the builder wants the real one, and only ever reads it.
@@ -218,4 +235,4 @@ registerContactOverride('stump', (request) => {
     }
 
     return { placed, supportData };
-});
+}

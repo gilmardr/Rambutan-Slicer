@@ -2,6 +2,17 @@
 
 Grid support logic ensures deterministic trunk ownership and efficient branch reuse.
 
+Grid mode ships **on** (`DEFAULT_GRID_ENABLED`, 4 mm spacing). With the upstream
+density calibration (contacts every ~2.2 mm on flat undersides) free placement
+stands a separate trunk on almost every contact: on the auto-support bench's
+`overhang-slab` that is 162 roots with the closest two 0.77 mm apart and 394 root
+pairs under 3.5 mm, i.e. bases and shafts fused into a wall. The lattice keeps one
+trunk per node and lets the remaining contacts branch off near the model: 90 roots,
+closest 3.21 mm, 4 pairs under 3.5 mm, at 98.9 % coverage (free: 99.9 %). The
+Support Studio setting is the user's and is not migrated, so an install that saved
+the old default keeps free placement until the toggle is turned on. Free-placement
+tests set `grid.enabled = false` explicitly.
+
 ## Grid placement policy
 
 0. Build the candidate through the router, like every other mode. Grid mode used to

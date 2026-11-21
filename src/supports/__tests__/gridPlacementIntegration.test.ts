@@ -615,8 +615,10 @@ test('decideGridPlacement rejects an anchor whose tip sits below the root joint 
     const candidate = buildStraightFixture({
         x: 0,
         y: 0,
-        tipZ: 0.5, // Below the anchor root joint (~1.1mm) — shaft would dip into -Z
-        socketZ: 0.4,
+        // Below even a compact stump's root joint (disk 0.1 + root 0.2 = 0.3 mm):
+        // a low tip scales the stump down, but one under the joint cannot stand.
+        tipZ: 0.25,
+        socketZ: 0.2,
     });
 
     const decision = decideGridPlacement({

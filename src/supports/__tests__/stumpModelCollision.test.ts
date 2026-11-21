@@ -8,6 +8,7 @@ import { buildContactOverride } from '../supportTypeRegistry';
 import { initializeBVH, accelerateGeometry } from '@/utils/bvh';
 import { setSettings } from '../Settings/state';
 import { createDefaultSettings } from '../Settings/types';
+import { compactStumpFit } from '../SupportTypes/Stump/stumpBuilder';
 
 /**
  * A stump must not print through the model.
@@ -46,15 +47,66 @@ function placeStumpOn(bottomZ: number, mesh?: THREE.Mesh) {
   });
 }
 
-test('a stump whose socket end would run into the model is refused', () => {
+test('a contact lower than the full stump gets a compact stump that clears the model', () => {
   resetStore();
   setSettings(createDefaultSettings());
 
-  // Contact 1.6 mm off the plate: the stump has to reach its fixed root height,
-  // so the joint ball ends up 0.5 mm below the surface, inside it.
+  // Contact 1.6 mm off the plate. A full stump stands its 1.5 mm joint ball on a
+  // 1 mm root, so the ball would reach 1.85 mm, inside the slab: the point used to
+  // be refused and left unsupported. The compact stump scales to the gap.
   const result = placeStumpOn(1.6);
-  assert.equal(result?.refusal, 'COLLISION_WITH_MODEL');
+  assert.equal(result?.refusal, undefined);
+  const stump = result!.placed.entity as { rootHeight: number; joint: { pos: { z: number }; diameter: number } };
+  assert.ok(stump.rootHeight < 1, `root shrinks (${stump.rootHeight.toFixed(2)} mm)`);
+  assert.ok(stump.joint.pos.z + stump.joint.diameter / 2 < 1.6, 'the joint ball stays below the surface');
 });
+
+test('compact stump scaling keeps full size where it fits and a floor where it does not', () => {
+  assert.equal(compactStumpFit(3, 0.1), 1, 'a stump with room keeps the full stack');
+  assert.equal(compactStumpFit(2.4, 0.1), 1);
+  const low = compactStumpFit(1.0, 0.1);
+  assert.ok(low > 0.2 && low < 1, `1 mm tip scales (${low.toFixed(2)})`);
+  assert.equal(compactStumpFit(0.05, 0.1), 0.2, 'never below the floor');
+});
+
+/** A rounded horn (capsule) tilted `tiltDeg` from vertical, lowest point at `tipZ`. */
+function hornAt(tipZ: number, tiltDeg: number): { mesh: THREE.Mesh; tip: THREE.Vector3 } {
+  initializeBVH();
+  const horn = new THREE.CapsuleGeometry(1.5, 20, 12, 24).toNonIndexed();
+  horn.rotateX(Math.PI / 2);
+  horn.rotateY(-THREE.MathUtils.degToRad(tiltDeg));
+  horn.computeBoundingBox();
+  horn.translate(0, 0, tipZ - horn.boundingBox!.min.z);
+  accelerateGeometry(horn);
+  const position = horn.getAttribute('position');
+  const tip = new THREE.Vector3(0, 0, Infinity);
+  for (let i = 0; i < position.count; i++) {
+    if (position.getZ(i) < tip.z) tip.set(position.getX(i), position.getY(i), position.getZ(i));
+  }
+  const mesh = new THREE.Mesh(horn, new THREE.MeshBasicMaterial());
+  mesh.updateMatrixWorld(true);
+  return { mesh, tip };
+}
+
+for (const [tipZ, tiltDeg] of [[0.75, 50], [1.0, 50], [1.5, 50], [1.0, 70], [1.0, 30]] as const) {
+  test(`the low tip of a tilted horn (${tiltDeg}°, ${tipZ} mm off the plate) gets a stump`, () => {
+    resetStore();
+    setSettings(createDefaultSettings());
+    const { mesh, tip } = hornAt(tipZ, tiltDeg);
+    const override = buildContactOverride('stump')!;
+    // The surface normal at the lowest point of a tilted horn leans sideways;
+    // whichever axis the stump takes, the point must not be given up.
+    const normal = new THREE.Vector3(Math.sin(THREE.MathUtils.degToRad(tiltDeg)) * 0.3, 0, -1).normalize();
+    const result = override({
+      tipPos: { x: tip.x, y: tip.y, z: tip.z },
+      tipNormal: { x: normal.x, y: normal.y, z: normal.z },
+      modelId: 'horn',
+      mesh,
+    });
+    assert.equal(result?.refusal, undefined);
+    assert.equal(result?.placed.typeId, 'stump');
+  });
+}
 
 test('a stump that clears the model is placed', () => {
   resetStore();

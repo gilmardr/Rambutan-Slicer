@@ -446,7 +446,7 @@ async function runModel(
     const dispose = registerSupportHistoryHandlers();
     initializeBVH();
     const appSettings = createDefaultSettings();
-    if (options.grid) appSettings.grid.enabled = true;
+    appSettings.grid.enabled = options.grid;
     setSettings(appSettings);
     const mesh = new THREE.Mesh(geometry);
     mesh.updateMatrixWorld(true);

@@ -16,6 +16,26 @@ const STUMP_ROOT_BASE_DIAMETER_MM = 2.0;
 const STUMP_ROOT_TOP_DIAMETER_MM = 1.5;
 const STUMP_ROOT_HEIGHT_MM = 1.0;
 const STUMP_JOINT_DIAMETER_MM = 1.5;
+/** Shortest cone (contact disk to joint) a full-size stump keeps, in mm. */
+const STUMP_MIN_CONE_MM = 0.45;
+/** Smallest fraction a compact stump shrinks to; below it the gap is the plate. */
+const STUMP_MIN_FIT = 0.2;
+
+/**
+ * How much of the full stump stack fits under a contact this low.
+ *
+ * A full stump stands its contact cone on a 1 mm root and a 1.5 mm joint ball,
+ * about 2.2 mm in all. A tip hanging lower than that (the point of a horn or a
+ * claw just above the plate) used to get a full stump whose joint ball reached
+ * into the model, so the point was refused and left with no support at all.
+ * Root, joint and diameters scale by this factor instead; stumps with room keep
+ * the full size (factor 1).
+ */
+export function compactStumpFit(tipZ: number, diskHeightMm: number): number {
+    const fullStackMm = STUMP_ROOT_HEIGHT_MM + STUMP_JOINT_DIAMETER_MM / 2 + STUMP_MIN_CONE_MM;
+    const available = tipZ - diskHeightMm;
+    return Math.min(1, Math.max(STUMP_MIN_FIT, available / fullStackMm));
+}
 
 export interface StumpBuildInput {
     tipPos: Vec3;
@@ -63,9 +83,16 @@ export function buildStumpData(input: StumpBuildInput): StumpBuildResult {
     const effectiveDiskHeight = ANCHOR_DISK_HEIGHT_MM;
     const verticalOffset = 0;
 
+    // A tip lower than the full stack gets a proportionally smaller stump.
+    const fit = compactStumpFit(tipPos.z - verticalOffset, effectiveDiskHeight);
+    const rootHeightMm = STUMP_ROOT_HEIGHT_MM * fit;
+    const jointDiameterMm = STUMP_JOINT_DIAMETER_MM * fit;
+    const rootBaseDiameterMm = STUMP_ROOT_BASE_DIAMETER_MM * fit;
+    const rootTopDiameterMm = STUMP_ROOT_TOP_DIAMETER_MM * fit;
+
     // Sphere center Z = verticalOffset + effectiveDiskHeight + coneHeight
     // (sphere center is at top of cone, not offset by radius)
-    const targetSocketZ = verticalOffset + effectiveDiskHeight + STUMP_ROOT_HEIGHT_MM;
+    const targetSocketZ = verticalOffset + effectiveDiskHeight + rootHeightMm;
     const dzPerUnit = effectiveConeAxis.z;
     const coneLength = Math.abs(dzPerUnit) > 1e-6
         ? (targetSocketZ - tipPos.z) / dzPerUnit
@@ -97,7 +124,7 @@ export function buildStumpData(input: StumpBuildInput): StumpBuildResult {
             profile: {
                 ...tipProfile,
                 lengthMm: effectiveConeLength,
-                bodyDiameterMm: STUMP_JOINT_DIAMETER_MM - 0.1,
+                bodyDiameterMm: Math.max(0.2, jointDiameterMm - 0.1),
             },
         },
         tipPos,
@@ -117,20 +144,20 @@ export function buildStumpData(input: StumpBuildInput): StumpBuildResult {
     const joint: Joint = {
         id: uuidv4(),
         pos: jointPos,
-        diameter: STUMP_JOINT_DIAMETER_MM,
+        diameter: jointDiameterMm,
     };
 
     const socketJoint: Joint = {
         id: uuidv4(),
         pos: socketPos,
-        diameter: STUMP_JOINT_DIAMETER_MM,
+        diameter: jointDiameterMm,
     };
 
     // Override profile: stretched length + body diameter matches joint
     const stumpTipProfile: SupportTipProfile = {
         ...tipProfile,
         lengthMm: effectiveConeLength,
-        bodyDiameterMm: STUMP_JOINT_DIAMETER_MM - 0.1,
+        bodyDiameterMm: Math.max(0.2, jointDiameterMm - 0.1),
     };
 
     const contactCone: ContactCone = {
@@ -145,9 +172,9 @@ export function buildStumpData(input: StumpBuildInput): StumpBuildResult {
         modelId,
         settingsCodeHex,
         rootPos,
-        rootBaseDiameter: STUMP_ROOT_BASE_DIAMETER_MM,
-        rootTopDiameter: STUMP_ROOT_TOP_DIAMETER_MM,
-        rootHeight: STUMP_ROOT_HEIGHT_MM,
+        rootBaseDiameter: rootBaseDiameterMm,
+        rootTopDiameter: rootTopDiameterMm,
+        rootHeight: rootHeightMm,
         joint,
         segments: [],
         contactCone,
@@ -161,9 +188,9 @@ export function buildStumpData(input: StumpBuildInput): StumpBuildResult {
             id: inlineRootId(stumpId),
             modelId,
             transform: { pos: rootPos, rot: { x: 0, y: 0, z: 0, w: 1 } },
-            diameter: STUMP_ROOT_BASE_DIAMETER_MM,
+            diameter: rootBaseDiameterMm,
             diskHeight: ANCHOR_DISK_HEIGHT_MM,
-            coneHeight: STUMP_ROOT_HEIGHT_MM,
+            coneHeight: rootHeightMm,
         },
         segments: [],
         contactCone,
