@@ -24,6 +24,7 @@ import {
 } from '@/features/network/printerReachabilityStore';
 import { getProfileNetworkUiAdapter } from '@/features/plugins/pluginRegistry';
 import { openProfileSettingsModal } from '@/components/settings/profileModalEvents';
+import { Box, Droplet, Layers, Network, Printer } from 'lucide-react';
 
 interface ModelStatsCardProps {
   model: LoadedModel | null;
@@ -452,8 +453,8 @@ export function ModelStatsCard({
 
   const frontHeader = connectedHostName || activePrinterProfile?.name || _(msg`No printer connected`);
   const frontHeaderColor = isNetworkPrinterOffline
-    ? 'color-mix(in srgb, #f87171, var(--text-strong) 58%)'
-    : (connectedHostName ? 'color-mix(in srgb, #22c55e, var(--text-strong) 18%)' : 'var(--text-strong)');
+    ? '#ff4d54'
+    : (connectedHostName ? '#78c63f' : '#fff9f8');
 
   const handleToggleFlip = React.useCallback(() => {
     setIsFlipped((prev) => !prev);
@@ -471,7 +472,7 @@ export function ModelStatsCard({
   };
 
   return (
-    <div className="pointer-events-auto select-none" style={{ width: 320, maxWidth: 320 }}>
+    <div className="pointer-events-auto select-none" style={{ width: 440, maxWidth: 'min(440px, calc(100vw - 24px))' }}>
       <div
         className="w-full [perspective:1200px]"
       >
@@ -493,10 +494,10 @@ export function ModelStatsCard({
             : { transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
         >
           <div
-            className="[grid-area:1/1] w-full min-w-0 ui-panel rounded-md px-3 py-2.5 shadow-md space-y-1.5 flex flex-col"
+            className="[grid-area:1/1] w-full min-w-0 ui-panel rounded-xl px-3.5 py-3.5 shadow-lg space-y-3 flex flex-col"
             style={{
-              background: 'linear-gradient(135deg, color-mix(in srgb, #ec4899 18%, var(--surface-0)), color-mix(in srgb, #8b5cf6 9%, var(--surface-0)) 60%, var(--surface-0))',
-              borderColor: 'color-mix(in srgb, #ec4899 45%, var(--border))',
+              background: '#101219',
+              borderColor: '#2b2e38',
               ...(useFlatFlip
                 ? { visibility: flatFlipShownFace === 'front' ? ('visible' as const) : ('hidden' as const) }
                 // The explicit identity transform forces Blink to backface-cull
@@ -505,92 +506,119 @@ export function ModelStatsCard({
                 : { backfaceVisibility: 'hidden' as const, transform: 'rotateY(0deg)' }),
             }}
           >
-            <div className="font-semibold text-[12px] truncate border-b pb-1.5" style={{ color: frontHeaderColor, borderColor: 'color-mix(in srgb, #ec4899 30%, transparent)' }}>
-              {frontHeader}
+            <div className="flex min-w-0 items-center gap-2.5 border-b pb-2.5" style={{ borderColor: 'color-mix(in srgb, #78c63f 34%, transparent)' }}>
+              <Printer aria-hidden="true" size={22} strokeWidth={2.2} style={{ color: '#78c63f', flexShrink: 0 }} />
+              <div className="h-7 w-1 rounded-full" style={{ background: '#78c63f' }} />
+              <div className="min-w-0 truncate text-[15px] font-bold tracking-wide" style={{ color: frontHeaderColor }}>{frontHeader}</div>
             </div>
 
-            <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-              <span><Trans>Printer:</Trans></span>
-              <button
-                type="button"
-                onMouseDown={stopEvent}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  openProfileSettingsModal('printer');
-                }}
-                className="min-w-0 truncate text-left underline decoration-dotted underline-offset-2 hover:opacity-85 transition-opacity"
-                style={{ color: 'var(--text-strong)' }}
-                title={_(msg`Open printer profiles`)}
-              >
-                {activePrinterProfile?.name ?? '-'}
-              </button>
+            <div className="grid grid-cols-2 gap-x-3 text-[10px] leading-tight">
+              <div className="grid min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)] items-center gap-x-1.5 gap-y-2">
+                <span style={{ color: '#c0bdc3' }}><Trans>Printer:</Trans></span>
+                <button
+                  type="button"
+                  onMouseDown={stopEvent}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openProfileSettingsModal('printer');
+                  }}
+                  className="min-w-0 truncate text-right underline decoration-dotted underline-offset-2 hover:opacity-85 transition-opacity"
+                  style={{ color: '#fff9f8' }}
+                  title={_(msg`Open printer profiles`)}
+                >
+                  {activePrinterProfile?.name ?? '-'}
+                </button>
 
-              <span><Trans>Material:</Trans></span>
-              <button
-                type="button"
-                onMouseDown={stopEvent}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  openProfileSettingsModal('material');
-                }}
-                className="min-w-0 truncate text-left underline decoration-dotted underline-offset-2 hover:opacity-85 transition-opacity"
-                style={{ color: 'var(--text-strong)' }}
-                title={_(msg`Open material profiles`)}
-              >
-                {effectiveMaterialName}
-              </button>
+                <span style={{ color: '#c0bdc3' }}><Trans>Material:</Trans></span>
+                <button
+                  type="button"
+                  onMouseDown={stopEvent}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openProfileSettingsModal('material');
+                  }}
+                  className="min-w-0 truncate text-right underline decoration-dotted underline-offset-2 hover:opacity-85 transition-opacity"
+                  style={{ color: '#fff9f8' }}
+                  title={_(msg`Open material profiles`)}
+                >
+                  {effectiveMaterialName}
+                </button>
 
-              <span><Trans>Layer profile:</Trans></span>
-              <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>
-                {effectiveLayerHeightMm != null ? fmt.quantity(effectiveLayerHeightMm * 1000, 0, 'um') : '-'}
-              </span>
+                <span style={{ color: '#c0bdc3' }}><Trans>Layer profile:</Trans></span>
+                <span className="min-w-0 truncate text-right" style={{ color: '#fff9f8' }}>
+                  {effectiveLayerHeightMm != null ? fmt.quantity(effectiveLayerHeightMm * 1000, 0, 'um') : '-'}
+                </span>
+              </div>
 
-              <span><Trans>Exposure:</Trans></span>
-              <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>
-                {effectiveNormalExposureSec != null
-                  ? `${fmt.quantity(effectiveNormalExposureSec, 1, 's')} • ${fmt.quantity(effectiveBottomExposureSec ?? effectiveNormalExposureSec, 1, 's')}`
-                  : '-'}
-              </span>
+              <div className="grid min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)] items-center gap-x-1.5 gap-y-2 border-l pl-3" style={{ borderColor: '#2b2e38' }}>
+                <span style={{ color: '#c0bdc3' }}><Trans>Exposure:</Trans></span>
+                <span className="min-w-0 truncate text-right" style={{ color: '#fff9f8' }}>
+                  {effectiveNormalExposureSec != null
+                    ? `${fmt.quantity(effectiveNormalExposureSec, 1, 's')} • ${fmt.quantity(effectiveBottomExposureSec ?? effectiveNormalExposureSec, 1, 's')}`
+                    : '-'}
+                </span>
 
+                <span style={{ color: '#c0bdc3' }}><Trans>Layers:</Trans></span>
+                <span className="min-w-0 truncate text-right" style={{ color: '#fff9f8' }}>
+                  {estimatedLayerCountLabelOverride ?? (resolvedLayerCount != null ? resolvedLayerCount : '-')}
+                </span>
 
-              <span><Trans>Layers:</Trans></span>
-              <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>
-                {estimatedLayerCountLabelOverride ?? (resolvedLayerCount != null ? resolvedLayerCount : '-')}
-              </span>
+                <span style={{ color: '#c0bdc3' }}><Trans comment='Row label on the printer card. "Est." is short for "estimated"; keep the abbreviation terse — the label column is narrow.'>Est. print time:</Trans></span>
+                <span className="min-w-0 truncate text-right" style={{ color: '#fff9f8' }}>
+                  {estimatedPrintTimeLabelOverride ?? (estimatedExposureOnlySeconds != null ? formatDuration(estimatedExposureOnlySeconds) : '-')}
+                </span>
+              </div>
+            </div>
 
-              <span><Trans comment='Row label on the printer card. "Est." is short for "estimated"; keep the abbreviation terse — the label column is narrow.'>Est. print time:</Trans></span>
-              <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>
-                {estimatedPrintTimeLabelOverride ?? (estimatedExposureOnlySeconds != null ? formatDuration(estimatedExposureOnlySeconds) : '-')}
-              </span>
+            {estimatedModelResinLabelOverride != null && (
+              <div className="space-y-1.5 border-t pt-2" style={{ borderColor: '#2b2e38' }}>
+                <div className="grid min-w-0 grid-cols-[34px_1fr_auto] items-center gap-2 rounded-lg border px-2.5 py-1.5" style={{ background: 'color-mix(in srgb, #c0bdc3 7%, #101219)', borderColor: '#2b2e38' }}>
+                  <Box aria-hidden="true" size={20} strokeWidth={2} style={{ color: '#c0bdc3', justifySelf: 'center' }} />
+                  <span className="border-l pl-2.5 text-[11px] font-semibold" style={{ borderColor: '#555963', color: '#fff9f8' }}><Trans>Model resin:</Trans></span>
+                  <span className="min-w-0 truncate text-right text-[13px] font-bold tabular-nums" style={{ color: '#fff9f8' }}>{estimatedModelResinLabelOverride}</span>
+                </div>
 
-              {estimatedModelResinLabelOverride != null && (
-                <>
-                  <span><Trans>Model resin:</Trans></span>
-                  <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>{estimatedModelResinLabelOverride}</span>
-                  <span><Trans>Supports resin:</Trans></span>
-                  <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>{estimatedSupportsResinLabelOverride ?? '—'}</span>
-                  <span><Trans>Raft resin:</Trans></span>
-                  <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>{estimatedRaftResinLabelOverride ?? '—'}</span>
-                </>
-              )}
-              <span style={{ color: '#f9a8d4' }}><Trans comment='Row label on the printer card: estimated resin volume including models, supports, and rafts. Keep it terse — the label column is narrow.'>Total resin:</Trans></span>
-              <span className="min-w-0 truncate font-semibold" style={{ color: 'var(--text-strong)' }}>
+                <div className="grid min-w-0 grid-cols-[34px_1fr_auto] items-center gap-2 rounded-lg border px-2.5 py-1.5" style={{ background: 'color-mix(in srgb, #78c63f 10%, #101219)', borderColor: 'color-mix(in srgb, #78c63f 34%, #2b2e38)' }}>
+                  <Network aria-hidden="true" size={20} strokeWidth={2} style={{ color: '#78c63f', justifySelf: 'center' }} />
+                  <span className="border-l pl-2.5 text-[11px] font-semibold" style={{ borderColor: 'color-mix(in srgb, #78c63f 48%, #2b2e38)', color: '#78c63f' }}><Trans>Supports resin:</Trans></span>
+                  <span className="min-w-0 truncate text-right text-[13px] font-bold tabular-nums" style={{ color: '#fff9f8' }}>{estimatedSupportsResinLabelOverride ?? '—'}</span>
+                </div>
+
+                <div className="grid min-w-0 grid-cols-[34px_1fr_auto] items-center gap-2 rounded-lg border px-2.5 py-1.5" style={{ background: 'color-mix(in srgb, #78c63f 10%, #101219)', borderColor: 'color-mix(in srgb, #78c63f 34%, #2b2e38)' }}>
+                  <Layers aria-hidden="true" size={20} strokeWidth={2} style={{ color: '#78c63f', justifySelf: 'center' }} />
+                  <span className="border-l pl-2.5 text-[11px] font-semibold" style={{ borderColor: 'color-mix(in srgb, #78c63f 48%, #2b2e38)', color: '#78c63f' }}><Trans>Raft resin:</Trans></span>
+                  <span className="min-w-0 truncate text-right text-[13px] font-bold tabular-nums" style={{ color: '#fff9f8' }}>{estimatedRaftResinLabelOverride ?? '—'}</span>
+                </div>
+              </div>
+            )}
+
+            <div
+              className="grid min-w-0 grid-cols-[34px_1fr_auto] items-center gap-2 rounded-lg border-l-4 px-2.5 py-2"
+              style={{
+                background: 'color-mix(in srgb, #ed0921 12%, #101219)',
+                borderColor: '#ed0921',
+                borderTop: '1px solid color-mix(in srgb, #ed0921 38%, #2b2e38)',
+                borderRight: '1px solid color-mix(in srgb, #ed0921 38%, #2b2e38)',
+                borderBottom: '1px solid color-mix(in srgb, #ed0921 38%, #2b2e38)',
+              }}
+            >
+              <Droplet aria-hidden="true" size={21} strokeWidth={2.1} style={{ color: '#ed0921', justifySelf: 'center' }} />
+              <span className="border-l pl-2.5 text-[12px] font-bold uppercase tracking-wide" style={{ borderColor: '#ed0921', color: '#ed0921' }}><Trans comment='Row label on the printer card: estimated resin volume including models, supports, and rafts. Keep it terse — the label column is narrow.'>Total resin:</Trans></span>
+              <span className="min-w-0 truncate text-right text-[16px] font-bold tabular-nums" style={{ color: '#fff9f8' }}>
                 {estimatedResinLabelOverride ?? (estimatedResinMl != null
                   ? `${fmt.quantity(estimatedResinMl, 2, 'ml')}${estimatedResinCost ? ` (${estimatedResinCost})` : ''}`
                   : '-')}
               </span>
-
-              {estimatedResinTotalLabel != null && (
-                <>
-                  <span><Trans comment='Row label on the printer card: estimated resin for every plate in the scene, beside the row for the plate being worked on. Keep it terse — the label column is narrow.'>Est. resin (all):</Trans></span>
-                  <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>
-                    {estimatedResinTotalLabel}
-                  </span>
-                </>
-              )}
             </div>
 
-            <div className="pt-0.5 text-[10px] mt-auto" style={{ color: 'var(--text-muted)' }}>
+            {estimatedResinTotalLabel != null && estimatedResinTotalLabel.trim() !== estimatedResinLabelOverride?.trim() && (
+              <div className="flex min-w-0 justify-between gap-2 px-1 text-[10px]" style={{ color: '#c0bdc3' }}>
+                <span><Trans comment='Row label on the printer card: estimated resin for every plate in the scene, beside the row for the plate being worked on. Keep it terse — the label column is narrow.'>Est. resin (all):</Trans></span>
+                <span className="min-w-0 truncate text-right" style={{ color: '#fff9f8' }}>{estimatedResinTotalLabel}</span>
+              </div>
+            )}
+
+            <div className="pt-0.5 text-[9px] leading-tight" style={{ color: '#c0bdc3' }}>
               <Trans>Click card to view model details</Trans>
             </div>
           </div>

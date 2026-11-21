@@ -2,6 +2,7 @@ export const THEME_STORAGE_KEY = 'app-theme-preference';
 export const THEME_COLORS_STORAGE_KEY = 'app-theme-colors';
 export const THEME_PRESET_STORAGE_KEY = 'app-theme-preset';
 export const THEME_CUSTOM_PROFILES_STORAGE_KEY = 'app-theme-custom-profiles';
+const THEME_BRAND_MIGRATION_KEY = 'app-theme-brand-migration-v1';
 
 export type ThemePreference = 'dark' | 'light';
 
@@ -821,6 +822,28 @@ export function getSavedThemePreset(): ThemePreset {
   return getSavedCustomThemeProfiles().some((profile) => profile.id === preset)
     ? preset
     : 'rambutan-dark';
+}
+
+/** Move users of the previous DragonFruit default palette to the current
+ * Rambutan brand once. Other presets and future manual selections are kept. */
+export function migrateLegacyBrandTheme(): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    if (window.localStorage.getItem(THEME_BRAND_MIGRATION_KEY) === 'done') return;
+
+    const storedPreset = window.localStorage.getItem(THEME_PRESET_STORAGE_KEY);
+    if (storedPreset === 'dragonfruit-dark' || storedPreset === 'dragonfruit-light') {
+      const rambutanPreset = storedPreset === 'dragonfruit-light' ? 'rambutan-light' : 'rambutan-dark';
+      window.localStorage.setItem(THEME_PRESET_STORAGE_KEY, rambutanPreset);
+      window.localStorage.removeItem(THEME_COLORS_STORAGE_KEY);
+      window.localStorage.setItem(THEME_STORAGE_KEY, rambutanPreset.endsWith('light') ? 'light' : 'dark');
+    }
+
+    window.localStorage.setItem(THEME_BRAND_MIGRATION_KEY, 'done');
+  } catch {
+    // Storage can be unavailable in private or sandboxed browser contexts.
+  }
 }
 
 export function applyThemePreference(preference: ThemePreference) {

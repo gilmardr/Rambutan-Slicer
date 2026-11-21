@@ -3,12 +3,13 @@
 import React from 'react';
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
-import { Trash2, WandSparkles } from 'lucide-react';
+import { RotateCcw, Trash2, WandSparkles } from 'lucide-react';
 import { NumberInput } from '@/components/ui/NumberInput';
 import { Button, Toast, ToastViewport } from '@/components/atoms';
 import { CENTERED_SELECT_PADDING, SelectDropdown } from '@/components/ui/SelectDropdown';
 import {
     AUTO_BRACING_PATTERN_OPTIONS,
+    createDefaultAutoBracingSettings,
     type AutoBracingSettings,
     type AutoBracingPattern,
 } from './settings';
@@ -220,6 +221,21 @@ export function AutoBracingSettingsCard({
             )}
 
             <div className="h-2" />
+
+            <div className="flex justify-end">
+                <Button
+                    variant="secondary"
+                    size="auto"
+                    className="!h-7 gap-1.5 px-2 text-[10px]"
+                    onClick={() => onChange(createDefaultAutoBracingSettings())}
+                    title={_(msg`Restore defaults`)}
+                    aria-label={_(msg`Restore defaults`)}
+                    style={{ color: 'var(--text-muted)' }}
+                >
+                    <RotateCcw className="h-3 w-3" />
+                    {_(msg`Restore defaults`)}
+                </Button>
+            </div>
 
             <div className="flex items-stretch gap-1.5">
                 <Button

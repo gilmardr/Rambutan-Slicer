@@ -17,6 +17,7 @@ import {
   applyThemeCustomColors,
   getSavedThemeCustomColors,
   getSavedThemePreference,
+  migrateLegacyBrandTheme,
 } from '@/components/settings/themeCustomizations';
 import {
   OPEN_PROFILE_SETTINGS_MODAL_EVENT,
@@ -201,6 +202,7 @@ export function TopBar({
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    migrateLegacyBrandTheme();
     const savedTheme = getSavedThemePreference();
     if (savedTheme === 'dark' || savedTheme === 'light') {
       document.documentElement.setAttribute('data-theme', savedTheme);

@@ -14,6 +14,7 @@ import dynamic from 'next/dynamic';
 import * as THREE from 'three';
 import { AlertTriangle } from 'lucide-react';
 import { OrbitControls } from '@react-three/drei';
+import { EffectComposer, SSAO } from '@react-three/postprocessing';
 import { DistanceMeasurementOverlay } from '@/features/measurement/DistanceMeasurementOverlay';
 import { ZUpGizmoViewcube } from './ZUpGizmoViewcube';
 import { ZUpGizmoHelper } from './ZUpGizmoHelper';
@@ -144,6 +145,7 @@ import {
   type ProjectedMesh,
 } from './marqueeHitTest';
 import { PickingEmptySpaceHoverResetter, SceneRenderBindings } from './SceneCanvasInteractionBits';
+import { isTauriRuntime } from '@/utils/tauriRuntime';
 
 import { PickingProviderWrapper, SelectionSync, useInteractionWarning } from './SceneSelectionAndPicking';
 import { CameraClipPlaneStabilizer, CameraProvider, EnableLocalClipping, Helpers, Lights, SceneMoodOverlay } from './SceneEnvironment';
@@ -1011,6 +1013,10 @@ export function SceneCanvas({
     () => getSettings().tip.contactDiameterMm,
   );
   const isLinux = useIsLinux();
+  // Desktop uses the native per-vertex AO bake. The web build has no native
+  // baker, so use a screen-space pass there to keep contact shadows and recessed
+  // details visible in both runtimes.
+  const useScreenSpaceAmbientOcclusion = !isTauriRuntime();
   const sceneHoveredSupportId = useSceneHoveredSupportId();
   const [contactDiskHudInteractionActive, setContactDiskHudInteractionActive] = React.useState(() => isContactDiskHudInteractionActive());
 
@@ -8060,6 +8066,22 @@ export function SceneCanvas({
           <SupportPathfindingDebugOverlay snapshot={supportPathfindingDebugState.snapshot} />
         )}
         {children}
+        {useScreenSpaceAmbientOcclusion && (
+          <EffectComposer enableNormalPass resolutionScale={0.5} multisampling={0}>
+            <SSAO
+              intensity={1.2}
+              radius={8}
+              samples={16}
+              rings={4}
+              distanceThreshold={1}
+              distanceFalloff={0.1}
+              rangeThreshold={0.5}
+              rangeFalloff={0.1}
+              luminanceInfluence={0.65}
+              bias={0.025}
+            />
+          </EffectComposer>
+        )}
       </Canvas>
 
       {mode === 'support' && supportPathfindingDebugState.enabled && (
