@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 import * as THREE from 'three';
-import { conformEngravingGeometryToSurface } from './conformTextGeometryToSurface';
+import { conformEngravingGeometryToSurface, subdivideGeometry } from './conformTextGeometryToSurface';
 import { createSolidMeshOperations } from '@/features/mesh-boolean/solidMeshOperations';
 
 const require = createRequire(import.meta.url);
@@ -116,4 +116,59 @@ test('curved text cutter stays a closed solid that can be subtracted from the ta
   assert.ok(carved.positions.length > 0);
   result.geometry.dispose();
   target.dispose();
+});
+
+function edgeUseCounts(geometry: THREE.BufferGeometry): Map<string, number> {
+  const index = geometry.getIndex();
+  assert.ok(index, 'subdivision returns an indexed, welded mesh');
+  const counts = new Map<string, number>();
+  for (let i = 0; i < index.count; i += 3) {
+    for (let edge = 0; edge < 3; edge += 1) {
+      const p = index.getX(i + edge);
+      const q = index.getX(i + ((edge + 1) % 3));
+      const key = p < q ? `${p}:${q}` : `${q}:${p}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+test('subdivision keeps a closed cutter watertight and only refines long edges', () => {
+  // A long, thin bar next to a tiny cube: the bar's long edges must split, the
+  // cube's short edges must not, and the welded result must stay closed.
+  const bar = new THREE.BoxGeometry(20, 1, 1).toNonIndexed();
+  const cube = new THREE.BoxGeometry(0.5, 0.5, 0.5).translate(15, 0, 0).toNonIndexed();
+  for (const part of [bar, cube]) {
+    part.deleteAttribute('normal');
+    part.deleteAttribute('uv');
+  }
+  const merged = new THREE.BufferGeometry();
+  const barPositions = bar.getAttribute('position').array as Float32Array;
+  const cubePositions = cube.getAttribute('position').array as Float32Array;
+  const combined = new Float32Array(barPositions.length + cubePositions.length);
+  combined.set(barPositions, 0);
+  combined.set(cubePositions, barPositions.length);
+  merged.setAttribute('position', new THREE.BufferAttribute(combined, 3));
+  bar.dispose();
+  cube.dispose();
+
+  const sourceTriangles = combined.length / 9;
+  const refined = subdivideGeometry(merged, 1);
+  const counts = edgeUseCounts(refined);
+  for (const [edge, uses] of counts) assert.equal(uses, 2, `edge ${edge} is shared by exactly two triangles`);
+
+  const positions = refined.getAttribute('position');
+  const index = refined.getIndex()!;
+  let longest = 0;
+  for (let i = 0; i < index.count; i += 3) {
+    for (let edge = 0; edge < 3; edge += 1) {
+      const p = new THREE.Vector3().fromBufferAttribute(positions, index.getX(i + edge));
+      const q = new THREE.Vector3().fromBufferAttribute(positions, index.getX(i + ((edge + 1) % 3)));
+      longest = Math.max(longest, p.distanceTo(q));
+    }
+  }
+  assert.ok(longest <= 1 + 1e-6, `every edge is at most 1 mm (longest ${longest})`);
+  // Uniform 24× subdivision would make ~576× the input; edge splitting stays far below.
+  assert.ok(index.count / 3 < sourceTriangles * 120, `${index.count / 3} triangles from ${sourceTriangles}`);
+  refined.dispose();
 });

@@ -20,6 +20,7 @@ import { createImageCutterGeometry } from '@/features/text-labels/createImageCut
 import { geometryFromSolidMesh, snapshotSolidOperationSource, solidMeshForModel } from '@/features/mesh-boolean/geometryAdapter';
 import { runSolidMeshOperation } from '@/features/mesh-boolean/solidMeshOperationsClient';
 import { refineEngravingTriangulation } from '@/features/mesh-boolean/refineEngravingTriangulation';
+import { setEngravingPreviewHighlight } from '@/features/text-labels/engravingPreviewHighlight';
 
 type Props = { scene: ReturnType<typeof useSceneCollectionManager> };
 type SurfacePick = { modelId: string; point: THREE.Vector3; normal: THREE.Vector3 };
@@ -150,6 +151,15 @@ export function TextLabelCard({ scene }: Props) {
   React.useEffect(() => {
     pendingCutterRef.current = pendingCutter;
   }, [pendingCutter]);
+
+  // Tint the preview cutter: green while it is ready to apply, red after a failure.
+  const pendingCutterId = pendingCutter?.cutterId ?? null;
+  React.useEffect(() => {
+    setEngravingPreviewHighlight(pendingCutterId
+      ? { cutterId: pendingCutterId, status: error ? 'error' : 'ready' }
+      : null);
+  }, [pendingCutterId, error]);
+  React.useEffect(() => () => setEngravingPreviewHighlight(null), []);
 
   React.useEffect(() => {
     deleteModelRef.current = scene.deleteModel;

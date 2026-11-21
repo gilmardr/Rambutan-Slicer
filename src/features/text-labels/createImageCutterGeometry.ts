@@ -71,31 +71,65 @@ export function createImageCutterGeometry(
     indices.push(a, b, c, a, c, d);
   };
 
+  // Two active pixels that touch only at a corner would share one vertex there,
+  // which is not a manifold solid. Give the lower of the two cells its own copy of
+  // that corner, nudged a hair toward its own centre so later welding by position
+  // cannot merge it back.
+  const pinchOffsetMm = Math.min(0.002, (widthMm / width) * 0.01);
+  const pinchedCorners = new Map<number, { cell: number; top: number; bottom: number }>();
+  for (let row = 1; row < height; row += 1) {
+    for (let column = 1; column < width; column += 1) {
+      const upperLeft = cellActive(row - 1, column - 1);
+      const upperRight = cellActive(row - 1, column);
+      const lowerLeft = cellActive(row, column - 1);
+      const lowerRight = cellActive(row, column);
+      let ownerColumn: number | null = null;
+      if (upperLeft && lowerRight && !upperRight && !lowerLeft) ownerColumn = column;
+      else if (upperRight && lowerLeft && !upperLeft && !lowerRight) ownerColumn = column - 1;
+      if (ownerColumn === null) continue;
+
+      const grid = row * gridWidth + column;
+      const towardCentreX = ownerColumn === column ? pinchOffsetMm : -pinchOffsetMm;
+      const sharedTop = top[grid] * 3;
+      const sharedBottom = bottom[grid] * 3;
+      const copyTop = positions.length / 3;
+      positions.push(positions[sharedTop] + towardCentreX, positions[sharedTop + 1] - pinchOffsetMm, positions[sharedTop + 2]);
+      const copyBottom = positions.length / 3;
+      positions.push(positions[sharedBottom] + towardCentreX, positions[sharedBottom + 1] - pinchOffsetMm, positions[sharedBottom + 2]);
+      pinchedCorners.set(grid, { cell: row * width + ownerColumn, top: copyTop, bottom: copyBottom });
+    }
+  }
+  const cornerFor = (cell: number, grid: number) => {
+    const pinched = pinchedCorners.get(grid);
+    return pinched?.cell === cell ? pinched : { top: top[grid], bottom: bottom[grid] };
+  };
+
   for (let row = 0; row < height; row += 1) {
     for (let column = 0; column < width; column += 1) {
       if (!cellActive(row, column)) continue;
-      const topLeft = row * gridWidth + column;
-      const topRight = topLeft + 1;
-      const bottomLeft = topLeft + gridWidth;
-      const bottomRight = bottomLeft + 1;
+      const cell = row * width + column;
+      const tl = cornerFor(cell, row * gridWidth + column);
+      const tr = cornerFor(cell, row * gridWidth + column + 1);
+      const bl = cornerFor(cell, (row + 1) * gridWidth + column);
+      const br = cornerFor(cell, (row + 1) * gridWidth + column + 1);
 
       // The image-facing side is the top of the cutter; reverse the bottom winding.
-      indices.push(top[topLeft], top[bottomLeft], top[bottomRight]);
-      indices.push(top[topLeft], top[bottomRight], top[topRight]);
-      indices.push(bottom[topLeft], bottom[bottomRight], bottom[bottomLeft]);
-      indices.push(bottom[topLeft], bottom[topRight], bottom[bottomRight]);
+      indices.push(tl.top, bl.top, br.top);
+      indices.push(tl.top, br.top, tr.top);
+      indices.push(tl.bottom, br.bottom, bl.bottom);
+      indices.push(tl.bottom, tr.bottom, br.bottom);
 
       if (!cellActive(row - 1, column)) {
-        addQuad(top[topRight], bottom[topRight], bottom[topLeft], top[topLeft]);
+        addQuad(tr.top, tr.bottom, tl.bottom, tl.top);
       }
       if (!cellActive(row, column + 1)) {
-        addQuad(top[bottomRight], bottom[bottomRight], bottom[topRight], top[topRight]);
+        addQuad(br.top, br.bottom, tr.bottom, tr.top);
       }
       if (!cellActive(row + 1, column)) {
-        addQuad(top[bottomLeft], bottom[bottomLeft], bottom[bottomRight], top[bottomRight]);
+        addQuad(bl.top, bl.bottom, br.bottom, br.top);
       }
       if (!cellActive(row, column - 1)) {
-        addQuad(top[topLeft], bottom[topLeft], bottom[bottomLeft], top[bottomLeft]);
+        addQuad(tl.top, tl.bottom, bl.bottom, bl.top);
       }
     }
   }

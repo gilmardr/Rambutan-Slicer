@@ -1,6 +1,11 @@
 "use client";
 
 import React, { useEffect } from 'react';
+import {
+  engravingPreviewColorFor,
+  getEngravingPreviewHighlight,
+  subscribeEngravingPreviewHighlight,
+} from '@/features/text-labels/engravingPreviewHighlight';
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
 import type { MessageDescriptor } from '@lingui/core';
@@ -922,6 +927,12 @@ export function SceneCanvas({
     mq.addEventListener('change', check);
     return () => { observer.disconnect(); mq.removeEventListener('change', check); };
   }, []);
+
+  const engravingPreviewHighlight = React.useSyncExternalStore(
+    subscribeEngravingPreviewHighlight,
+    getEngravingPreviewHighlight,
+    () => null,
+  );
 
   const cameraProjectionMode = React.useSyncExternalStore(
     subscribeToCameraProjectionSettings,
@@ -6554,12 +6565,15 @@ export function SceneCanvas({
                   ? model.isSupportGeometry
                   : !!model.geometry.meshDefects?.nativeRepairReport?.likely_support_geometry;
                 const logoRedModelColor = usesLogoRedModelColor(mode, supportModelColorMapEnabled);
-                const modelHoverTintColor = likelySupportGeometry
+                // The pending engraving cutter reads green (ready) or red (failed) in
+                // every state, so its hover and selection tints use the same colour.
+                const engravingPreviewColor = engravingPreviewColorFor(engravingPreviewHighlight, model.id);
+                const modelHoverTintColor = engravingPreviewColor ?? (likelySupportGeometry
                   ? likelySupportGeometryTintColor
-                  : logoRedModelColor ? LOGO_RED_MODEL_COLOR : hoverTintColor;
-                const modelSelectedTintColor = likelySupportGeometry
+                  : logoRedModelColor ? LOGO_RED_MODEL_COLOR : hoverTintColor);
+                const modelSelectedTintColor = engravingPreviewColor ?? (likelySupportGeometry
                   ? likelySupportGeometryTintColor
-                  : logoRedModelColor ? LOGO_RED_MODEL_COLOR : selectedTintColor;
+                  : logoRedModelColor ? LOGO_RED_MODEL_COLOR : selectedTintColor);
                 const isModelSelected = isCaptureTintModel
                   || (
                     isSelectedModel
@@ -6571,7 +6585,9 @@ export function SceneCanvas({
                 // dimmed base only muddies the colour the user picked it for; in the export
                 // workspace, where everything on every bed reads as selected, dimming it is the
                 // whole difference between the two beds.
-                const modelMeshColor = modelPlateState?.dimmedColor && !isModelSelected
+                const modelMeshColor = engravingPreviewColor
+                  ? engravingPreviewColor
+                  : modelPlateState?.dimmedColor && !isModelSelected
                     ? modelPlateState.dimmedColor
                     : logoRedModelColor
                       ? LOGO_RED_MODEL_COLOR

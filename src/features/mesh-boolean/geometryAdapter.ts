@@ -64,19 +64,36 @@ export function snapshotSolidOperationSource(
   };
 }
 
-export function geometryFromSolidMesh(mesh: SolidMesh): THREE.BufferGeometry {
+function indexedGeometryFromSolidMesh(mesh: SolidMesh): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(mesh.positions, 3));
-  geometry.setIndex(new THREE.BufferAttribute(mesh.indices!, 1));
+  const indices = mesh.indices ?? Uint32Array.from({ length: mesh.positions.length / 3 }, (_, index) => index);
+  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+  return geometry;
+}
+
+/**
+ * Boolean results come back welded (shared vertices). Averaging normals across
+ * those shared vertices smooths every hard edge, so flat faces show gradients
+ * and refined areas show streaks. Imported STL meshes are triangle soup with one
+ * normal per face; return results in that same form so they shade identically.
+ */
+function toFlatShadedGeometry(indexed: THREE.BufferGeometry): THREE.BufferGeometry {
+  const geometry = indexed.toNonIndexed();
+  indexed.dispose();
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
 }
 
+export function geometryFromSolidMesh(mesh: SolidMesh): THREE.BufferGeometry {
+  return toFlatShadedGeometry(indexedGeometryFromSolidMesh(mesh));
+}
+
 /** Restores plate-space output to the active model's original geometry coordinates for splits. */
 export function solidMeshBackToModel(mesh: SolidMesh, model: LoadedModel): THREE.BufferGeometry {
-  const geometry = geometryFromSolidMesh(mesh);
+  const geometry = indexedGeometryFromSolidMesh(mesh);
   const matrix = new THREE.Matrix4().compose(
     model.transform.position,
     new THREE.Quaternion().setFromEuler(model.transform.rotation),
@@ -95,9 +112,6 @@ export function solidMeshBackToModel(mesh: SolidMesh, model: LoadedModel): THREE
       indices.setX(i + 2, next);
     }
     indices.needsUpdate = true;
-    geometry.computeVertexNormals();
   }
-  geometry.computeBoundingBox();
-  geometry.computeBoundingSphere();
-  return geometry;
+  return toFlatShadedGeometry(geometry);
 }
