@@ -15,6 +15,8 @@ export interface RaftSettings {
   lineHeightMm: number;        // mm
   showFootprintBorder: boolean; // Show combined model+raft footprint border
   footprintBorderMargin: number; // mm - margin beyond raft/model edge
+  /** contour: hug the support bases (gaps up to ~6 mm bridged); hull: one convex outline. */
+  footprintMode?: 'contour' | 'hull';
 }
 
 export interface RaftGeometry {

@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import type { RaftSettings, SupportBaseCircle } from '../RaftTypes';
 import { computeFootprint } from './computeFootprint';
 import { MODEL_PLATE_CLEARANCE_MM } from './modelPlateFootprint';
@@ -8,6 +9,7 @@ import {
   offsetPolygonSet,
   polygonSetContains,
   ringToPolygon,
+  unionRings,
   type PolygonWithHoles,
 } from './polygonSet2d';
 
@@ -131,6 +133,32 @@ function clusterCirclesAroundClearance(
   return [...clusters.values()];
 }
 
+/** Gap (per side) a contour raft bridges between neighbouring support bases. */
+export const RAFT_CONTOUR_BRIDGE_MM = 3;
+
+/**
+ * Raft outline that covers every support base instead of their convex hull.
+ * Grow each root by the structural margin and the bridge allowance, then union
+ * the results. Keeping the outward offset is intentional: shrinking it again
+ * can cut back into the support roots at tight corners and leave their feet
+ * partly unsupported. Roots within ~2 × bridge share one plate; wide gaps stay
+ * open.
+ */
+function contourFootprint(
+  circles: readonly SupportBaseCircle[],
+  marginMm: number,
+  samplesPerCircle: number,
+): PolygonWithHoles[] {
+  const rings = circles.map((c) => {
+    const r = Math.max(0, (c.r ?? 0) + marginMm + RAFT_CONTOUR_BRIDGE_MM);
+    return Array.from({ length: samplesPerCircle }, (_, i) => {
+      const t = (i / samplesPerCircle) * Math.PI * 2;
+      return new THREE.Vector2(c.x + r * Math.cos(t), c.y + r * Math.sin(t));
+    });
+  });
+  return unionRings(rings);
+}
+
 export function computeRaftFootprintPolygons(args: {
   circles: readonly SupportBaseCircle[];
   raft: RaftSettings;
@@ -150,6 +178,10 @@ export function computeRaftFootprintPolygons(args: {
 
   const footprint: PolygonWithHoles[] = [];
   for (const cluster of clusters) {
+    if ((raft.footprintMode ?? 'contour') === 'contour') {
+      footprint.push(...contourFootprint(cluster, marginMm, samplesPerCircle));
+      continue;
+    }
     const hull = computeFootprint(cluster as SupportBaseCircle[], { marginMm, samplesPerCircle });
     if (hull && hull.length >= 3) footprint.push(ringToPolygon(hull));
   }

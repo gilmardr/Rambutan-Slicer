@@ -23,6 +23,7 @@ const model = (
 });
 
 const areaOf = (polys: readonly PolygonWithHoles[]) => polygonSetAreaMm2(polys);
+const HULL_RAFT_SETTINGS = { ...DEFAULT_RAFT_SETTINGS, footprintMode: 'hull' as const };
 
 function boundsOf(polys: readonly PolygonWithHoles[]) {
   let minX = Infinity;
@@ -140,8 +141,8 @@ test('raft footprint drops the clearance out of the hull', () => {
     { x: -12, y: 12, r: 1.5 },
   ];
 
-  const untrimmed = computeRaftFootprintPolygons({ circles, raft: DEFAULT_RAFT_SETTINGS });
-  const trimmed = computeRaftFootprintPolygons({ circles, raft: DEFAULT_RAFT_SETTINGS, clearance });
+  const untrimmed = computeRaftFootprintPolygons({ circles, raft: HULL_RAFT_SETTINGS });
+  const trimmed = computeRaftFootprintPolygons({ circles, raft: HULL_RAFT_SETTINGS, clearance });
 
   assert.equal(untrimmed.length, 1);
   assert.equal(untrimmed[0].holes.length, 0);
@@ -154,13 +155,35 @@ test('raft footprint drops the clearance out of the hull', () => {
   assert.ok(removed >= 484 && removed < 493, `${areaOf(untrimmed)} -> ${areaOf(trimmed)}`);
 });
 
+test('the default contour covers every pillar base and leaves wide gaps open', () => {
+  const circles = [
+    { x: -20, y: -10, r: 1.5 }, { x: -18, y: 0, r: 1.5 }, { x: -20, y: 10, r: 1.5 },
+    { x: 20, y: -10, r: 1.5 }, { x: 18, y: 0, r: 1.5 }, { x: 20, y: 10, r: 1.5 },
+  ];
+  const footprint = computeRaftFootprintPolygons({ circles, raft: DEFAULT_RAFT_SETTINGS });
+
+  assert.equal(footprint.length, 2, 'nearby roots form two reinforced rafts without filling the wide gap');
+  for (const circle of circles) {
+    // Check points around the whole foot, plus a small safety margin beyond it.
+    for (let i = 0; i < 64; i += 1) {
+      const angle = (i / 64) * Math.PI * 2;
+      const radius = circle.r + 0.25;
+      assert.ok(
+        containsPoint(footprint, circle.x + Math.cos(angle) * radius, circle.y + Math.sin(angle) * radius),
+        `raft misses a point beside support base at (${circle.x}, ${circle.y})`,
+      );
+    }
+  }
+  assert.ok(!containsPoint(footprint, 0, 0), 'the empty area between the two groups remains uncovered');
+});
+
 test('a clearance that reaches the hull edge leaves no hole, just less raft', () => {
   const box = new THREE.BoxGeometry(60, 20, 4);
   const clearance = collectModelPlateFootprint([model(box, [0, 0, 2])], 0.85);
   const circles = [{ x: -6, y: 0, r: 1.5 }, { x: 6, y: 0, r: 1.5 }];
 
-  const untrimmed = computeRaftFootprintPolygons({ circles, raft: DEFAULT_RAFT_SETTINGS });
-  const trimmed = computeRaftFootprintPolygons({ circles, raft: DEFAULT_RAFT_SETTINGS, clearance });
+  const untrimmed = computeRaftFootprintPolygons({ circles, raft: HULL_RAFT_SETTINGS });
+  const trimmed = computeRaftFootprintPolygons({ circles, raft: HULL_RAFT_SETTINGS, clearance });
 
   assert.equal(trimmed.length, 0, 'a raft wholly inside the model footprint disappears');
   assert.ok(areaOf(untrimmed) > 0);
@@ -245,7 +268,7 @@ test('the raft mesh clears a model standing on the plate, and did not before', (
     { x: 12, y: 12, r: 1.5 },
     { x: -12, y: 12, r: 1.5 },
   ];
-  const raft = { ...DEFAULT_RAFT_SETTINGS, wallEnabled: true };
+  const raft = { ...HULL_RAFT_SETTINGS, wallEnabled: true };
 
   // The model's plate footprint is a 20 × 20 square about the origin.
   const insideModelXy = (x: number, y: number) => Math.abs(x) < 10 && Math.abs(y) < 10;
@@ -325,7 +348,7 @@ test('a model between two clusters keeps their rafts separate', () => {
     { x: 14, y: -4, r: 1.5 }, { x: 16, y: 4, r: 1.5 }, { x: 13, y: 0, r: 1.5 },
   ];
 
-  const trimmed = computeRaftFootprintPolygons({ circles, raft: DEFAULT_RAFT_SETTINGS, clearance });
+  const trimmed = computeRaftFootprintPolygons({ circles, raft: HULL_RAFT_SETTINGS, clearance });
   assert.equal(trimmed.length, 2, 'one raft per side, not one wrapped around the wall');
   assert.ok(containsPoint([trimmed[0]], -14, 0) || containsPoint([trimmed[1]], -14, 0));
   assert.ok(containsPoint([trimmed[0]], 14, 0) || containsPoint([trimmed[1]], 14, 0));
@@ -337,14 +360,14 @@ test('a model between two clusters keeps their rafts separate', () => {
   }
 
   // With nothing in the way the two clusters are one raft, as they always were.
-  const untrimmed = computeRaftFootprintPolygons({ circles, raft: DEFAULT_RAFT_SETTINGS });
+  const untrimmed = computeRaftFootprintPolygons({ circles, raft: HULL_RAFT_SETTINGS });
   assert.equal(untrimmed.length, 1);
   assert.equal(untrimmed[0].holes.length, 0);
 });
 
 test('an untrimmed footprint keeps the original generators', () => {
   const circles = [{ x: 0, y: 0, r: 1.5 }, { x: 10, y: 4, r: 1.5 }];
-  const raft = { ...DEFAULT_RAFT_SETTINGS };
+  const raft = { ...HULL_RAFT_SETTINGS };
   const parts = buildRaftFootprintMeshes({ circles, raft });
 
   assert.equal(parts.footprint.length, 1);
@@ -407,7 +430,7 @@ test('a ball on the plate: no raft triangle comes within its surface', () => {
     const angle = (i / 8) * Math.PI * 2;
     return { x: Math.cos(angle) * 16, y: Math.sin(angle) * 16, r: 1.5 };
   });
-  const raft = { ...DEFAULT_RAFT_SETTINGS };
+  const raft = { ...HULL_RAFT_SETTINGS };
 
   const clearance = collectModelPlateFootprint([model(ball, [0, 0, radius])], 0.85);
   const parts = buildRaftFootprintMeshes({ circles, raft, clearance });

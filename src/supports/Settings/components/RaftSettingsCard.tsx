@@ -119,6 +119,24 @@ export function RaftSettingsCard({ settings, onChange, activeModelId, selectedMo
                     <ModeButton active={settings.bottomMode === 'solid'} onClick={() => onChange({ bottomMode: 'solid' })}>{_(msg({ message: 'Solid', comment: 'Raft bottom mode. One of three narrow buttons: Off / Solid / Line.' }))}</ModeButton>
                     <ModeButton active={settings.bottomMode === 'line'} onClick={() => onChange({ bottomMode: 'line' })}>{_(msg({ message: 'Line', comment: 'Raft bottom mode. One of three narrow buttons: Off / Solid / Line.' }))}</ModeButton>
                 </div>
+                {settings.bottomMode !== 'off' && (
+                    <label className="flex flex-col gap-0.5">
+                        <span className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>{_(msg`Raft footprint`)}</span>
+                        <SelectDropdown
+                            value={settings.footprintMode ?? 'contour'}
+                            onChange={(value) => onChange({ footprintMode: value as 'contour' | 'hull' })}
+                            options={[
+                                { value: 'contour', label: _(msg`Cover all supports`) },
+                                { value: 'hull', label: _(msg`Convex hull`) },
+                            ]}
+                        />
+                        <span className="text-[10px] leading-snug" style={{ color: 'var(--text-muted)' }}>
+                            {settings.footprintMode === 'hull'
+                                ? _(msg`One convex raft around all support bases.`)
+                                : _(msg`Wraps every support base and bridges nearby roots for a stronger raft.`)}
+                        </span>
+                    </label>
+                )}
                 {settings.bottomMode === 'solid' && (
                     <ToggleButton
                         checked={isWallEnabled}
