@@ -32,6 +32,9 @@ export function generateCandidates(
     // Note: grounded/plate-contact filtering is handled upstream by the
     // Islands panel's Plate toggle — filteredIslands already reflects it.
     const eligible = islands.filter(island => {
+        // An explicit support check has already proven this patch is hanging.
+        // Do not let the generic noise-area cutoff silently leave it uncovered.
+        if (island.supportCheck) return true;
         // A minima is a sharp geometric feature that needs support regardless of
         // size, and it carries no area of its own: the detector reports a vertex,
         // not a footprint. The exemption reads the source for that reason. It

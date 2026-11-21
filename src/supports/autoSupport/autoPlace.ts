@@ -2782,6 +2782,16 @@ export function forestReportToText(report: ForestReport): string {
 export type AutoPlaceProgress = { phase: string; done: number; total: number };
 export type AutoPlaceProgressCallback = (progress: AutoPlaceProgress) => void;
 
+/** Explicit floating-region scans are authoritative: every flagged patch must
+ * survive pose-stability pruning so regeneration can actually fill it. */
+export function shouldCoverAutoSupportIsland(
+    island: Pick<DetectedIsland, 'steepFlat' | 'surfaceAreaMm2' | 'supportCheck'>,
+    toppleCoverageNeeded: boolean,
+): boolean {
+    if (island.supportCheck) return true;
+    return !island.steepFlat || steepFlatNeedsCoverage(island.surfaceAreaMm2, toppleCoverageNeeded);
+}
+
 export function computeAutoSupportPlan(
     islands: DetectedIsland[],
     modelId: string,
@@ -2853,11 +2863,7 @@ export function computeAutoSupportPlan(
           )
         : null;
     const toppleCoverageNeeded = poseStability === null || needsToppleCoverage(poseStability);
-    const islandsToCover = islands.filter(
-        (i) =>
-            !i.steepFlat ||
-            steepFlatNeedsCoverage(i.surfaceAreaMm2, toppleCoverageNeeded),
-    );
+    const islandsToCover = islands.filter((island) => shouldCoverAutoSupportIsland(island, toppleCoverageNeeded));
     // A wall sways under the peel's lateral load while it prints, and a contact
     // only stops the sway at its own height, so a slender part's anchoring
     // ladder climbs its face instead of sitting in a band at the bottom.

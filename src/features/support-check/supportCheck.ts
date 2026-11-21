@@ -15,7 +15,7 @@ import type { DetectedIsland } from '@/volumeAnalysis/Islands/types';
  * - ceiling areas farther than the reach distance from the nearest support.
  */
 
-export const SUPPORT_CHECK_REACH_MM = { min: 0.3, max: 5, step: 0.1, defaultValue: 1.5 } as const;
+export const SUPPORT_CHECK_REACH_MM = { min: 0.3, max: 5, step: 0.1, defaultValue: 0.5 } as const;
 
 /** A floating area at one level gets one support contact per cell of this size. */
 export const SUPPORT_CHECK_CELL_MM = 5;
