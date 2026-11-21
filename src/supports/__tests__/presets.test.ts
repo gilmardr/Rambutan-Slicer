@@ -7,9 +7,9 @@ import { createDefaultAutoSupportSettings, SIZING_BANDS } from '../autoSupport/s
 import type { AutoSupportSettings } from '../autoSupport/settings';
 
 test('built-in presets carry distinct density tiers (Auto Support panel light/medium/heavy)', () => {
-    assert.equal(DETAIL_PRESET.settings.autoSupport.areaPerSupportMm2, 30, 'detail = light tier');
-    assert.equal(STRUCTURE_PRESET.settings.autoSupport.areaPerSupportMm2, 20, 'structure = medium tier');
-    assert.equal(ANCHOR_PRESET.settings.autoSupport.areaPerSupportMm2, 12, 'anchor = heavy tier');
+    assert.equal(DETAIL_PRESET.settings.autoSupport.areaPerSupportMm2, 16, 'detail = light tier');
+    assert.equal(STRUCTURE_PRESET.settings.autoSupport.areaPerSupportMm2, 10, 'structure = medium tier');
+    assert.equal(ANCHOR_PRESET.settings.autoSupport.areaPerSupportMm2, 5, 'anchor = heavy tier');
 });
 
 test('preset density is the only autoSupport difference (geometry band stays)', () => {
@@ -94,9 +94,9 @@ test('preset autoSupport blocks equal defaults except the density and the band (
     // medium).
     const defaults = createDefaultAutoSupportSettings();
     const cases: Array<[typeof STRUCTURE_PRESET, number]> = [
-        [DETAIL_PRESET, 30],
-        [STRUCTURE_PRESET, 20],
-        [ANCHOR_PRESET, 12],
+        [DETAIL_PRESET, 16],
+        [STRUCTURE_PRESET, 10],
+        [ANCHOR_PRESET, 5],
     ];
     const tiers = { detail: 'detail', structure: 'structure', anchor: 'anchor' };
     for (const [preset, area] of cases) {

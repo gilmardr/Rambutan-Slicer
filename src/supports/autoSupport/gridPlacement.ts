@@ -314,7 +314,7 @@ export function computeRegionSpacing(
     const flatFactor = minFactor * areaScale;
     const spacing = baseSpacing
         * (flatFactor + angleT * (maxFactor - flatFactor));
-    return Math.max(GRID_SPACING_FLOOR_MM, spacing);
+    return Math.max(settings.gridSpacingFloorMm ?? GRID_SPACING_FLOOR_MM, spacing);
 }
 
 /**

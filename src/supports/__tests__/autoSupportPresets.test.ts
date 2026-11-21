@@ -256,7 +256,7 @@ test('the commit writes the settings and the preset together, so no star is left
     store.setActiveAutoSupportPreset('light');
     store.commitAutoSupportSettings({ ...getAutoSupportSettings(), areaPerSupportMm2: 9 });
     assert.equal(getAutoSupportSettings().areaPerSupportMm2, 9, 'the live settings take the draft');
-    assert.equal(store.getAutoSupportPreset('light')!.settings.areaPerSupportMm2, 30, 'the built-in does not');
+    assert.equal(store.getAutoSupportPreset('light')!.settings.areaPerSupportMm2, 16, 'the built-in does not');
 });
 
 test('a knob edit dirties the active preset; save and reset are the two exits', () => {
@@ -264,17 +264,17 @@ test('a knob edit dirties the active preset; save and reset are the two exits', 
     const { store, storage } = loadStoreWith();
 
     store.setActiveAutoSupportPreset('light');
-    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 30);
+    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 16);
     assert.equal(store.isAutoSupportPresetDirty(), false);
 
     // The edit is not silently written into the preset, and it does not detach it.
     updateAutoSupportSettings({ areaPerSupportMm2: 12 });
     assert.equal(store.isAutoSupportPresetDirty(), true);
     assert.equal(store.getActiveAutoSupportPresetId(), 'light');
-    assert.equal(store.getAutoSupportPreset('light')!.settings.areaPerSupportMm2, 30);
+    assert.equal(store.getAutoSupportPreset('light')!.settings.areaPerSupportMm2, 16);
 
     store.resetToActivePreset();
-    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 30);
+    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 16);
     assert.equal(store.isAutoSupportPresetDirty(), false);
 
     // A built-in refuses the save: its block is the factory's, so Duplicate is the
@@ -356,7 +356,7 @@ test('export and import round-trip a preset document', () => {
     assert.deepEqual(imported.settings, ANCHOR_PRESET.settings.autoSupport);
     // The user asked for this policy, so it is the one now in effect.
     assert.equal(store.getActiveAutoSupportPresetId(), imported.id);
-    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 12);
+    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 5);
     assert.equal(store.isAutoSupportPresetDirty(), false);
 
     // The document survives a second round trip unchanged.
@@ -508,7 +508,7 @@ test('with no storage at all the store still runs on its built-ins', () => {
 
     store.setActiveAutoSupportPreset('heavy');
     assert.equal(store.getActiveAutoSupportPresetId(), 'heavy');
-    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 12);
+    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 5);
     assert.equal(store.isAutoSupportPresetDirty(), false);
 
     store.deleteAutoSupportPreset(created.id);

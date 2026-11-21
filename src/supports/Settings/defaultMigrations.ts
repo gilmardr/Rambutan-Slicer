@@ -66,6 +66,12 @@ export type AutoSupportDefaultMigration = {
  * spacing after real scenes showed that the previous flat and suction boosts
  * packed too many supports onto broad undersides.
  *
+ * Version 3 restores the upstream density calibration (area 10 mm², flat boost
+ * 0.7, suction exponent 0.15). The sparser version 2 spacing (~4.25 mm on flat
+ * undersides instead of ~2.2 mm) left regions unsupported: the auto-support bench
+ * dropped to 93–98 % coverage on three scenes. The 2 mm grid spacing floor that
+ * prevents shaft walls stays; with it the bench covers 99.6–100 %.
+ *
  * A default that a *constraint* already forces needs no entry: `leafFanRadiusMm`
  * moved 5 to 8 with `MIN_LEAF_FAN_RADIUS_MM`, and `normalizeAutoSupportSettings`
  * clamps any stored 5 up to that floor on every load, so an entry here would only
@@ -75,6 +81,9 @@ export const AUTO_SUPPORT_DEFAULT_MIGRATIONS: readonly AutoSupportDefaultMigrati
     { version: 1, key: 'leafFanMaxAngleDeg', from: 60, to: 45 },
     { version: 1, key: 'areaPerSupportMm2', from: 8, to: 10 },
     { version: 2, key: 'areaPerSupportMm2', from: 10, to: 20 },
+    { version: 3, key: 'areaPerSupportMm2', from: 20, to: 10 },
+    { version: 3, key: 'flatDensityBoost', from: 0.95, to: 0.7 },
+    { version: 3, key: 'suctionAreaExponent', from: 0.05, to: 0.15 },
 ];
 
 /** The batch a save stamps into the blob it writes. */

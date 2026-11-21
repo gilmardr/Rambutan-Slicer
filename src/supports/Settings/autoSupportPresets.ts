@@ -93,7 +93,7 @@ const BUILT_IN_PRESETS: readonly AutoSupportPreset[] = [
         isBuiltIn: true,
         settings: {
             ...createDefaultAutoSupportSettings(),
-            areaPerSupportMm2: 30,
+            areaPerSupportMm2: 16,
             sizingPreset: 'detail',
         },
     },
@@ -109,7 +109,7 @@ const BUILT_IN_PRESETS: readonly AutoSupportPreset[] = [
         isBuiltIn: true,
         settings: {
             ...createDefaultAutoSupportSettings(),
-            areaPerSupportMm2: 12,
+            areaPerSupportMm2: 5,
             sizingPreset: 'anchor',
         },
     },

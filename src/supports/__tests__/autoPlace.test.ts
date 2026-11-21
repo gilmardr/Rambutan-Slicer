@@ -21,6 +21,7 @@ import { clearHistory, getUndoCount, undo, registerHistoryHandler } from '../../
 import { SUPPORT_AUTO_PLACE } from '../history/actionTypes';
 import { registerSupportHistoryHandlers } from '../history/useSupportHistoryHandlers';
 import { runAutoPlace } from '../autoSupport/autoPlace';
+import { DRAGONFRUIT_DENSITY_CALIBRATION } from './helpers/densityCalibration';
 import { setModelMesh } from '../autoSupport/meshStore';
 import { resetStore, getSnapshot, setSnapshot, resetKickstandsInState, getSupportTypeOf } from '../state';
 import { initializeBVH, accelerateGeometry } from '@/utils/bvh';
@@ -154,7 +155,7 @@ test('runAutoPlace grids a large flat region at fixed density (uniform distribut
         contactVoxels: footprintFromPoints(contactVoxels),
     };
 
-    const result = runAutoPlace([facet], 'model-a', { debugSkipAutoBracing: true });
+    const result = runAutoPlace([facet], 'model-a', { ...DRAGONFRUIT_DENSITY_CALIBRATION, debugSkipAutoBracing: true });
 
     // Fixed-density grid: spacing = √8 with the default angle/suction curve
     // → ~200 tips on a 20×20 flat underside. Neighbouring pillars then
@@ -277,7 +278,7 @@ test('runAutoPlace grids a huge steep flat the self-support angle calls self-sup
         contactVoxels: footprintFromPoints(contactVoxels),
     };
 
-    const result = runAutoPlace([facet], 'model-a', { debugSkipAutoBracing: true, stabilizationEnabled: false });
+    const result = runAutoPlace([facet], 'model-a', { ...DRAGONFRUIT_DENSITY_CALIBRATION, debugSkipAutoBracing: true, stabilizationEnabled: false });
 
     assert.ok(result.placed.trunk >= 15,
         `placed ${result.placed.trunk} grid trunks on the 60° face`);
@@ -805,7 +806,7 @@ test('runAutoPlace places low undersides as a standalone pillar forest', () => {
             },
         ],
         'model-a',
-        { debugSkipAutoBracing: true },
+        { ...DRAGONFRUIT_DENSITY_CALIBRATION, debugSkipAutoBracing: true },
     );
 
     assert.equal(result.placed.branch, 0, 'leaves only — no routed branches');
@@ -1060,7 +1061,7 @@ test('grid mode attaches the tips on a flat region instead of dropping most of t
         contactVoxels: footprintFromPoints(contactVoxels),
     };
 
-    const result = runAutoPlace([facet], 'model-a', { debugSkipAutoBracing: true });
+    const result = runAutoPlace([facet], 'model-a', { ...DRAGONFRUIT_DENSITY_CALIBRATION, debugSkipAutoBracing: true });
 
     // Before the length-aware allowance this run kept 7 attachments and refused
     // the rest: 25 trunks standing alone on a lattice, 74% area coverage.

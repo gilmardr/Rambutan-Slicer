@@ -82,7 +82,7 @@ test('a shipped default moves to the new one, a chosen value does not', () => {
 
     const migrated = applyAutoSupportDefaultMigrations(block, 0);
 
-    assert.equal(migrated?.areaPerSupportMm2, 20);
+    assert.equal(migrated?.areaPerSupportMm2, 10);
     assert.equal(migrated?.leafFanMaxAngleDeg, 45);
     assert.equal(migrated?.enabled, false);
     assert.equal(migrated?.sizeScale, 1.2);
@@ -230,7 +230,7 @@ test('the preset load path migrates a factory preset’s auto-support block, and
 
     // `structure` inherits its auto-support values, so they follow the table. Its
     // bracing and root diameter are not auto-support defaults and stay put.
-    assert.equal(structure.settings.autoSupport.areaPerSupportMm2, 20, 'the inherited density followed the default');
+    assert.equal(structure.settings.autoSupport.areaPerSupportMm2, 10, 'the inherited density followed the default');
     assert.equal(structure.settings.autoSupport.leafFanMaxAngleDeg, 45, 'so did the inherited angle');
     assert.equal(structure.settings.autoBracing.braceDiameterMm, 0.7, 'the bracing block is out of scope');
     assert.equal(structure.settings.autoBracing.patternIntervalMm, 10, 'the whole bracing block is out of scope');
@@ -248,4 +248,19 @@ test('the preset load path migrates a factory preset’s auto-support block, and
     assert.equal(mine.settings.autoSupport.areaPerSupportMm2, 8, 'a user preset is not migrated');
     assert.equal(mine.settings.autoSupport.leafFanMaxAngleDeg, 60, 'a user preset keeps its angle');
     assert.equal(mine.settings.autoBracing.braceDiameterMm, 0.7, 'a user preset keeps its brace diameter');
+});
+
+test('a block saved with the sparse version 2 density returns to the upstream calibration', () => {
+    const savedByV2 = { areaPerSupportMm2: 20, flatDensityBoost: 0.95, suctionAreaExponent: 0.05 };
+    const restored = applyAutoSupportDefaultMigrations(savedByV2, 2);
+    assert.equal(restored?.areaPerSupportMm2, 10, 'the shipped area returns to 10 mm²');
+    assert.equal(restored?.flatDensityBoost, 0.7, 'the shipped flat boost returns to 0.7');
+    assert.equal(restored?.suctionAreaExponent, 0.15, 'the shipped suction exponent returns to 0.15');
+
+    const chosen = applyAutoSupportDefaultMigrations(
+        { areaPerSupportMm2: 15, flatDensityBoost: 0.8, suctionAreaExponent: 0.2 },
+        2,
+    );
+    assert.deepEqual(chosen, { areaPerSupportMm2: 15, flatDensityBoost: 0.8, suctionAreaExponent: 0.2 },
+        'values the user chose are left alone');
 });

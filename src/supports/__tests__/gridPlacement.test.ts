@@ -198,9 +198,11 @@ test('grid outer ring is inset by the contact radius', () => {
 // ---------------------------------------------------------------------------
 
 test('suction scaling densifies large shallow ceilings', () => {
+    // Area 16 keeps the unscaled flat spacing (4 × 0.7 = 2.8 mm) above the 2 mm
+    // floor, so the suction term has room to tighten it before the floor binds.
     const settings = {
         ...createDefaultAutoSupportSettings(),
-        areaPerSupportMm2: 8,
+        areaPerSupportMm2: 16,
         gridAreaThresholdMm2: 25,
     };
     const region = rectRegion('o0', -10, 10, -10, 10, 400, 6.5, 0);

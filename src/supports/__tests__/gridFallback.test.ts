@@ -17,6 +17,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 
 import { initializeBVH, accelerateGeometry } from '@/utils/bvh';
 import { computeAutoSupportPlan } from '../autoSupport/autoPlace';
+import { DRAGONFRUIT_DENSITY_CALIBRATION } from './helpers/densityCalibration';
 import { setModelMesh } from '../autoSupport/meshStore';
 import { createDefaultSettings } from '../Settings/types';
 import { setSettings } from '../Settings/state';
@@ -76,7 +77,7 @@ test('a tip whose lattice node cannot take it is placed without the grid', () =>
         const plan = computeAutoSupportPlan(
             islands,
             MODEL_ID,
-            { debugSkipAutoBracing: true, stabilizationEnabled: false },
+            { ...DRAGONFRUIT_DENSITY_CALIBRATION, debugSkipAutoBracing: true, stabilizationEnabled: false },
             undefined,
             mesh,
         );

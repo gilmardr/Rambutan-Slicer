@@ -111,6 +111,12 @@ export interface AutoSupportSettings {
     sizingPreset: string;
     /** Which classified model surfaces an automatic support run may target. */
     supportScope: AutoSupportScope;
+    /**
+     * Calibration override for the grid/poisson spacing floor (mm). Not part of
+     * the shipped defaults, presets or UI: absent means `GRID_SPACING_FLOOR_MM`.
+     * Tests that pin a historical density calibration use it.
+     */
+    gridSpacingFloorMm?: number;
     /** Leaf fanning: max horizontal reach from a trunk shaft (mm). */
     leafFanRadiusMm: number;
     /** Leaf fanning: max angle from vertical for a fan leaf (deg). */
@@ -214,13 +220,13 @@ export const AUTO_SUPPORT_CONSTRAINTS = {
     minIslandAreaMm2: { min: 0.01, max: 10, step: 0.01, defaultValue: 0.02 },
     tipInfluenceRadiusMm: { min: 0.1, max: 10, step: 0.1, defaultValue: 0.5 },
     maxAttachmentsPerTrunk: { min: 2, max: 50, step: 1, defaultValue: 12, integer: true },
-    areaPerSupportMm2: { min: 1, max: 30, step: 0.5, defaultValue: 20 },
+    areaPerSupportMm2: { min: 1, max: 30, step: 0.5, defaultValue: 10 },
     gridAreaThresholdMm2: { min: 5, max: 200, step: 5, defaultValue: 25 },
     overhangSelfSupportAngleDeg: { min: 20, max: 75, step: 5, defaultValue: 45 },
     sizeScale: { min: 0.5, max: 2, step: 0.05, defaultValue: 1 },
-    flatDensityBoost: { min: 0.5, max: 1, step: 0.05, defaultValue: 0.95 },
+    flatDensityBoost: { min: 0.5, max: 1, step: 0.05, defaultValue: 0.7 },
     slopeRelaxFactor: { min: 1, max: 2, step: 0.1, defaultValue: 1.3 },
-    suctionAreaExponent: { min: 0, max: 0.4, step: 0.05, defaultValue: 0.05 },
+    suctionAreaExponent: { min: 0, max: 0.4, step: 0.05, defaultValue: 0.15 },
     coverageTargetPercent: { min: 75, max: 100, step: 5, defaultValue: 95, integer: true },
     leafFanRadiusMm: { min: MIN_LEAF_FAN_RADIUS_MM, max: 15, step: 0.5, defaultValue: MIN_LEAF_FAN_RADIUS_MM },
     leafFanMaxAngleDeg: { min: 20, max: 80, step: 5, defaultValue: 45, integer: true },
@@ -315,6 +321,7 @@ export function normalizeAutoSupportSettings(input?: Partial<AutoSupportSettings
         coverageTargetPercent: clampNumeric(source.coverageTargetPercent, AUTO_SUPPORT_CONSTRAINTS.coverageTargetPercent),
         sizingPreset: normalizeSizingPreset(source.sizingPreset, defaults.sizingPreset),
         supportScope: normalizeSupportScope(source.supportScope, defaults.supportScope),
+        ...normalizeGridSpacingFloor(source.gridSpacingFloorMm),
         leafFanRadiusMm: clampNumeric(source.leafFanRadiusMm, AUTO_SUPPORT_CONSTRAINTS.leafFanRadiusMm),
         leafFanMaxAngleDeg: clampNumeric(source.leafFanMaxAngleDeg, AUTO_SUPPORT_CONSTRAINTS.leafFanMaxAngleDeg),
         tipContactMarginScale: clampNumeric(source.tipContactMarginScale, AUTO_SUPPORT_CONSTRAINTS.tipContactMarginScale),
@@ -331,6 +338,12 @@ export function normalizeAutoSupportSettings(input?: Partial<AutoSupportSettings
             defaults.minimaReinforcementEnabled,
         ),
     };
+}
+
+/** Keeps the optional spacing-floor override only when it is a usable number. */
+function normalizeGridSpacingFloor(value: unknown): { gridSpacingFloorMm?: number } {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return {};
+    return { gridSpacingFloorMm: Math.min(5, Math.max(0.5, value)) };
 }
 
 function normalizeSupportScope(value: unknown, fallback: AutoSupportScope): AutoSupportScope {
