@@ -102,6 +102,8 @@ A menos que declarado de outra forma em um subdiretório ou submódulo, o Rambut
 
 Os submódulos de plugins em `plugins/` são licenciados separadamente sob **MIT**. Cada repositório de plugin inclui seu próprio arquivo `LICENSE`.
 
+Veja também [README-LICENCIAMENTO.md](README-LICENCIAMENTO.md) para entender a relação com a licença upstream, os avisos de modificação e os limites da análise REA.
+
 ---
 
 *Rambutan Slicer é um fork downstream do [DragonFruit](https://github.com/Open-Resin-Alliance/DragonFruit) da Open Resin Alliance. Todo crédito upstream preservado conforme AGPL-3.0-or-later.*
