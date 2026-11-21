@@ -2,7 +2,7 @@ import type { DetectedIsland } from '../../volumeAnalysis/Islands/types';
 import type { CandidatePoint } from './types';
 import type { AutoSupportSettings } from './settings';
 import { SMALL_ISLAND_TIP_AREA_MM2, SUPPORT_RESTSTACK_DELTA_MM, influenceRadiusMm, ISLAND_SUB_HEAD_MM, ISLAND_TWO_POINT_MIN_MM, ISLAND_TWO_POINT_MAX_MM, ISLAND_TWO_POINT_MAX_WIDTH_MM } from './constants';
-import { footprintX, footprintY } from '../../volumeAnalysis/Islands/voxelFootprint';
+import { cellKey, footprintX, footprintY, footprintZ } from '../../volumeAnalysis/Islands/voxelFootprint';
 import { smallIslandTipDiameterMm } from './parameterSizing';
 import { TIP_COVERAGE_RADIUS_MM } from './coverage';
 import { applyContactTipCaps } from './contactTipCap';
@@ -114,6 +114,7 @@ export function candidateFromIsland(island: DetectedIsland): CandidatePoint {
 export function candidatesFromIsland(island: DetectedIsland): CandidatePoint[] {
     const base = candidateFromIsland(island);
     const voxels = island.contactVoxels;
+    if (island.supportCheck) return supportCheckCellCandidates(island, base);
     if (!voxels || voxels.count === 0) return [base];
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (let i = 0; i < voxels.count; i++) {
@@ -158,6 +159,60 @@ export function candidatesFromIsland(island: DetectedIsland): CandidatePoint[] {
         });
     }
     return [base];
+}
+
+/**
+ * Support-check region: one contact per `cellMm × cellMm` cell its footprint
+ * touches, at the footprint voxel nearest the cell centre, so a floating area
+ * at one level is covered on a regular grid. A region without a footprint keeps
+ * its single contact. Each contact carries the check's reach as its
+ * already-supported radius.
+ */
+export function supportCheckCellCandidates(island: DetectedIsland, base = candidateFromIsland(island)): CandidatePoint[] {
+    const check = island.supportCheck!;
+    const marked = { ...base, alreadySupportedRadiusMm: check.reachMm };
+    const voxels = island.contactVoxels;
+    if (!voxels || voxels.count === 0 || !(check.cellMm > 0)) return [marked];
+
+    const cells = new Map<number, { index: number; distanceSq: number; count: number }>();
+    for (let i = 0; i < voxels.count; i++) {
+        const x = footprintX(voxels, i);
+        const y = footprintY(voxels, i);
+        const cx = Math.floor(x / check.cellMm);
+        const cy = Math.floor(y / check.cellMm);
+        const dx = x - (cx + 0.5) * check.cellMm;
+        const dy = y - (cy + 0.5) * check.cellMm;
+        const distanceSq = dx * dx + dy * dy;
+        const key = cellKey(cx, cy);
+        const cell = cells.get(key);
+        if (!cell) cells.set(key, { index: i, distanceSq, count: 1 });
+        else {
+            cell.count += 1;
+            if (distanceSq < cell.distanceSq) {
+                cell.index = i;
+                cell.distanceSq = distanceSq;
+            }
+        }
+    }
+
+    const areaPerVoxel = (island.areaMm2 ?? 0) / voxels.count;
+    let n = 0;
+    const candidates: CandidatePoint[] = [];
+    for (const cell of cells.values()) {
+        const area = areaPerVoxel * cell.count;
+        candidates.push({
+            ...marked,
+            id: `${island.id}-cell${n++}`,
+            tipPos: {
+                x: footprintX(voxels, cell.index),
+                y: footprintY(voxels, cell.index),
+                z: footprintZ(voxels, cell.index) ?? island.contact.z,
+            },
+            islandAreaMm2: area,
+            tipDiameterMm: area < SMALL_ISLAND_TIP_AREA_MM2 ? smallIslandTipDiameterMm() : undefined,
+        });
+    }
+    return candidates;
 }
 
 /**

@@ -41,6 +41,13 @@ import { AutoSupportRunDiagnostics } from './autoSupport/AutoSupportRunDiagnosti
 import { AutoSupportPresetRow } from './autoSupport/AutoSupportPresetRow';
 import { selectAutoSupportPreset, useAutoSupportDialogChanges } from './autoSupport/AutoSupportPresets';
 import { AUTO_SUPPORT_SECTION_CARD, TIER_HINTS } from './autoSupport/autoSupportPanelTabs';
+import { buildSupportCheckWorld } from '@/features/slicing/rasterLayerZipExport';
+import {
+  classifySupportCheckIslands,
+  clampSupportCheckReach,
+  SUPPORT_CHECK_REACH_MM,
+  type SupportCheckClassification,
+} from '@/features/support-check/supportCheck';
 /** Set to true while auto-support is busy (scanning or placing).
  *  Page-level overlay reads this to show the "Generating Supports"
  *  full-screen modal, matching the native island-scan modal style. */
@@ -188,6 +195,10 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
   const fmt = useLocaleFormat();
   const [expanded, setExpanded] = useFloatingPanelCollapse(true);
   const [busy, setBusy] = React.useState(false);
+  const [supportCheckReachMm, setSupportCheckReachMm] = React.useState<number>(SUPPORT_CHECK_REACH_MM.defaultValue);
+  const [supportCheckResult, setSupportCheckResult] = React.useState<
+    { status: 'done'; modelCount: number; supportCount: number } | { status: 'failed' } | null
+  >(null);
   const [showSettings, setShowSettings] = React.useState(false);
   const [showDiscardSettingsDialog, setShowDiscardSettingsDialog] = React.useState(false);
   const [showReplaceDialog, setShowReplaceDialog] = React.useState(false);
@@ -798,6 +809,54 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
   ]);
 
   const canRun = hasGeometry && targetModelIds.length > 0 && !busy && !islands.scanning;
+  const supportCheckModel = models.find((model) => model.id === activeModelId);
+  const canRunSupportCheck = hasGeometry && !!supportCheckModel && !busy && !islands.scanning;
+
+  // Slice the active model with its supports and publish what is still hanging
+  // as the model's islands; "Generate Supports → Add" then targets exactly those.
+  const handleSupportCheck = React.useCallback(async () => {
+    if (!supportCheckModel || busy || islands.scanning) return;
+    setSupportCheckResult(null);
+    try {
+      const world = buildSupportCheckWorld([supportCheckModel]);
+      if (world.positions.length === 0) {
+        setSupportCheckResult({ status: 'failed' });
+        return;
+      }
+      const classified: { value?: SupportCheckClassification } = {};
+      const kept = await islands.runSupportCheck({
+        world: { positions: world.positions, bbox: world.bbox },
+        supportBufferMm: clampSupportCheckReach(supportCheckReachMm),
+        keep: (raw) => {
+          classified.value = classifySupportCheckIslands(raw, world.modelPositions, {
+            baseZ: world.bbox.min.z,
+            layerHeightMm: islands.layerHeightMm,
+            pxMm: islands.pxMm,
+            reachMm: clampSupportCheckReach(supportCheckReachMm),
+          });
+          return classified.value.modelIslands;
+        },
+      });
+      if (kept && classified.value) {
+        const describe = (island: { contact: THREE.Vector3; areaMm2?: number }) =>
+          `(${island.contact.x.toFixed(1)}, ${island.contact.y.toFixed(1)}, ${island.contact.z.toFixed(2)}) ${(island.areaMm2 ?? 0).toFixed(1)} mm²`;
+        console.info(
+          `[SupportCheck] model=${supportCheckModel.id} reach=${clampSupportCheckReach(supportCheckReachMm)} mm`
+          + ` modelRegions=${classified.value.modelIslands.length} [${classified.value.modelIslands.map(describe).join('; ')}]`
+          + ` supportRegions=${classified.value.supportIslands.length} [${classified.value.supportIslands.map(describe).join('; ')}]`
+          + ` grounded=${classified.value.groundedCount}`,
+        );
+        setSupportCheckResult({
+          status: 'done',
+          modelCount: classified.value.modelIslands.length,
+          supportCount: classified.value.supportIslands.length,
+        });
+      }
+    } catch (error) {
+      console.error('[SupportCheck] scan failed:', error);
+      setSupportCheckResult({ status: 'failed' });
+    }
+  }, [busy, islands, supportCheckModel, supportCheckReachMm]);
   const hasMagicStage = magicOrientationEnabled || magicSupportsEnabled || magicOptimizeEnabled || magicBracingEnabled || magicRaftEnabled;
   const previousComparison = runComparisons.length > 1 ? runComparisons[runComparisons.length - 2] : null;
   const latestComparison = runComparisons.length > 0 ? runComparisons[runComparisons.length - 1] : null;
@@ -885,6 +944,59 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
             >
               <Trans>Magic Prepare</Trans>
             </Button>
+
+            <div className="rounded-md border px-2 py-1.5 space-y-1.5" style={AUTO_SUPPORT_SECTION_CARD}>
+              <div className="text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                <Trans>Support check</Trans>
+              </div>
+              <p className="text-[9px] leading-snug" style={{ color: 'var(--text-muted)' }}>
+                <Trans>Slices the model with its supports and marks every region that still hangs: nothing below it, or too far from the nearest support. Results become islands, so Generate Supports → Add to existing places supports on them.</Trans>
+              </p>
+              <label className="flex items-center justify-between gap-2 text-[10px]" style={{ color: 'var(--text-strong)' }}>
+                <span title={_(msg`Points farther than this from any material in the layer below are reported as unsupported.`)}>
+                  <Trans>Max distance from support (mm)</Trans>
+                </span>
+                <input
+                  type="number"
+                  min={SUPPORT_CHECK_REACH_MM.min}
+                  max={SUPPORT_CHECK_REACH_MM.max}
+                  step={SUPPORT_CHECK_REACH_MM.step}
+                  value={supportCheckReachMm}
+                  disabled={!canRunSupportCheck}
+                  onChange={(event) => setSupportCheckReachMm(Number(event.target.value))}
+                  onBlur={() => setSupportCheckReachMm((value) => clampSupportCheckReach(value))}
+                  className="ui-input w-16 !h-7 px-1.5 py-0 text-[11px] text-right no-spinners disabled:opacity-50"
+                />
+              </label>
+              <Button
+                onClick={() => { void handleSupportCheck(); }}
+                disabled={!canRunSupportCheck}
+                title={_(msg`Slice the active model with its supports and look for floating or unsupported regions`)}
+                variant="secondary"
+                size="auto"
+                className="w-full !h-8 text-[11px] disabled:opacity-50"
+              >
+                {islands.scanning ? _(msg`Checking…`) : _(msg`Check for floating regions`)}
+              </Button>
+              {supportCheckResult?.status === 'done' && (
+                <p
+                  className="text-[10px] leading-snug"
+                  style={{ color: supportCheckResult.modelCount > 0 ? 'var(--danger, #ef4444)' : 'var(--success, #22c55e)' }}
+                >
+                  {supportCheckResult.modelCount > 0
+                    ? _(msg`${supportCheckResult.modelCount} unsupported regions on the model. They are now shown as islands; use Generate Supports → Add to existing to support them.`)
+                    : _(msg`No unsupported regions found on the model.`)}
+                  {supportCheckResult.supportCount > 0 && (
+                    <> {_(msg`${supportCheckResult.supportCount} regions are on the supports themselves: near-horizontal arms or disconnected pieces that would print hanging.`)}</>
+                  )}
+                </p>
+              )}
+              {supportCheckResult?.status === 'failed' && (
+                <p className="text-[10px] leading-snug" style={{ color: 'var(--danger, #ef4444)' }}>
+                  <Trans>The support check could not run. Try again after the scene finishes loading.</Trans>
+                </p>
+              )}
+            </div>
 
             <details open className="rounded-md border px-2 py-1.5" style={AUTO_SUPPORT_SECTION_CARD}>
               <summary className="cursor-pointer text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>

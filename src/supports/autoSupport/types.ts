@@ -37,6 +37,10 @@ export interface CandidatePoint {
      *  undefined = active band default (full contact for grid/overhang points),
      *  which is also what a candidate with room keeps. */
     tipDiameterMm?: number;
+    /** Radius (mm) within which an existing tip makes this candidate redundant.
+     *  Undefined = the general `ALREADY_SUPPORTED_RADIUS_MM`; support-check
+     *  regions use the check's reach, because the check proved them unsupported. */
+    alreadySupportedRadiusMm?: number;
     /** Density-grid point: must become its own standalone trunk (never merged
      *  into a nearby host) so flat regions get independent supports. */
     gridPoint?: boolean;

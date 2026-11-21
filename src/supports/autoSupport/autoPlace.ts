@@ -419,8 +419,9 @@ function filterAlreadySupported(candidates: CandidatePoint[], draft: SupportStat
 
     if (existingTips.length === 0) return candidates;
 
-    const r2 = ALREADY_SUPPORTED_RADIUS_MM * ALREADY_SUPPORTED_RADIUS_MM;
     return candidates.filter(c => {
+        const radius = c.alreadySupportedRadiusMm ?? ALREADY_SUPPORTED_RADIUS_MM;
+        const r2 = radius * radius;
         for (const tip of existingTips) {
             const dx = c.tipPos.x - tip.x;
             const dy = c.tipPos.y - tip.y;

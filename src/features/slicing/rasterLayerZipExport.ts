@@ -1488,6 +1488,43 @@ function appendModelTrianglesInRange(
  *  When the repair report has identified a clear model/support split this
  *  is the split point; when the mesh is flagged as entirely support-dominant
  *  the count is zero. */
+/**
+ * World-space geometry for the support check: the given models together with
+ * their generated supports and raft, exactly as the slicer receives them, plus
+ * the model-only triangles so a result can be traced back to the model surface.
+ */
+export function buildSupportCheckWorld(models: LoadedModel[]): {
+  positions: Float32Array;
+  modelPositions: Float32Array;
+  bbox: THREE.Box3;
+} {
+  const triangles = buildWorldTriangles(models);
+  // buildWorldTriangles emits every model triangle first, then supports and raft.
+  let modelTriangleCount = 0;
+  for (const model of models) {
+    const geometry = model.geometry.geometry;
+    const index = geometry.getIndex();
+    const position = geometry.getAttribute('position');
+    if (!position) continue;
+    modelTriangleCount += Math.floor((index ? index.count : position.count) / 3);
+  }
+  const positions = new Float32Array(triangles.length * 9);
+  for (let i = 0; i < triangles.length; i += 1) {
+    const t = triangles[i];
+    const o = i * 9;
+    positions[o] = t.ax; positions[o + 1] = t.ay; positions[o + 2] = t.az;
+    positions[o + 3] = t.bx; positions[o + 4] = t.by; positions[o + 5] = t.bz;
+    positions[o + 6] = t.cx; positions[o + 7] = t.cy; positions[o + 8] = t.cz;
+  }
+  const bbox = new THREE.Box3();
+  if (positions.length > 0) bbox.setFromArray(positions);
+  return {
+    positions,
+    modelPositions: positions.slice(0, Math.min(triangles.length, modelTriangleCount) * 9),
+    bbox,
+  };
+}
+
 export function effectiveModelTriangleCount(model: LoadedModel): number {
   if (model.isSupportGeometry === true) {
     return 0;

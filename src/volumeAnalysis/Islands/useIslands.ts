@@ -947,6 +947,43 @@ export function useIslands({ geom, transform, layerHeightMm, supportTips, plateZ
   // superseded scan must not commit the old model's islands.
   const scanEpochRef = useRef(0);
 
+  /**
+   * Support check: slice a prepared world mesh (model + supports + raft) with the
+   * voxel detector and publish what `keep` returns as this model's islands, so
+   * the regions the supports still leave hanging show up as ordinary islands and
+   * a support run can target them. Returns null when the scan was superseded.
+   */
+  const runSupportCheck = useCallback(async (request: {
+    world: { positions: Float32Array; bbox: THREE.Box3 };
+    supportBufferMm: number;
+    keep: (islands: DetectedIsland[]) => DetectedIsland[];
+  }): Promise<DetectedIsland[] | null> => {
+    setScanning(true);
+    setScanProgress(null);
+    const epoch = scanEpochRef.current;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    try {
+      const raw = await detectVoxelIslands(
+        request.world,
+        layerHeightMm,
+        { pxMm, supportBufferMm: request.supportBufferMm, connectivity, minAreaMm2 },
+        (done, total, phase, phaseNumber, phaseCount) => {
+          if (scanEpochRef.current !== epoch) return;
+          setScanProgress({ done, total, phase, phaseNumber, phaseCount });
+        },
+      );
+      if (scanEpochRef.current !== epoch) return null;
+      const kept = request.keep(raw);
+      setVoxelIslands(kept);
+      setMinimaIslands([]);
+      setOverhangIslands([]);
+      setSelectedMarkerId(null);
+      return kept;
+    } finally {
+      setScanning(false);
+    }
+  }, [layerHeightMm, pxMm, connectivity, minAreaMm2]);
+
   // On sourcePath change: restore from cache instead of clearing
   useEffect(() => {
     const prev = prevSourcePathRef.current;
@@ -1132,6 +1169,7 @@ export function useIslands({ geom, transform, layerHeightMm, supportTips, plateZ
     selectedMarkerId,
     setSelectedMarkerId,
     onRunScan,
+    runSupportCheck,
     clear,
     layerHeightMm,
     selectNext,

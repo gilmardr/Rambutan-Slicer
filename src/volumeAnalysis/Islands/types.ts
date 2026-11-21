@@ -128,6 +128,14 @@ export interface DetectedIsland {
   /** Contact voxel 2D positions (x, y coordinates in world mm) at the base layer.
    *  Overhang regions also carry the surface Z at each voxel. */
   contactVoxels?: VoxelFootprint;
+  /**
+   * Set on regions found by the support check (model + supports sliced
+   * together). Auto-support covers such a region with one contact per
+   * `cellMm × cellMm` cell of its footprint, and only treats a contact as
+   * already supported within `reachMm` of an existing tip: the check has already
+   * shown the region lies farther than that from any material below.
+   */
+  supportCheck?: { cellMm: number; reachMm: number };
   /** Triangle-accurate perimeter loops, inset by 0.25 mm (world mm). Present for
    *  overhang regions when `scan_overhangs` supplied them; used by the Poisson
    *  anchor ring and grid boundary fill instead of voxel erosion for organic shapes. */
