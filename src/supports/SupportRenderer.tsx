@@ -88,7 +88,13 @@ import { setSceneHoveredSupportId as setSharedSceneHoveredSupportId, useSceneHov
 import { useSupportRenderLookup } from './interaction/useSupportRenderLookup';
 import { setInteriorSupportInteractionActive } from './interaction/pointerOcclusion';
 import { MARQUEE_CANDIDATE_TINT_FACTOR } from '@/utils/marqueeCandidateTint';
+import { getSupportProximityHighlightedIds, subscribeSupportProximityHighlights } from '@/features/support-proximity/supportProximityHighlights';
 import { supportAnswersPointer, SCENERY_DIM } from '@/features/scene/plates/plateInteractivity';
+import {
+    getHiddenSupportTagsServerSnapshot,
+    getHiddenSupportTagsSnapshot,
+    subscribeToSupportTagVisibility,
+} from './supportTagVisibility';
 
 interface SupportRendererProps {
     mode?: SupportMode;
@@ -563,6 +569,20 @@ function supportCollectionRefs(state: SupportState, ...extra: unknown[]): readon
 
 export const SupportRenderer = forwardRef<THREE.Group, SupportRendererProps>(({ mode, navigationLodActive = false, hidePlateContactPrimitives = false, clipLower, clipUpper, activeModelId = null, selectedModelIds = [], marqueeCandidateModelIds = EMPTY_SUPPORT_ID_LIST, hoverModelId = null, modelDropOffsetsById, modelFilterId = null, excludeModelId = null, excludeModelIds = [], passive = false, disableSelectionAndHover = false, ghostOpacity = 1, ghostRenderOrder = 100000, placementPreviews = EMPTY_PLACEMENT_PREVIEWS, interiorView = false, cavityGeometryByModelId, modelWorldInverseById, pointerSceneryModelIds }, ref) => {
     const state = useSyncExternalStore(subscribe, getSnapshot);
+    const proximityHighlightedSupportIds = useSyncExternalStore(
+        subscribeSupportProximityHighlights,
+        getSupportProximityHighlightedIds,
+        getSupportProximityHighlightedIds,
+    );
+    const hiddenSupportTags = useSyncExternalStore(
+        subscribeToSupportTagVisibility,
+        getHiddenSupportTagsSnapshot,
+        getHiddenSupportTagsServerSnapshot,
+    );
+    const isSupportTagHidden = React.useCallback((supportId?: string) => {
+        const support = supportId ? state.supports?.[supportId] : undefined;
+        return support?.supportTags?.some((tag) => hiddenSupportTags.has(tag)) ?? false;
+    }, [state.supports, hiddenSupportTags]);
     noteActivity('support-mode:renderer');
     const resolvedSelection = useResolvedSelectionState();
     // These debug flags are all this renderer reads from the support settings, and
@@ -599,9 +619,16 @@ export const SupportRenderer = forwardRef<THREE.Group, SupportRendererProps>(({ 
     }, [interiorView, mode, passive]);
 
     const selectionEnabled = mode === 'support';
-    const effectiveSelectedSupportIds = selectionEnabled ? resolvedSelection.selectedIds : [];
+    const effectiveSelectedSupportIds = useMemo(
+        () => selectionEnabled
+            ? resolvedSelection.selectedIds.filter((supportId) => !isSupportTagHidden(supportId))
+            : [],
+        [selectionEnabled, resolvedSelection.selectedIds, isSupportTagHidden],
+    );
     const selectedSupportIdSet = useMemo(() => new Set(effectiveSelectedSupportIds), [effectiveSelectedSupportIds]);
-    const selectedId = selectionEnabled ? resolvedSelection.selectedId : null;
+    const selectedId = selectionEnabled && !isSupportTagHidden(resolvedSelection.selectedId ?? undefined)
+        ? resolvedSelection.selectedId
+        : null;
     const selectedCategory = selectionEnabled ? resolvedSelection.selectedCategory : null;
     const hasSupportMultiSelection = effectiveSelectedSupportIds.length > 0;
     const useMultiSelectionDetail = hasSupportMultiSelection && effectiveSelectedSupportIds.length <= MULTI_SELECTION_DETAIL_THRESHOLD;
@@ -649,8 +676,6 @@ export const SupportRenderer = forwardRef<THREE.Group, SupportRendererProps>(({ 
     const marqueeCandidateModelIdSet = useMemo(() => new Set(marqueeCandidateModelIds), [marqueeCandidateModelIds]);
     const excludedModelIdSet = useMemo(() => new Set(excludeModelIds.filter((id): id is string => Boolean(id))), [excludeModelIds]);
     const hidePlateContactPrimitivesEffective = hidePlateContactPrimitives;
-    const restrictToActiveModel = mode === 'support' && !!activeModelId;
-    const filteredActiveModelId = restrictToActiveModel ? activeModelId : null;
     const suppressHover = supportSelectionAndHoverSuppressed || isJointCreationActive || !isInteractable || braceAltActive;
     const [immediateModelHoverId, setImmediateModelHoverId] = React.useState<string | null>(null);
     const [immediatePrepareActiveModelId, setImmediatePrepareActiveModelId] = React.useState<string | null>(null);
@@ -823,15 +848,15 @@ export const SupportRenderer = forwardRef<THREE.Group, SupportRendererProps>(({ 
     }, [state, entityModelIdByKnotId]);
 
     const isModelVisible = React.useCallback((modelId?: string, supportId?: string) => {
+        if (isSupportTagHidden(supportId)) return false;
         const resolvedModelId = resolveSupportModelId(modelId, supportId);
 
-        if ((restrictToActiveModel || modelFilterId || excludeModelId || excludedModelIdSet.size > 0) && !resolvedModelId) return false;
-        if (restrictToActiveModel && resolvedModelId !== filteredActiveModelId) return false;
+        if ((modelFilterId || excludeModelId || excludedModelIdSet.size > 0) && !resolvedModelId) return false;
         if (modelFilterId && resolvedModelId !== modelFilterId) return false;
         if (excludeModelId && resolvedModelId === excludeModelId) return false;
         if (resolvedModelId && excludedModelIdSet.has(resolvedModelId)) return false;
         return true;
-    }, [resolveSupportModelId, restrictToActiveModel, filteredActiveModelId, modelFilterId, excludeModelId, excludedModelIdSet]);
+    }, [isSupportTagHidden, resolveSupportModelId, modelFilterId, excludeModelId, excludedModelIdSet]);
 
     useEffect(() => {
         setSupportMarqueeHoverBlocked(!interactionHooksEnabled || supportSelectionAndHoverSuppressed);
@@ -1267,9 +1292,9 @@ export const SupportRenderer = forwardRef<THREE.Group, SupportRendererProps>(({ 
     }, [clipLower, clipUpper]);
 
     const resolveBaseColor = useMemo(() => {
-        const baseHex = '#9a9a9a';
-        const selectedHex = '#c8752a';
-        const hoverTintHex = '#d18a4a';
+        const baseHex = '#78c63f';
+        const selectedHex = '#78c63f';
+        const hoverTintHex = '#b9e93b';
         const hoveredColor = new THREE.Color(baseHex).lerp(new THREE.Color(hoverTintHex), 0.35).getStyle();
         const candidateColor = new THREE.Color(baseHex)
             .lerp(new THREE.Color(hoverTintHex), 0.35 * MARQUEE_CANDIDATE_TINT_FACTOR)
@@ -1324,6 +1349,7 @@ export const SupportRenderer = forwardRef<THREE.Group, SupportRendererProps>(({ 
         supportId: string,
         typeId?: SupportTypeId,
     ) => {
+        if (proximityHighlightedSupportIds.has(supportId)) return '#ef4444';
         if (isBulkSelected(supportId)) return BULK_MULTI_SELECTED_COLOR;
 
         // Debug origin coloring: anchor / overhang / island / standalone, gray
@@ -1337,7 +1363,7 @@ export const SupportRenderer = forwardRef<THREE.Group, SupportRendererProps>(({ 
         }
 
         return dimNonSelected ? '#666666' : resolveBaseColor(modelId);
-    }, [isBulkSelected, dimNonSelected, resolveBaseColor, debugOriginColors, originColorFor]);
+    }, [isBulkSelected, dimNonSelected, resolveBaseColor, debugOriginColors, originColorFor, proximityHighlightedSupportIds]);
 
     const resolveModelDropOffsetZ = React.useCallback((modelId?: string) => {
         if (!modelId) return 0;

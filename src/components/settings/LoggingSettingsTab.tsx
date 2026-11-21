@@ -300,7 +300,7 @@ export function LoggingSettingsTab({ logLevel, onLogLevelChange }: LoggingSettin
           <div className="flex-1">
             <h3 className="text-xs font-semibold" style={{ color: 'var(--text-strong)' }}>Log File</h3>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              DragonFruit writes structured logs to a platform-specific directory.
+              3DRESIN writes structured logs to a platform-specific directory.
               Share this file when reporting startup or network issues.
             </p>
           </div>

@@ -34,6 +34,12 @@ thing: one `setSnapshot` and one undoable history entry, through
 browser) it falls back to the in-process run, so callers never branch on which
 path they got.
 
+For multi-model runs, `runAutoPlaceBatchSequenceInWorker` adds a `byModel` map
+to the result. Each entry reports support counts by type, rejected candidates,
+rejection reasons, final status and island coverage for that model, while the
+top-level result keeps the batch totals. The batch runner still commits one
+combined support snapshot and one history entry.
+
 ## The seeding contract
 
 `computeAutoSupportPlan` is pure with respect to the stores it *writes* (one

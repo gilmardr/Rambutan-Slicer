@@ -8,7 +8,7 @@ export function clampTintStrength(input: number | undefined, fallback: number): 
 
 export function blendTintColor(baseColor: string, tintColor: string | undefined, strength: number): string {
   const base = new THREE.Color('#ffffff');
-  const tint = new THREE.Color('#ec2a77');
+  const tint = new THREE.Color('#f3f0e8');
 
   try {
     base.setStyle(baseColor);

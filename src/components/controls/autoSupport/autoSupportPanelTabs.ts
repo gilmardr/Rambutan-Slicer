@@ -246,6 +246,7 @@ export const TIER_HINTS: Record<string, MessageDescriptor> = {
   light: msg`Sparse supports — the detail sizing band`,
   medium: msg`Balanced supports — the structure sizing band`,
   heavy: msg`Dense supports — the anchor sizing band`,
+  'interior-pillar': msg`Large interior pillars; only interior surfaces are included`,
 };
 
 /** The Sizing Tier control's own label and tooltip. */

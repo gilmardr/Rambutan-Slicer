@@ -211,7 +211,7 @@ export function ExperimentsSettingsTab({ onExit }: { onExit: () => void }) {
       )}
 
       <div className="rounded-md border px-3 py-2 text-xs" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)', color: 'var(--text-muted)' }}>
-        <Trans>Experiment changes apply after you restart DragonFruit or reload the window.</Trans>
+        <Trans>Experiment changes apply after you restart 3DRESIN or reload the window.</Trans>
       </div>
     </div>
   );

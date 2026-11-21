@@ -12,6 +12,7 @@ export const ORGANIC_CUT_EDIT = 'organic-cut:edit' as const;
 export type OrganicCutLoopSnapshot = {
   points: OrganicCutLoopPoint[];
   tenon: LoopTenonSettings;
+  plugs: LoopTenonSettings[];
 };
 
 /**

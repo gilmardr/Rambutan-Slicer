@@ -1,13 +1,11 @@
 import type { SupportState } from '../types';
 import type { SupportCollectionKey } from '../supportTypeRegistry';
 import type { SupportRenderLookupInput, SupportRenderLookupSnapshot } from './supportRenderLookupMath';
+import type { RecordDelta } from './recordDelta';
 
 type SupportLookupStateInput = SupportRenderLookupInput['state'];
 
-export type RecordDelta<T> = {
-  upserts: Record<string, T>;
-  deleteIds: string[];
-};
+export type { RecordDelta } from './recordDelta';
 
 /** One delta per collection, keyed off the registry rather than a written list. */
 export type SupportLookupStateDelta = Partial<{

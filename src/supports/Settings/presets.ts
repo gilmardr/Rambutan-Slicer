@@ -199,7 +199,7 @@ const DETAIL_PRESET: SupportPreset = {
             stickVsTwigCutoffMm: 5.0,
         },
         autoBracing: createDefaultAutoBracingSettings(),
-        autoSupport: { ...createDefaultAutoSupportSettings(), areaPerSupportMm2: 16, sizingPreset: 'detail' },
+        autoSupport: { ...createDefaultAutoSupportSettings(), areaPerSupportMm2: 30, sizingPreset: 'detail' },
         devToolsEnabled: false,
         devTools: createDefaultSettings().devTools,
         debugSimpleSupportRender: false,
@@ -292,7 +292,7 @@ const ANCHOR_PRESET: SupportPreset = {
             stickVsTwigCutoffMm: 5.0,
         },
         autoBracing: createDefaultAutoBracingSettings(),
-        autoSupport: { ...createDefaultAutoSupportSettings(), areaPerSupportMm2: 5, sizingPreset: 'anchor' },
+        autoSupport: { ...createDefaultAutoSupportSettings(), areaPerSupportMm2: 12, sizingPreset: 'anchor' },
         devToolsEnabled: false,
         devTools: createDefaultSettings().devTools,
         debugSimpleSupportRender: false,
@@ -300,18 +300,59 @@ const ANCHOR_PRESET: SupportPreset = {
     },
 };
 
-// --- Store ---
+const INTERIOR_PILLAR_PRESET: SupportPreset = {
+    id: 'interior-pillar',
+    name: 'Interior Pillar',
+    description: 'Large supports for interior surfaces',
+    hotkey: '4',
+    icon: '🏛️',
+    isBuiltIn: false,
+    pinnedSlot: 4,
+    settings: {
+        ...createDefaultSettings(),
+        tip: {
+            ...createDefaultSettings().tip,
+            contactDiameterMm: 1.5,
+            bodyDiameterMm: 1.5,
+            lengthMm: 2.0,
+        },
+        shaft: {
+            ...createDefaultSettings().shaft,
+            diameterMm: 1.5,
+            secondaryDiameterMm: 1.5,
+        },
+    },
+};
 
 // --- Store ---
 
-/** Built-in preset definitions — the canonical default detail/structure/
- *  anchor values (auto-support sizing derives its bands from these). */
-export { DETAIL_PRESET, STRUCTURE_PRESET, ANCHOR_PRESET };
+// --- Store ---
+
+/** Factory preset definitions — auto-support sizing reads their tip/shaft/root values. */
+export { DETAIL_PRESET, STRUCTURE_PRESET, ANCHOR_PRESET, INTERIOR_PILLAR_PRESET };
 
 const PRESET_STORAGE_KEY = 'support-presets-v1';
 const ACTIVE_PRESET_STORAGE_KEY = 'support-active-preset-id-v1';
 const SUPPORT_SETTINGS_STORAGE_KEY = 'support-settings';
 const LEGACY_CUSTOM_IDS = new Set(['custom1', 'custom2', 'custom3']);
+
+export const SUPPORT_PRESET_DOCUMENT_KIND = 'dragonfruit-support-preset';
+export const SUPPORT_PRESET_FORMAT_VERSION = 1;
+
+export type SupportPresetDocument = {
+    kind: typeof SUPPORT_PRESET_DOCUMENT_KIND;
+    formatVersion: typeof SUPPORT_PRESET_FORMAT_VERSION;
+    exportedAt: string;
+    preset: {
+        name: string;
+        description?: string;
+        settings: SupportSettings;
+    };
+};
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 const presets: PresetCollection = loadPresetsFromStorage();
 
@@ -321,8 +362,9 @@ function loadPresetsFromStorage(): PresetCollection {
             detail: DETAIL_PRESET,
             structure: STRUCTURE_PRESET,
             anchor: ANCHOR_PRESET,
+            'interior-pillar': INTERIOR_PILLAR_PRESET,
         },
-        allIds: ['detail', 'structure', 'anchor'],
+        allIds: ['detail', 'structure', 'anchor', 'interior-pillar'],
         activePresetId: 'structure',
     };
 
@@ -572,6 +614,69 @@ export function movePresetBefore(id: string, beforeId: string | null): void {
 
 export function getPresetById(id: string): SupportPreset | undefined {
     return presets.byId[id];
+}
+
+export function exportSupportPresetToJson(id: string): string {
+    const preset = presets.byId[id];
+    if (!preset) throw new Error(`Unknown support preset: ${id}.`);
+
+    const document: SupportPresetDocument = {
+        kind: SUPPORT_PRESET_DOCUMENT_KIND,
+        formatVersion: SUPPORT_PRESET_FORMAT_VERSION,
+        exportedAt: new Date().toISOString(),
+        preset: {
+            name: preset.name,
+            ...(preset.description ? { description: preset.description } : {}),
+            settings: normalizePresetSettings(preset.settings, createDefaultSettings()),
+        },
+    };
+
+    return JSON.stringify(document, null, 2);
+}
+
+/** Imports a versioned preset file, gives it a unique custom id/name, and applies it. */
+export function importSupportPresetFromJson(jsonText: string): SupportPreset {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(jsonText);
+    } catch {
+        throw new Error('Invalid support preset file: not valid JSON.');
+    }
+
+    if (!isPlainObject(parsed)) throw new Error('Invalid support preset file: expected a JSON object.');
+    if (parsed.kind !== SUPPORT_PRESET_DOCUMENT_KIND) throw new Error('Invalid support preset file: unsupported kind.');
+    if (parsed.formatVersion !== SUPPORT_PRESET_FORMAT_VERSION) {
+        throw new Error(`Invalid support preset file: unsupported format version ${String(parsed.formatVersion)}.`);
+    }
+    if (!isPlainObject(parsed.preset)) throw new Error('Invalid support preset file: missing preset.');
+
+    const sourcePreset = parsed.preset;
+    if (typeof sourcePreset.name !== 'string' || sourcePreset.name.trim().length === 0) {
+        throw new Error('Invalid support preset file: missing preset name.');
+    }
+    if (!isPlainObject(sourcePreset.settings)) {
+        throw new Error('Invalid support preset file: settings must be an object.');
+    }
+
+    const preset: SupportPreset = {
+        id: makeCustomPresetId(),
+        name: ensureUniqueName(sourcePreset.name),
+        description: typeof sourcePreset.description === 'string'
+            ? sanitizePresetDescription(sourcePreset.description)
+            : 'User custom preset',
+        icon: '👤',
+        isBuiltIn: false,
+        settings: normalizePresetSettings(
+            sourcePreset.settings as Partial<SupportSettings>,
+            createDefaultSettings(),
+        ),
+        updatedAt: Date.now(),
+    };
+
+    presets.byId[preset.id] = preset;
+    presets.allIds = [...presets.allIds, preset.id];
+    setActivePreset(preset.id);
+    return preset;
 }
 
 function doesPresetMatchSettings(presetSettings: SupportSettings, current: SupportSettings): boolean {
@@ -858,14 +963,15 @@ export function createPreset(name: string): SupportPreset {
 }
 
 export function restoreFactoryDefaults(): void {
-    // Reset factory presets to their original definitions and re-pin to slots 1-3
+    // Reset factory presets to their original definitions and re-pin to slots 1-4
     const factoryPresets: Record<string, SupportPreset> = {
         detail: { ...DETAIL_PRESET, pinnedSlot: 1 },
         structure: { ...STRUCTURE_PRESET, pinnedSlot: 2 },
         anchor: { ...ANCHOR_PRESET, pinnedSlot: 3 },
+        'interior-pillar': { ...INTERIOR_PILLAR_PRESET, pinnedSlot: 4 },
     };
 
-    (['detail', 'structure', 'anchor'] as const).forEach((id) => {
+    (['detail', 'structure', 'anchor', 'interior-pillar'] as const).forEach((id) => {
         presets.byId[id] = {
             ...factoryPresets[id],
             settings: normalizePresetSettings(
@@ -875,9 +981,10 @@ export function restoreFactoryDefaults(): void {
         };
     });
 
-    // Unpin all user-created presets (anything that isn't detail/structure/anchor)
+    const factoryIds = ['detail', 'structure', 'anchor', 'interior-pillar'];
+    // Unpin all user-created presets.
     presets.allIds.forEach((id) => {
-        if (id === 'detail' || id === 'structure' || id === 'anchor') return;
+        if (factoryIds.includes(id)) return;
         const preset = presets.byId[id];
         if (preset) {
             presets.byId[id] = { ...preset, pinnedSlot: null };
@@ -885,7 +992,6 @@ export function restoreFactoryDefaults(): void {
     });
 
     // Ensure factory IDs are first in the ordering
-    const factoryIds = ['detail', 'structure', 'anchor'];
     const userIds = presets.allIds.filter((id) => !factoryIds.includes(id));
     presets.allIds = [...factoryIds, ...userIds];
 

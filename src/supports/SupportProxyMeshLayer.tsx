@@ -12,6 +12,11 @@ import './generatedSupportRegistrations';
 import { supportProxyGeometryOf, type ProxyGeometryContext } from './proxyGeometry/seam';
 import { getRaftSettings, subscribeToRaftStore } from './Rafts/Crenelated/RaftState';
 import { JOINT_DIAMETER_OFFSET_MM } from './constants';
+import {
+  getHiddenSupportTagsServerSnapshot,
+  getHiddenSupportTagsSnapshot,
+  subscribeToSupportTagVisibility,
+} from './supportTagVisibility';
 import { InstancedShaftGroup, type InstancedShaft } from './SupportPrimitives/Shaft/InstancedShaftGroup';
 import { InstancedRootsGroup, type InstancedRoot } from './SupportPrimitives/Roots/InstancedRootsGroup';
 import { InstancedJointGroup, type InstancedJoint } from './SupportPrimitives/Joint/InstancedJointGroup';
@@ -20,6 +25,7 @@ import { emitSupportModelPointerHover } from './interaction/clickHandlers';
 import { bezierSegmentToBatchedShaft } from './Curves/batchedBezierShaft';
 import type { Segment, SupportState, Vec3 } from './types';
 import { MARQUEE_CANDIDATE_TINT_FACTOR } from '@/utils/marqueeCandidateTint';
+import { getSupportProximityHighlightedIds, subscribeSupportProximityHighlights } from '@/features/support-proximity/supportProximityHighlights';
 import {
     anyContactMatches,
     contactEndpointsFor,
@@ -73,8 +79,8 @@ interface SupportProxyMeshLayerProps {
   modelWorldInverseById?: Map<string, THREE.Matrix4>;
 }
 
-const DEFAULT_SUPPORT_COLOR = '#9a9a9a';
-const ACTIVE_SUPPORT_COLOR = '#c8752a';
+const DEFAULT_SUPPORT_COLOR = '#78c63f';
+const ACTIVE_SUPPORT_COLOR = '#78c63f';
 const EMPTY_MARQUEE_CANDIDATES: readonly string[] = Object.freeze([]);
 const PROXY_JOINT_DIAMETER_BLEND_MM = JOINT_DIAMETER_OFFSET_MM * 0.75;
 
@@ -401,7 +407,7 @@ export function SupportProxyMeshLayer({
   selectedModelIds = [],
   marqueeCandidateModelIds = EMPTY_MARQUEE_CANDIDATES,
   hoverModelId = null,
-  hoverTintColor = '#d18a4a',
+  hoverTintColor = '#b9e93b',
   hoverTintStrength = 0.35,
   modelFilterId = null,
   excludeModelId = null,
@@ -429,7 +435,25 @@ export function SupportProxyMeshLayer({
   const hitCategoryRef = React.useRef(hit.category);
   hitCategoryRef.current = hit.category;
   const supportState = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const proximityHighlightedSupportIds = useSyncExternalStore(
+    subscribeSupportProximityHighlights,
+    getSupportProximityHighlightedIds,
+    getSupportProximityHighlightedIds,
+  );
+  const hiddenSupportTags = useSyncExternalStore(
+    subscribeToSupportTagVisibility,
+    getHiddenSupportTagsSnapshot,
+    getHiddenSupportTagsServerSnapshot,
+  );
   const raftSettings = useSyncExternalStore(subscribeToRaftStore, getRaftSettings, getRaftSettings);
+  const hiddenSupportIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    if (hiddenSupportTags.size === 0) return ids;
+    for (const support of Object.values(supportState.supports ?? {})) {
+      if (support.supportTags?.some((tag) => hiddenSupportTags.has(tag))) ids.add(support.id);
+    }
+    return ids;
+  }, [supportState.supports, hiddenSupportTags]);
 
   // The walk reads the state itself, so the snapshot is the only identity needed.
   const hasSolidBottom = raftSettings.bottomMode === 'solid';
@@ -791,11 +815,12 @@ export function SupportProxyMeshLayer({
   }, [allModelEntries, hidesExcludedModels, resolveModelVisible]);
 
   const isHiddenPrimitive = React.useMemo(() => {
-    if (!hiddenModelIds) return undefined;
-    return (primitive: { modelId?: string }) => (
-      primitive.modelId ? hiddenModelIds.has(primitive.modelId) : false
+    if (!hiddenModelIds && hiddenSupportIds.size === 0) return undefined;
+    return (primitive: { modelId?: string; supportId?: string }) => (
+      (primitive.supportId ? hiddenSupportIds.has(primitive.supportId) : false)
+      || (primitive.modelId && hiddenModelIds ? hiddenModelIds.has(primitive.modelId) : false)
     );
-  }, [hiddenModelIds]);
+  }, [hiddenModelIds, hiddenSupportIds]);
 
   const highlightedModelIdSet = React.useMemo(() => {
     const ids = new Set<string>();
@@ -898,7 +923,7 @@ export function SupportProxyMeshLayer({
 
   // The selection and the hover tint both ride on per-instance colours: one batch
   // per primitive kind keeps drawing once, and a tint only rewrites colours. A
-  // tint computed as a colour replaces the base, so a support's orange cannot
+  // tint computed as a colour replaces the base, so a support's shade cannot
   // depend on what is underneath it.
   const supportColors = React.useMemo(() => ({
     base: new THREE.Color(DEFAULT_SUPPORT_COLOR),
@@ -1031,6 +1056,17 @@ export function SupportProxyMeshLayer({
     return { live, scenery };
   }, [allModelEntries, visibleModelEntries, hidesExcludedModels, includeDetailedPrimitives, pointerSceneryModelIds]);
 
+  const proximityHighlightGroups = React.useMemo(() => {
+    const shafts: InstancedShaft[] = [];
+    for (const batch of [batches.live, batches.scenery]) {
+      for (const shaft of batch.straightShafts.concat(batch.curvedShafts)) {
+        if (!shaft.supportId || !proximityHighlightedSupportIds.has(shaft.supportId)) continue;
+        shafts.push({ ...shaft, diameter: shaft.diameter + 0.12 });
+      }
+    }
+    return shafts;
+  }, [batches, proximityHighlightedSupportIds]);
+
   // A support a fraction of a pixel wide must still be grabbable, so the grab
   // radius grows with the distance: `GRAB_RADIUS_PX` of the viewport at the hit.
   // The shaft batch turns this into a hover index of its own, over the shafts it
@@ -1097,6 +1133,7 @@ export function SupportProxyMeshLayer({
               shafts={geometry.curvedShafts}
               color={DEFAULT_SUPPORT_COLOR}
               instanceColor={selectionColorFor}
+              isHidden={isHiddenPrimitive}
               transparent={proxyTransparent}
               opacity={proxyOpacity}
               radialSegments={10}
@@ -1160,6 +1197,20 @@ export function SupportProxyMeshLayer({
           )}
         </group>
       ))}
+      {proximityHighlightGroups.length > 0 && (
+        <InstancedShaftGroup
+          key="support-proximity-highlight"
+          shafts={proximityHighlightGroups}
+          color="#ef4444"
+          emissive="#7f1d1d"
+          emissiveIntensity={0.12}
+          transparent={proxyTransparent}
+          opacity={proxyOpacity}
+          radialSegments={10}
+          clippingPlanes={clippingPlanes}
+          isHidden={isHiddenPrimitive}
+        />
+      )}
 
     </group>
   );

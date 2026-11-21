@@ -321,7 +321,7 @@ export function SceneAutosaveSettingsTab() {
 
         {!desktopAvailable ? (
           <div className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-            <Trans>Autosave files are available in the DragonFruit desktop build.</Trans>
+            <Trans>Autosave files are available in the 3DRESIN desktop build.</Trans>
           </div>
         ) : loadingStatus ? (
           <div className="mt-2 text-xs inline-flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>

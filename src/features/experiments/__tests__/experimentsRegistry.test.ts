@@ -41,8 +41,8 @@ test('experiment definitions expose non-empty ids, names and descriptions with v
 });
 
 test('plugin getter never returns a plugin gated behind a disabled experiment', () => {
-  // No window → isExperimentEnabled returns defaultEnabled, so gated experiments
-  // (e.g. chitubox-import) are treated as disabled. This invariant holds whether
+  // No window → isExperimentEnabled returns defaultEnabled, so currently disabled
+  // gated experiments are excluded. This invariant holds whether
   // or not the plugin submodules are checked out (CI runs without them).
   const gatedIds = getGatedPluginIdsForDisabledExperiments();
   for (const definition of getBuiltinComplexPluginDefinitions()) {
@@ -62,12 +62,12 @@ test('every gatedPlugins id references a declared builtin complex plugin', () =>
   }
 });
 
-test('chitubox-import experiment is off by default and resolves via getExperimentDefinition', () => {
+test('chitubox-import experiment is on by default and resolves via getExperimentDefinition', () => {
   const definition = getExperimentDefinition('chitubox-import');
   assert.ok(definition, 'expected chitubox-import experiment to be declared');
-  assert.equal(definition.defaultEnabled, false);
+  assert.equal(definition.defaultEnabled, true);
   assert.ok(definition.gatedPlugins?.includes('chitubox-import'));
-  assert.equal(isExperimentEnabled('chitubox-import'), false, 'no window / no saved override -> defaultEnabled');
+  assert.equal(isExperimentEnabled('chitubox-import'), true, 'no window / no saved override -> defaultEnabled');
 });
 
 test('isExperimentEnabled returns false for unknown experiment ids', () => {
@@ -77,8 +77,7 @@ test('isExperimentEnabled returns false for unknown experiment ids', () => {
 test('getEnabledExperimentIds reflects default-enabled experiments when no window', () => {
   const enabled = getEnabledExperimentIds();
   assert.ok(Array.isArray(enabled));
-  // chitubox-import is off by default, so nothing is enabled without a window.
-  assert.ok(!enabled.includes('chitubox-import'));
+  assert.ok(enabled.includes('chitubox-import'));
   for (const id of enabled) {
     assert.equal(isExperimentEnabled(id), true);
   }
@@ -146,23 +145,23 @@ function removeMockWindow(): void {
   restoreMockWindow = null;
 }
 
-test('toggling a default-disabled experiment on stores true and syncs an override', () => {
+test('toggling a default-enabled experiment off stores the opt-out marker', () => {
   installMockWindow(null);
   try {
-    setExperimentEnabled('chitubox-import', true);
-    assert.equal(isExperimentEnabled('chitubox-import'), true);
-    assert.deepEqual(getExperimentOverrides(), { 'chitubox-import': true });
+    setExperimentEnabled('chitubox-import', false);
+    assert.equal(isExperimentEnabled('chitubox-import'), false);
+    assert.deepEqual(getExperimentOverrides(), { 'chitubox-import': false });
   } finally {
     removeMockWindow();
   }
 });
 
-test('toggling a default-disabled experiment back off removes the override', () => {
+test('toggling a default-enabled experiment back on removes the override', () => {
   installMockWindow(null);
   try {
-    setExperimentEnabled('chitubox-import', true);
     setExperimentEnabled('chitubox-import', false);
-    assert.equal(isExperimentEnabled('chitubox-import'), false);
+    setExperimentEnabled('chitubox-import', true);
+    assert.equal(isExperimentEnabled('chitubox-import'), true);
     assert.deepEqual(getExperimentOverrides(), {});
   } finally {
     removeMockWindow();
@@ -174,7 +173,7 @@ test('a stale false in storage behaves like no saved value', () => {
   // experiment follows its manifest default instead of being pinned off.
   installMockWindow(JSON.stringify({ 'chitubox-import': false }));
   try {
-    assert.equal(isExperimentEnabled('chitubox-import'), false); // default is false
+    assert.equal(isExperimentEnabled('chitubox-import'), true); // default is true
     assert.deepEqual(getExperimentOverrides(), {});
   } finally {
     removeMockWindow();

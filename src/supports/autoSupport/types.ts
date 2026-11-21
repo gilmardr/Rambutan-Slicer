@@ -344,6 +344,20 @@ export type AutoPlaceStatus =
     /** Auto-support is switched off in the settings. */
     | 'disabled';
 
+/** Outcome for one model in a multi-model support run. */
+export interface AutoPlaceModelResult {
+    /** Supports placed for this model, grouped by support type. */
+    placed: Record<SupportTypeId, number>;
+    rejectedCandidates: number;
+    /** What happened after all configured passes ran for this model. */
+    status: AutoPlaceStatus;
+    /** Candidate rejection counts collected across the model's passes. */
+    rejectionReasons: Record<string, number>;
+    /** Island coverage from the last configured pass. */
+    islandsCovered: number;
+    islandsUncovered: number;
+}
+
 /** Result returned by the auto-place orchestrator. */
 export interface AutoPlaceResult {
     /**
@@ -362,6 +376,8 @@ export interface AutoPlaceResult {
     status: AutoPlaceStatus;
     /** Detailed analytics (undefined for no-op runs). */
     analytics?: AutoPlaceAnalytics;
+    /** Per-model outcomes for a multi-model batch. */
+    byModel?: Record<string, AutoPlaceModelResult>;
 }
 
 /**

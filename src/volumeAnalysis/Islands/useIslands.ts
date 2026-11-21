@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import type { GeometryWithBounds } from '@/hooks/useStlGeometry';
 import { CONSERVATIVE_P_SIGMA } from '@/supports/autoSupport/poseStability';
 import { quaternionFromGlobalEuler } from '@/utils/rotation';
+import { isTauriRuntime } from '@/utils/tauriRuntime';
 import { detectVoxelIslands, type VoxelDetectParams } from './detect';
 import { contactEndpointsFor, SUPPORT_TYPES } from '@/supports/supportTypeRegistry';
 import {
@@ -12,6 +13,7 @@ import {
   type IslandFilterToggles,
 } from './filtering';
 import { clusterWalkOrder } from './ordering';
+import { DisjointSet } from './disjointSet';
 import { buildIslandPucks, markerIdFor } from './islandPuckMarkers';
 import { buildIslandInstances, VOXEL_DISC_RADIUS_FACTOR, type IslandVisual } from './islandInstances';
 import type { IslandMarker } from '@/volumeAnalysis/IslandScan/islandOverlayLogic';
@@ -375,12 +377,13 @@ export function useIslands({ geom, transform, layerHeightMm, supportTips, plateZ
     await new Promise((resolve) => setTimeout(resolve, 0));
     let usedSideload = false;
     let mappedOverhangs: DetectedIsland[] = [];
+    const nativeAvailable = isTauriRuntime();
 
     // Overhang classification (mesh-normal) — independent of the slice path.
     // Catches shallow slopes the growth detector can't see (rotated-cube
-    // undersides, 11°–45° surfaces). Non-fatal if the command is unavailable
-    // (plain-browser context).
-    if (sourcePath && geom) {
+    // undersides, 11°–45° surfaces). The plain browser keeps the voxel scan
+    // fallback because this classifier is provided by Tauri.
+    if (nativeAvailable && sourcePath && geom) {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         const { listen } = await import('@tauri-apps/api/event');
@@ -522,25 +525,33 @@ export function useIslands({ geom, transform, layerHeightMm, supportTips, plateZ
       }
 
       // Overhang classification (Rust, positions-based) — the file sideload
-      // failed but this command may still be available. Reuses the same world
+      // failed but Tauri may still be available. Reuses the same world
       // geometry, so no double mesh prep.
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        const scan = await invoke<OverhangScan>('scan_overhangs', {
-          positions: Array.from(world.positions),
-          selfSupportAngleDeg: getSettings().autoSupport?.overhangSelfSupportAngleDeg
-            ?? OVERHANG_SELF_SUPPORT_ANGLE_DEG,
-          pxMm: OVERHANG_FOOTPRINT_PX_MM,
-          label: sourcePath ?? null,
-          hasRaft,
-        });
-        if (scanEpochRef.current !== epoch) return;
-        setToppleCoverage(scanNeedsCoverage(scan.stability));
-        setDragTotalMm3(scan.stability?.dragMomentMm3 ?? 0);
-        mappedOverhangs = scan.regions.map(overhangRegionToIsland);
-        setOverhangIslands(mappedOverhangs);
-      } catch (err) {
-        console.warn('[Islands] overhang scan failed (non-fatal)', err);
+      if (nativeAvailable) {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const scan = await invoke<OverhangScan>('scan_overhangs', {
+            positions: Array.from(world.positions),
+            selfSupportAngleDeg: getSettings().autoSupport?.overhangSelfSupportAngleDeg
+              ?? OVERHANG_SELF_SUPPORT_ANGLE_DEG,
+            pxMm: OVERHANG_FOOTPRINT_PX_MM,
+            label: sourcePath ?? null,
+            hasRaft,
+          });
+          if (scanEpochRef.current !== epoch) return;
+          setToppleCoverage(scanNeedsCoverage(scan.stability));
+          setDragTotalMm3(scan.stability?.dragMomentMm3 ?? 0);
+          mappedOverhangs = scan.regions.map(overhangRegionToIsland);
+          setOverhangIslands(mappedOverhangs);
+        } catch (err) {
+          console.warn('[Islands] overhang scan failed (non-fatal)', err);
+          setToppleCoverage(false);
+          setDragTotalMm3(0);
+          setOverhangIslands([]);
+        }
+      } else {
+        setToppleCoverage(false);
+        setDragTotalMm3(0);
         setOverhangIslands([]);
       }
 
@@ -1248,42 +1259,19 @@ export function consolidateVoxelIslands(islands: DetectedIsland[], epsilonMm: nu
   }
 
   const eps2 = epsilonMm * epsilonMm;
-  const parent = Array.from({ length: n }, (_, i) => i);
-  const find = (x: number): number => {
-    let root = x;
-    while (parent[root] !== root) root = parent[root];
-    while (parent[x] !== root) {
-      const next = parent[x];
-      parent[x] = root;
-      x = next;
-    }
-    return root;
-  };
-  const union = (a: number, b: number): void => {
-    parent[find(a)] = find(b);
-  };
+  const disjointSet = new DisjointSet(n);
 
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       if (islands[i].contact.distanceToSquared(islands[j].contact) <= eps2) {
-        union(i, j);
+        disjointSet.union(i, j);
       }
     }
   }
 
-  const byRoot = new Map<number, DetectedIsland[]>();
-  for (let i = 0; i < n; i++) {
-    const root = find(i);
-    let bucket = byRoot.get(root);
-    if (!bucket) {
-      bucket = [];
-      byRoot.set(root, bucket);
-    }
-    bucket.push(islands[i]);
-  }
-
   const consolidated: DetectedIsland[] = [];
-  for (const members of byRoot.values()) {
+  for (const indices of disjointSet.groups()) {
+    const members = indices.map((index) => islands[index]);
     const hasCluster = members.some((m) => (m.areaMm2 ?? 0) >= minAreaForContour);
 
     if (hasCluster) {

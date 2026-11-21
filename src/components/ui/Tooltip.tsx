@@ -198,7 +198,7 @@ export function Tooltip({ content, offsetY = 28, maxWidth = 260, width, wrapperC
         visibility: 'hidden',
         background: 'rgba(24, 24, 24, 0.98)',
         color: 'var(--text-strong, #e0e0e0)',
-        border: '1px solid var(--accent, #baf72e)',
+        border: '1px solid var(--accent-secondary, #ffb45d)',
         width: width ?? 'max-content',
         maxWidth,
         whiteSpace: 'normal',

@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import * as THREE from 'three';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { usePicking } from '@/components/picking';
 import { MeshShaderMaterial, type MeshShaderType } from '@/features/shaders/mesh';
 import { isKeyPressedSync } from '@/hotkeys/hotkeyStore';
@@ -23,18 +23,51 @@ import {
   beginSupportBlockerStroke,
   setSupportBlockerHover,
 } from '@/supports/autoSupport/supportBlockers';
+import { beginSupportPaintingStroke, recordSupportPaintingHit } from '@/features/support-paint/supportPainting';
+import {
+  beginSupportInlinePair,
+  clearSupportInlinePreview,
+  completeSupportInlinePair,
+  isSupportInlinePairActive,
+  updateSupportInlinePreview,
+} from '@/features/support-inline/supportInline';
+import {
+  beginSupportProjectionStroke,
+  paintSupportProjectionSurface,
+} from '@/features/support-projection/supportProjection';
 import type { TransformMode, ModelTransform } from '@/hooks/useModelTransform';
 import type { SupportMode } from '@/supports/types';
+import type { SupportSettings } from '@/supports/Settings/types';
 import { quaternionFromGlobalEuler } from '@/utils/rotation';
 import { emitImmediateModelHover } from '@/supports/interaction/pointerOcclusion';
 import { MARQUEE_CANDIDATE_TINT_FACTOR } from '@/utils/marqueeCandidateTint';
 import { getSupportPlacementGuideZ } from './supportPlacementGuideStore';
+import { getDistanceMeasurementSnapshot, recordDistanceMeasurementPoint } from '@/features/measurement/distanceMeasurementStore';
 import { BAKED_OCCLUSION_ATTRIBUTE, bakedOcclusionStrength, bakedOcclusionVersion, getBakedOcclusionServerVersion, subscribeToBakedOcclusionVersions } from '@/features/scene/bakedOcclusion';
 
 // Scratch raycaster reused for clip-zone fallback raycasts.
 const _clipFallbackRaycaster = new THREE.Raycaster();
 const _interiorCavityRaycaster = new THREE.Raycaster();
 const _interiorCavityRaycastMesh = new THREE.Mesh();
+const _supportInlineRaycaster = new THREE.Raycaster();
+
+function dispatchEngravingPreviewPointer(
+  phase: 'down' | 'move' | 'up' | 'cancel',
+  modelId: string,
+  event: ThreeEvent<PointerEvent>,
+): { dragging: boolean } {
+  const detail = {
+    phase,
+    modelId,
+    pointerId: event.pointerId,
+    button: event.button,
+    rayOrigin: event.ray.origin.toArray(),
+    rayDirection: event.ray.direction.toArray(),
+    dragging: false,
+  };
+  window.dispatchEvent(new CustomEvent('engraving-preview-pointer', { detail }));
+  return detail;
+}
 
 // Mini-cache for clip-aware fallback raycasts.  Near the clip boundary the
 // primary hit oscillates between visible/clipped zones, causing a BVH
@@ -148,6 +181,40 @@ function findInteriorCavityHit(
   return hit;
 }
 
+function raycastSupportInlinePoint(
+  pointer: THREE.Vector2,
+  camera: THREE.Camera,
+  modelMesh: THREE.Object3D,
+  clipLower: number | null | undefined,
+  clipUpper: number | null | undefined,
+  interiorView: boolean,
+  cavityGeometry: THREE.BufferGeometry | null | undefined,
+  modelId: string,
+): THREE.Intersection | null {
+  const raycaster = _supportInlineRaycaster;
+  raycaster.setFromCamera(pointer, camera);
+  if (interiorView && cavityGeometry) {
+    return findInteriorCavityHit(raycaster.ray, modelMesh, cavityGeometry, modelId);
+  }
+
+  const inlineRaycaster = raycaster as THREE.Raycaster & { firstHitOnly?: boolean };
+  inlineRaycaster.firstHitOnly = true;
+  let primary: THREE.Intersection | undefined;
+  try {
+    primary = raycaster.intersectObject(modelMesh, false)[0];
+  } finally {
+    inlineRaycaster.firstHitOnly = false;
+  }
+  if (!primary) return null;
+
+  const isClippedHit =
+    (clipUpper != null && primary.point.z > clipUpper)
+    || (clipLower != null && primary.point.z < clipLower);
+  return isClippedHit
+    ? findClipAwareHit(raycaster.ray, modelMesh, clipLower, clipUpper, primary.distance)
+    : primary;
+}
+
 /**
  * Check whether any non-model intersection exists in the visible clip zone.
  * Used to decide if a clipped model-mesh hit should let events propagate
@@ -206,6 +273,7 @@ function StlMeshComponent({
   heatmapColors,
   transform,
   mode,
+  supportModelColorMapEnabled = false,
   transformMode,
   isActiveModel,
   onSmoothingGeometryActivate,
@@ -280,10 +348,11 @@ function StlMeshComponent({
   cavityGeometry?: THREE.BufferGeometry | null;
   transform?: ModelTransform | null;
   mode?: SupportMode;
+  supportModelColorMapEnabled?: boolean;
   transformMode?: TransformMode;
   isActiveModel?: boolean;
   onSmoothingGeometryActivate?: (geometry: THREE.BufferGeometry | null) => void;
-  onSupportClick?: (hit: THREE.Intersection) => void;
+  onSupportClick?: (hit: THREE.Intersection, settingsOverride?: SupportSettings) => void;
   onHolePunchClick?: (hit: THREE.Intersection) => void;
   onHolePunchHover?: (hit: THREE.Intersection | null) => void;
   onOrganicCutClick?: (hit: THREE.Intersection) => void;
@@ -339,7 +408,7 @@ function StlMeshComponent({
   // Note: This works because StlMesh is rendered inside PickingProvider
   const { hit } = usePicking(); // Import usePicking at top if not already used inside StlMesh
   const [isPointerHovered, setIsPointerHovered] = React.useState(false);
-  const { camera } = useThree();
+  const { camera, size } = useThree();
   const suppressNextHolePunchClickRef = React.useRef(false);
   // Same idea as hole-punch: when a pointer-down lands on a not-yet-active model
   // (a reselection click), suppress the FOLLOWING click so it only selects the
@@ -447,7 +516,7 @@ function StlMeshComponent({
   // saturated shade of the accent (e.g. pink accent → dark burgundy edges)
   // instead of generic black. Proportional scaling preserves hue at low luminance.
   const edgeLinesColor = React.useMemo(() => {
-    const base = selectedTintColor ?? '#ec2a77';
+    const base = selectedTintColor ?? '#f3f0e8';
     const hex = base.replace('#', '');
     if (hex.length !== 6) return '#1a1a1a';
     const r = parseInt(hex.slice(0, 2), 16);
@@ -590,7 +659,9 @@ function StlMeshComponent({
 
   // Use a group for proper gizmo positioning
   // Group has the transform, mesh inside is offset to center the geometry
-  const baseShaderType: MeshShaderType = shaderType === 'opaque_wire_mesh' ? 'soft_clay' : shaderType;
+  const baseShaderType: MeshShaderType = mode === 'support' && !supportModelColorMapEnabled
+    ? 'soft_clay'
+    : shaderType === 'opaque_wire_mesh' ? 'soft_clay' : shaderType;
   const showOpaqueWireOverlay = shaderType === 'opaque_wire_mesh';
   const hasGpuModelHoverId = hit.category === 'model' && typeof hit.objectId === 'string' && hit.objectId.length > 0;
   const isGizmoHoverCategory = hit.category === 'gizmo';
@@ -738,11 +809,11 @@ if (uDitherAmount > 0.0) {
   });
 
   const supportSectionTintColor = React.useMemo(() => {
-    const base = new THREE.Color('#a3a3a3');
-    const supportTint = new THREE.Color('#c8752a');
+    const base = new THREE.Color(meshColor ?? '#f3f0e8');
+    const supportTint = new THREE.Color('#78c63f');
 
     // Support sections need a stronger tint response than the base model
-    // color blend so orange remains legible under scene lighting.
+    // color blend so rose remains legible under scene lighting.
     const selectionStrength = Math.min(1, Math.max(0.88, selectedTintStrength ?? 0.75));
     const hoverStrength = Math.min(1, Math.max(0.65, hoverTintStrength ?? 0.5));
 
@@ -840,7 +911,7 @@ if (uDitherAmount > 0.0) {
       uniforms: {
         uPlaneZ: { value: 0 },
         uLineWidthMm: { value: Math.max(0.02, supportPlacementGuideLineWidthMm ?? 0.24) },
-        uLineColor: { value: new THREE.Color(supportPlacementGuideColor ?? '#baf72e') },
+        uLineColor: { value: new THREE.Color(supportPlacementGuideColor ?? '#f3f0e8') },
         uOpacity: { value: THREE.MathUtils.clamp(supportPlacementGuideOpacity ?? 0.62, 0, 1) },
       },
       vertexShader: `
@@ -903,7 +974,7 @@ if (uDitherAmount > 0.0) {
 
     supportPlacementGuideMaterial.uniforms.uLineWidthMm.value = Math.max(0.02, supportPlacementGuideLineWidthMm ?? 0.24);
     supportPlacementGuideMaterial.uniforms.uOpacity.value = THREE.MathUtils.clamp(supportPlacementGuideOpacity ?? 0.62, 0, 1);
-    (supportPlacementGuideMaterial.uniforms.uLineColor.value as THREE.Color).set(supportPlacementGuideColor ?? '#baf72e');
+    (supportPlacementGuideMaterial.uniforms.uLineColor.value as THREE.Color).set(supportPlacementGuideColor ?? '#f3f0e8');
   }, [
     supportPlacementGuideColor,
     supportPlacementGuideLineWidthMm,
@@ -1009,21 +1080,37 @@ if (uDitherAmount > 0.0) {
         position={meshLocalOffset}
         renderOrder={baseShaderType === 'xray' ? 10010 : isSupportDimmed ? 2 : 0}
         onClick={(e) => {
-          if (isSupportShiftGesture(e)) {
-            // In support mode, Shift+click on an inactive ghost should explicitly
-            // switch active model, even when close-range pass-through is enabled.
-            if (mode === 'support' && onActiveModelChange && !isActiveModel) {
-              e.stopPropagation();
-              onActiveModelChange(modelId);
-              return;
-            }
-
-            // Keep existing behavior for active model interactions: Shift should
-            // not place supports via mesh click.
-            e.stopPropagation();
-            return;
+          if (mode === 'prepare' && transformMode === 'engraving' && e.face?.normal
+            && e.intersections[0]?.object === e.object
+            && e.intersections[0]?.object.userData?.isGizmoHandle !== true) {
+            const surfaceNormal = e.face.normal.clone()
+              .applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(e.object.matrixWorld))
+              .normalize();
+            window.dispatchEvent(new CustomEvent('model-surface-picked', {
+              detail: {
+                modelId,
+                point: e.point.toArray(),
+                normal: surfaceNormal.toArray(),
+              },
+            }));
           }
 
+          if (mode === 'analysis' && getDistanceMeasurementSnapshot().enabled) {
+            const firstIsGizmo = e.intersections[0]?.object.userData?.isGizmoHandle === true;
+            if (!firstIsGizmo) {
+              e.stopPropagation();
+              recordDistanceMeasurementPoint(modelId, [e.point.x, e.point.y, e.point.z]);
+              return;
+            }
+          }
+
+          if (mode === 'support' && (isSupportShiftGesture(e) || e.nativeEvent.ctrlKey || e.nativeEvent.metaKey)) {
+            e.stopPropagation();
+            onActiveModelChange?.(modelId, {
+              selectionMode: e.nativeEvent.ctrlKey || e.nativeEvent.metaKey ? 'toggle' : 'add',
+            });
+            return;
+          }
           if (shouldSuppressModelInteraction) {
             e.stopPropagation();
             return;
@@ -1122,7 +1209,7 @@ if (uDitherAmount > 0.0) {
           }
 
           // Support placement in support mode — muted while painting blockers.
-          if (mode === 'support' && onSupportClick && transformMode !== 'supportBlockers') {
+          if (mode === 'support' && onSupportClick && transformMode !== 'supportBlockers' && transformMode !== 'supportPainting' && transformMode !== 'supportInline' && transformMode !== 'supportProjection') {
             if (blockSupportPlacement) return;
 
             // When cross-section is active and a visible support is behind
@@ -1156,6 +1243,10 @@ if (uDitherAmount > 0.0) {
           }
         }}
         onPointerMove={(e) => {
+          if (mode === 'prepare' && transformMode === 'engraving') {
+            const drag = dispatchEngravingPreviewPointer('move', modelId, e);
+            if (drag.dragging) e.stopPropagation();
+          }
           if (isSupportShiftGesture(e)) {
             if ((mode === 'prepare' || mode === 'support') && transformMode === 'hollowing' && onHolePunchHover) {
               onHolePunchHover(null);
@@ -1316,6 +1407,86 @@ if (uDitherAmount > 0.0) {
             }
           }
 
+          if (mode === 'support' && transformMode === 'supportPainting' && isActiveModel) {
+            if (blockSupportPlacement || isGizmoHoverCategory || isSupportLikeHoverCategory) {
+              onSupportHover?.(null);
+              return;
+            }
+
+            if ((e.buttons & 1) === 1 && !disableRaycast) {
+              let paintHit: THREE.Intersection = e as unknown as THREE.Intersection;
+              const isClippedHit =
+                (clipUpper != null && e.point.z > clipUpper) ||
+                (clipLower != null && e.point.z < clipLower);
+              if (isClippedHit || (interiorView && cavityGeometry)) {
+                const fallback = interiorView && cavityGeometry
+                  ? findInteriorCavityHit(e.ray, e.object, cavityGeometry, modelId)
+                  : findClipAwareHit(e.ray, e.object, clipLower, clipUpper, e.distance);
+                if (!fallback) {
+                  onSupportHover?.(null);
+                  return;
+                }
+                paintHit = fallback;
+              }
+              if (!interiorView || !cavityGeometry) e.stopPropagation();
+              if (onSupportClick) {
+                recordSupportPaintingHit(modelId, paintHit, onSupportClick);
+              }
+            }
+            onSupportHover?.(null);
+            return;
+          }
+
+          if (mode === 'support' && transformMode === 'supportInline' && isActiveModel) {
+            if (blockSupportPlacement || isGizmoHoverCategory || isSupportLikeHoverCategory) {
+              clearSupportInlinePreview(modelId);
+              onSupportHover?.(null);
+              return;
+            }
+            if (isSupportInlinePairActive() && onSupportClick) {
+              updateSupportInlinePreview(
+                modelId,
+                e.pointer,
+                size,
+                (pointer) => raycastSupportInlinePoint(
+                  pointer,
+                  camera,
+                  e.object,
+                  clipLower,
+                  clipUpper,
+                  interiorView,
+                  cavityGeometry,
+                  modelId,
+                ),
+              );
+            }
+            onSupportHover?.(null);
+            return;
+          }
+
+          if (mode === 'support' && transformMode === 'supportProjection' && isActiveModel) {
+            if (blockSupportPlacement || isGizmoHoverCategory || isSupportLikeHoverCategory) return;
+            if ((e.buttons & 1) === 1 && !disableRaycast) {
+              let projectionHit: THREE.Intersection = e as unknown as THREE.Intersection;
+              const isClippedHit =
+                (clipUpper != null && e.point.z > clipUpper) ||
+                (clipLower != null && e.point.z < clipLower);
+              if (isClippedHit || (interiorView && cavityGeometry)) {
+                const fallback = interiorView && cavityGeometry
+                  ? findInteriorCavityHit(e.ray, e.object, cavityGeometry, modelId)
+                  : findClipAwareHit(e.ray, e.object, clipLower, clipUpper, e.distance);
+                if (!fallback) return;
+                projectionHit = fallback;
+              }
+              const localPoint = smoothingScratchLocalPointRef.current;
+              localPoint.copy(projectionHit.point);
+              projectionHit.object.worldToLocal(localPoint);
+              paintSupportProjectionSurface(modelId, localPoint);
+              if (!interiorView || !cavityGeometry) e.stopPropagation();
+            }
+            return;
+          }
+
           if (mode === 'support' && onSupportHover && transformMode !== 'supportBlockers') {
             // Mute hover when placement is blocked
             if (blockSupportPlacement) return;
@@ -1380,6 +1551,14 @@ if (uDitherAmount > 0.0) {
           }
         }}
         onPointerDown={(e) => {
+          if (mode === 'prepare' && transformMode === 'engraving' && e.button === 0) {
+            const drag = dispatchEngravingPreviewPointer('down', modelId, e);
+            if (drag.dragging) {
+              (e.target as Element | null)?.setPointerCapture?.(e.pointerId);
+              e.stopPropagation();
+              return;
+            }
+          }
           if (isSupportShiftGesture(e)) {
             return;
           }
@@ -1435,7 +1614,6 @@ if (uDitherAmount > 0.0) {
                 detail: { modelId: modelId },
               }),
             );
-
             if (onActiveModelChange) {
               const native = (e as unknown as { nativeEvent?: MouseEvent }).nativeEvent;
               const selectionMode = native?.ctrlKey || native?.metaKey
@@ -1478,6 +1656,117 @@ if (uDitherAmount > 0.0) {
 
             paintSupportBlockers(modelId, geometry, localPoint);
           }
+          if (mode === 'support' && transformMode === 'supportPainting' && isActiveModel && e.button === 0) {
+            if (blockSupportPlacement || isGizmoHoverCategory || isSupportLikeHoverCategory) return;
+            const firstIsGizmo = e.intersections[0]?.object.userData?.isGizmoHandle === true;
+            if (firstIsGizmo) return;
+            const crossSectionActive = clipUpper != null || clipLower != null;
+            if (crossSectionActive && hasVisibleNonModelIntersection(e.intersections, e.object, clipLower, clipUpper)) return;
+            if (interiorView && cavityGeometry && hasVisibleNonModelIntersection(e.intersections, e.object, null, null)) return;
+
+            let paintHit: THREE.Intersection = e as unknown as THREE.Intersection;
+            const isClippedHit =
+              (clipUpper != null && e.point.z > clipUpper) ||
+              (clipLower != null && e.point.z < clipLower);
+            if (isClippedHit || (interiorView && cavityGeometry)) {
+              const fallback = interiorView && cavityGeometry
+                ? findInteriorCavityHit(e.ray, e.object, cavityGeometry, modelId)
+                : findClipAwareHit(e.ray, e.object, clipLower, clipUpper, e.distance);
+              if (!fallback) return;
+              paintHit = fallback;
+            }
+
+            e.stopPropagation();
+            beginSupportPaintingStroke(modelId);
+            if (onSupportClick) recordSupportPaintingHit(modelId, paintHit, onSupportClick);
+          }
+          if (mode === 'support' && transformMode === 'supportInline' && isActiveModel && e.button === 0) {
+            if (blockSupportPlacement || isGizmoHoverCategory || isSupportLikeHoverCategory) return;
+            const firstIsGizmo = e.intersections[0]?.object.userData?.isGizmoHandle === true;
+            if (firstIsGizmo) return;
+            const crossSectionActive = clipLower != null || clipUpper != null;
+            if (crossSectionActive && hasVisibleNonModelIntersection(e.intersections, e.object, clipLower, clipUpper)) return;
+            if (interiorView && cavityGeometry && hasVisibleNonModelIntersection(e.intersections, e.object, null, null)) return;
+
+            const hit = raycastSupportInlinePoint(
+              e.pointer,
+              camera,
+              e.object,
+              clipLower,
+              clipUpper,
+              interiorView,
+              cavityGeometry,
+              modelId,
+            );
+            if (!hit || !onSupportClick) return;
+
+            e.stopPropagation();
+            const raycastAtPointer = (pointer: THREE.Vector2) => raycastSupportInlinePoint(
+              pointer,
+              camera,
+              e.object,
+              clipLower,
+              clipUpper,
+              interiorView,
+              cavityGeometry,
+              modelId,
+            );
+            if (isSupportInlinePairActive()) {
+              completeSupportInlinePair(modelId, e.pointer, size, raycastAtPointer);
+            } else {
+              beginSupportInlinePair(modelId, e.pointer, onSupportClick);
+            }
+          }
+          if (mode === 'support' && transformMode === 'supportProjection' && isActiveModel && e.button === 0) {
+            if (blockSupportPlacement || isGizmoHoverCategory || isSupportLikeHoverCategory) return;
+            const firstIsGizmo = e.intersections[0]?.object.userData?.isGizmoHandle === true;
+            if (firstIsGizmo) return;
+            const crossSectionActive = clipUpper != null || clipLower != null;
+            if (crossSectionActive && hasVisibleNonModelIntersection(e.intersections, e.object, clipLower, clipUpper)) return;
+            if (interiorView && cavityGeometry && hasVisibleNonModelIntersection(e.intersections, e.object, null, null)) return;
+
+            let projectionHit: THREE.Intersection = e as unknown as THREE.Intersection;
+            const isClippedHit =
+              (clipUpper != null && e.point.z > clipUpper) ||
+              (clipLower != null && e.point.z < clipLower);
+            if (isClippedHit || (interiorView && cavityGeometry)) {
+              const fallback = interiorView && cavityGeometry
+                ? findInteriorCavityHit(e.ray, e.object, cavityGeometry, modelId)
+                : findClipAwareHit(e.ray, e.object, clipLower, clipUpper, e.distance);
+              if (!fallback) return;
+              projectionHit = fallback;
+            }
+            if (!(projectionHit.object instanceof THREE.Mesh)) return;
+
+            const place = onSupportClick;
+            if (!place) return;
+            e.stopPropagation();
+            beginSupportProjectionStroke({
+              modelId,
+              mesh: projectionHit.object,
+              place,
+              clipLower,
+              clipUpper,
+            });
+            const localPoint = smoothingScratchLocalPointRef.current;
+            localPoint.copy(projectionHit.point);
+            projectionHit.object.worldToLocal(localPoint);
+            paintSupportProjectionSurface(modelId, localPoint);
+          }
+        }}
+        onPointerUp={(e) => {
+          if (mode !== 'prepare' || transformMode !== 'engraving') return;
+          const drag = dispatchEngravingPreviewPointer('up', modelId, e);
+          if (!drag.dragging) return;
+          e.stopPropagation();
+          (e.target as Element | null)?.releasePointerCapture?.(e.pointerId);
+        }}
+        onPointerCancel={(e) => {
+          if (mode !== 'prepare' || transformMode !== 'engraving') return;
+          const drag = dispatchEngravingPreviewPointer('cancel', modelId, e);
+          if (!drag.dragging) return;
+          e.stopPropagation();
+          (e.target as Element | null)?.releasePointerCapture?.(e.pointerId);
         }}
       >
         {interiorView && cavityGeometry ? (
@@ -1510,7 +1799,7 @@ if (uDitherAmount > 0.0) {
             shaderType={baseShaderType}
             isSelected={!!isSelected}
             isHovered={isHoveredModel || isMarqueeHovered}
-            useVertexColors={hasVertexColorAttribute}
+            useVertexColors={hasVertexColorAttribute && (mode !== 'support' || supportModelColorMapEnabled)}
             hoverTintColor={hoverTintColor}
             selectedTintColor={selectedTintColor}
             hoverTintStrength={hoverTintStrength}

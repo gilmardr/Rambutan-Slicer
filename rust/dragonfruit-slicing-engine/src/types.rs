@@ -143,6 +143,21 @@ pub struct SliceJobV3 {
     pub layer_height_mm: f32,
     /// Total number of layers to evaluate.
     pub total_layers: u32,
+    /// Material-profile count used to choose bottom-layer compensation.
+    #[serde(default)]
+    pub bottom_layer_count: u32,
+    /// Signed diameter adjustments in millimeters for enclosed holes and outer contours.
+    #[serde(default)]
+    pub inner_diameter_tolerance_mm: f32,
+    #[serde(default)]
+    pub outer_diameter_tolerance_mm: f32,
+    /// When enabled, use the bottom-specific compensation on the first bottom layers.
+    #[serde(default)]
+    pub bottom_tolerance_enabled: bool,
+    #[serde(default)]
+    pub bottom_inner_diameter_tolerance_mm: f32,
+    #[serde(default)]
+    pub bottom_outer_diameter_tolerance_mm: f32,
     /// Optional captured preview thumbnail (`3d.png`) as base64 PNG bytes.
     #[serde(default)]
     pub export_thumbnail_png_base64: Option<String>,
@@ -193,6 +208,10 @@ pub struct SliceJobV3 {
     /// `0` means "unspecified" (no geometry split metadata).
     #[serde(default = "default_model_triangle_count")]
     pub model_triangle_count: u32,
+    /// Optional per-model slice-only hollowing. Ranges address the model-only
+    /// triangle prefix; support and raft triangles remain outside these ranges.
+    #[serde(default)]
+    pub model_slice_ranges: Vec<ModelSliceRangeV1>,
     /// Minimum grayscale alpha (0-100%) for non-zero AA pixels.
     ///
     /// When no explicit custom cure LUT is provided, the engine turns this
@@ -258,6 +277,14 @@ pub struct SliceJobV3 {
     pub triangles_xyz: Vec<f32>,
     /// Opaque metadata JSON passed through from app layer.
     pub metadata_json: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelSliceRangeV1 {
+    pub start_triangle: u32,
+    pub triangle_count: u32,
+    pub wall_thickness_mm: f32,
 }
 
 impl SliceJobV3 {
@@ -341,7 +368,9 @@ impl SliceJobV3 {
 
     #[inline]
     pub fn blur_brush_kernel_is_gaussian(&self) -> bool {
-        self.blur_brush_kernel.trim().eq_ignore_ascii_case("gaussian")
+        self.blur_brush_kernel
+            .trim()
+            .eq_ignore_ascii_case("gaussian")
     }
 
     #[inline]
@@ -423,11 +452,20 @@ mod tests {
 
     #[test]
     fn effective_dither_bit_depth_passes_through_low_bit_depths() {
-        assert_eq!(dither_job(true, Some(3)).effective_dither_bit_depth(), Some(3));
-        assert_eq!(dither_job(true, Some(7)).effective_dither_bit_depth(), Some(7));
+        assert_eq!(
+            dither_job(true, Some(3)).effective_dither_bit_depth(),
+            Some(3)
+        );
+        assert_eq!(
+            dither_job(true, Some(7)).effective_dither_bit_depth(),
+            Some(7)
+        );
         // Below the 2-bit floor there is no meaningful palette; clamp up rather
         // than build one with a single level.
-        assert_eq!(dither_job(true, Some(1)).effective_dither_bit_depth(), Some(2));
+        assert_eq!(
+            dither_job(true, Some(1)).effective_dither_bit_depth(),
+            Some(2)
+        );
     }
 
     #[test]
@@ -435,8 +473,14 @@ mod tests {
         // Clamping 8 down to 7 would quantize a panel that can already emit
         // every grey level, so the whole dither pass is skipped instead.
         assert_eq!(dither_job(true, Some(8)).effective_dither_bit_depth(), None);
-        assert_eq!(dither_job(true, Some(10)).effective_dither_bit_depth(), None);
-        assert_eq!(dither_job(true, Some(12)).effective_dither_bit_depth(), None);
+        assert_eq!(
+            dither_job(true, Some(10)).effective_dither_bit_depth(),
+            None
+        );
+        assert_eq!(
+            dither_job(true, Some(12)).effective_dither_bit_depth(),
+            None
+        );
     }
 
     #[test]
@@ -446,7 +490,10 @@ mod tests {
 
     #[test]
     fn effective_dither_bit_depth_is_none_when_dithering_is_off() {
-        assert_eq!(dither_job(false, Some(3)).effective_dither_bit_depth(), None);
+        assert_eq!(
+            dither_job(false, Some(3)).effective_dither_bit_depth(),
+            None
+        );
     }
 
     #[test]

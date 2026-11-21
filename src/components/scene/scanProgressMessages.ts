@@ -25,6 +25,8 @@ const PHASE_LABELS: Record<string, MessageDescriptor> = {
   'Compiling results': msg`Compiling results`,
   // The auto-support run reports its placement pass through the same channel.
   'Placing supports': msg`Placing supports`,
+  'Bracing supports': msg`Bracing supports`,
+  'Optimizing supports': msg`Optimizing supports`,
 };
 
 export function translateScanPhase(phase: string | undefined, translate: Translate): string {

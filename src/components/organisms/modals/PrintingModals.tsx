@@ -1153,8 +1153,8 @@ export function PrintingModals({
               {printingMonitorViewMode === 'dashboard' ? (
                 <div className="inline-flex items-center gap-2 px-1.5 py-1">
                   <div className="inline-flex h-7 w-7 items-center justify-center rounded-sm shrink-0" style={{
-                    background: 'color-mix(in srgb, #baf72e, var(--surface-1) 90%)',
-                    border: '1px solid color-mix(in srgb, #baf72e, var(--border-subtle) 45%)',
+                    background: 'color-mix(in srgb, #ffb45d, var(--surface-1) 90%)',
+                    border: '1px solid color-mix(in srgb, #ffb45d, var(--border-subtle) 45%)',
                     color: 'var(--accent-secondary)',
                   }}>
                     <LayoutGrid className="h-3.5 w-3.5" />
@@ -1391,7 +1391,7 @@ export function PrintingModals({
                           ? `${displayCurrentLayer ?? '—'}/${displayTotalLayers}`
                           : (displayCurrentLayer != null ? `${displayCurrentLayer}` : '—'))
                         : '-/-';
-                      const brandColor = '#baf72e';
+                      const brandColor = '#ffb45d';
                       const idleColor = '#60a5fa';
                       const pausedColor = '#f59e0b';
                       const cardHoverHintText = _(msg`Click to show Detailed View`);
@@ -1462,7 +1462,7 @@ export function PrintingModals({
                                   <span
                                     className="rounded-md border px-2 py-1 text-[10px] font-semibold tracking-wide"
                                     style={{
-                                      borderColor: 'color-mix(in srgb, #baf72e, var(--border-subtle) 55%)',
+                                      borderColor: 'color-mix(in srgb, #ffb45d, var(--border-subtle) 55%)',
                                       color: '#d9ff8f',
                                       background: 'color-mix(in srgb, #1f2937, transparent 35%)',
                                     }}
@@ -1489,7 +1489,7 @@ export function PrintingModals({
                                   <span
                                     className="rounded-md border px-2 py-1 text-[10px] font-semibold tracking-wide"
                                     style={{
-                                      borderColor: 'color-mix(in srgb, #baf72e, var(--border-subtle) 55%)',
+                                      borderColor: 'color-mix(in srgb, #ffb45d, var(--border-subtle) 55%)',
                                       color: '#d9ff8f',
                                       background: 'color-mix(in srgb, #1f2937, transparent 35%)',
                                     }}
@@ -2634,7 +2634,7 @@ export function PrintingModals({
                     <div>{printingMonitorRelayDebugTransport?.clientPort ?? 'n/a'}</div>
 
                     <div className="col-span-2 text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                      Source is the printer/server RTP port; destination is the DragonFruit/client RTP port.
+                      Source is the printer/server RTP port; destination is the 3DRESIN/client RTP port.
                     </div>
 
                     <div style={{ color: 'var(--text-muted)' }}>Reclaim session</div>

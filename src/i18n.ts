@@ -1,7 +1,7 @@
 import { i18n } from "@lingui/core";
 import { messages as enMessages } from "./locales/en.js";
 
-export const SUPPORTED_LOCALES = ["en", "es", "de", "fr", "sk", "cs"] as const;
+export const SUPPORTED_LOCALES = ["en", "es", "de", "fr", "sk", "cs", "pt-BR"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 // Native-language labels for the language switcher.
@@ -12,6 +12,7 @@ export const LOCALE_LABELS: Record<Locale, string> = {
   fr: "Français",
   sk: "Slovenčina",
   cs: "Čeština",
+  "pt-BR": "Português (Brasil)",
 };
 
 const STORAGE_KEY = "dragonfruit.locale";
@@ -46,8 +47,16 @@ export function detectInitialLocale(): Locale {
   const forced = process.env.NEXT_PUBLIC_DF_LOCALE;
   if (forced && isSupported(forced)) return forced;
 
-  const prefix = navigator.language?.split("-")[0]?.toLowerCase();
-  if (prefix && isSupported(prefix)) return prefix;
+  const browserLocale = navigator.language;
+  const exactLocale = SUPPORTED_LOCALES.find(
+    (locale) => locale.toLowerCase() === browserLocale?.toLowerCase(),
+  );
+  if (exactLocale) return exactLocale;
+
+  const prefix = browserLocale?.split("-")[0]?.toLowerCase();
+  if (prefix === "pt") return "pt-BR";
+  const languageLocale = SUPPORTED_LOCALES.find((locale) => locale.toLowerCase() === prefix);
+  if (languageLocale) return languageLocale;
 
   return DEFAULT_LOCALE;
 }

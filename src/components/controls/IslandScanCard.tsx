@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import { useIslandManager } from '@/volumeAnalysis/IslandScan/useIslandManager';
 import { NumberInput } from '@/components/ui/NumberInput';
 import { Search, ScanLine, Cpu } from 'lucide-react';
@@ -218,6 +219,23 @@ export function IslandScanCard({
                     {islands.scanProgress.phase ? `${islands.scanProgress.phase}: ` : ''}{islands.scanProgress.done} / {islands.scanProgress.total} layers
                     {islands.scanData && islands.scanData.islands.length > 0 && (
                         <span className="ml-1" style={{ color: 'var(--text-strong)' }}>({islands.scanData.islands.length} islands)</span>
+                    )}
+                </div>
+            )}
+
+            {islands.scanFailure && (
+                <div role="alert" className="rounded border px-2 py-1.5 text-[11px] space-y-1" style={{ color: 'var(--danger)', borderColor: 'color-mix(in srgb, var(--danger), transparent 55%)', background: 'color-mix(in srgb, var(--danger), transparent 94%)' }}>
+                    <p className="font-semibold">
+                        {islands.scanFailure.engine === 'native' ? <Trans>Native island scan failed.</Trans> : <Trans>JavaScript island scan failed.</Trans>}
+                    </p>
+                    <p className="leading-snug">
+                        <Trans>The previous results, if any, were kept and may be outdated. Try the other scanner or increase Pixel (mm) for a coarser scan, then run the analysis again.</Trans>
+                    </p>
+                    {islands.scanFailure.details && (
+                        <details className="text-[10px]">
+                            <summary className="cursor-pointer"><Trans>Technical details</Trans></summary>
+                            <pre className="mt-1 whitespace-pre-wrap break-words">{islands.scanFailure.details}</pre>
+                        </details>
                     )}
                 </div>
             )}

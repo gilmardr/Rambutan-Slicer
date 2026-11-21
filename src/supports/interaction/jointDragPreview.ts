@@ -8,12 +8,12 @@ import { subscribeSupportInteractionReset } from './supportInteractionReset';
 import { getSupportWorkerRuntimeCapabilities } from './supportWorkerCapabilities';
 import { isSupportWorkerSafetyModeEnabled } from './supportWorkerSafetyMode';
 import { SupportComputeRuntime } from './supportComputeRuntime';
+import { applyRecordDeltaInPlace, diffRecordByRef } from './recordDelta';
 import type {
   JointDragPreviewInputDelta,
   JointDragPreviewWorkerCollectionsRef,
   JointDragPreviewWorkerRequestMessage,
   JointDragPreviewWorkerResponseMessage,
-  RecordDelta,
 } from './jointDragPreview.worker.shared';
 
 const EVENT_NAME = 'dragonfruit-joint-drag-preview';
@@ -30,8 +30,6 @@ interface UseJointDragPreviewOverridesOptions {
   candidateKnots: JointDragPreviewCandidateKnots;
 }
 
-type MutableRecord<T> = Record<string, T>;
-
 function createEmptyWorkerCollectionsRef(): JointDragPreviewWorkerCollectionsRef {
   return {
     roots: {},
@@ -39,43 +37,6 @@ function createEmptyWorkerCollectionsRef(): JointDragPreviewWorkerCollectionsRef
     kickstandKnots: {},
     candidateKnots: {},
   };
-}
-
-function diffRecordByRef<T>(prev: Record<string, T>, next: Record<string, T>, forceFullSync: boolean): RecordDelta<T> | undefined {
-  if (!forceFullSync && prev === next) return undefined;
-
-  const upserts: Record<string, T> = {};
-  const deleteIds: string[] = [];
-
-  for (const [id, value] of Object.entries(next)) {
-    if (forceFullSync || prev[id] !== value) {
-      upserts[id] = value;
-    }
-  }
-
-  for (const id of Object.keys(prev)) {
-    if (!(id in next)) {
-      deleteIds.push(id);
-    }
-  }
-
-  if (Object.keys(upserts).length === 0 && deleteIds.length === 0) {
-    return undefined;
-  }
-
-  return { upserts, deleteIds };
-}
-
-function applyRecordDeltaInPlace<T>(target: MutableRecord<T>, delta?: RecordDelta<T>) {
-  if (!delta) return;
-
-  for (const id of delta.deleteIds) {
-    delete target[id];
-  }
-
-  for (const [id, value] of Object.entries(delta.upserts)) {
-    target[id] = value;
-  }
 }
 
 function buildCollectionsDelta(

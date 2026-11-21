@@ -4,7 +4,7 @@
  */
 
 import {
-    runAutoPlaceRequest,
+    runAutoPlaceWorkerRequest,
     type AutoPlaceWorkerRequest,
     type AutoPlaceWorkerResponse,
 } from './autoPlace.worker.shared';
@@ -24,7 +24,7 @@ self.onmessage = (event: MessageEvent<AutoPlaceWorkerRequest>) => {
         out = {
             type: 'result',
             requestId: msg.requestId,
-            plan: runAutoPlaceRequest(msg.payload, (progress) => {
+            ...runAutoPlaceWorkerRequest(msg.payload, (progress) => {
                 // The plan blocks this thread, so this is the only signal the
                 // modal can get that the run is alive and how far along it is.
                 self.postMessage({

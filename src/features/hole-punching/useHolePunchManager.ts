@@ -27,6 +27,10 @@ import {
   type HolePunchPlacementState,
 } from '@/features/hole-punching/holePunchGeometry';
 import {
+  verifyHolePunchPlacements,
+  type HolePunchVerificationResult,
+} from '@/features/hole-punching/holePunchVerification';
+import {
   toPersistedHolePunchPlacements,
   serializeHolePunchPlacements,
   serializeSingleHolePunchPlacement,
@@ -140,6 +144,7 @@ export function useHolePunchManager({
   });
 
   const [holePunchPlacements, setHolePunchPlacements] = React.useState<HolePunchPlacementState[]>([]);
+  const [holePunchVerificationResults, setHolePunchVerificationResults] = React.useState<HolePunchVerificationResult[]>([]);
 
   const holePunchPlacementsRef = React.useRef<HolePunchPlacementState[]>([]);
 
@@ -207,6 +212,79 @@ export function useHolePunchManager({
     if (!activeModelId) return [] as HolePunchPlacementState[];
     return holePunchPlacements.filter((placement) => placement.modelId === activeModelId);
   }, [holePunchPlacements, scene.activeModel?.id]);
+
+  const activeModel = scene.activeModel;
+  const activeModelModifiers = activeModel ? scene.getModelMeshModifiers(activeModel.id) : null;
+  const verificationPreviewGeometry = (
+    hollowPreview
+    && hollowPreview.modelId === activeModel?.id
+    && hollowingDraftEnabled
+  ) ? hollowPreview.geometry : null;
+  const verificationUsesBakedHollowing = Boolean(
+    activeModelModifiers?.hollowing?.enabled
+    && activeModelModifiers.hollowing.bakedIntoGeometry,
+  );
+  const canVerifyHolePunches = Boolean(
+    activeModel
+    && activeHolePunchPlacements.length > 0
+    && (
+      activeModelModifiers?.holePunchSourcePositionsBase64
+      || verificationPreviewGeometry
+      || verificationUsesBakedHollowing
+    ),
+  );
+
+  const handleVerifyHolePunches = React.useCallback(() => {
+    if (!activeModel || activeHolePunchPlacements.length === 0) {
+      setHolePunchVerificationResults([]);
+      return;
+    }
+
+    let sourceGeometry: THREE.BufferGeometry | null = null;
+    let ownsSourceGeometry = false;
+    if (activeModelModifiers?.holePunchSourcePositionsBase64) {
+      sourceGeometry = geometryFromSnapshot({
+        sourcePositionsBase64: activeModelModifiers.holePunchSourcePositionsBase64,
+        sourcePositionCount: activeModelModifiers.holePunchSourcePositionCount,
+      });
+      ownsSourceGeometry = sourceGeometry !== null;
+    }
+    sourceGeometry ??= verificationPreviewGeometry
+      ?? (verificationUsesBakedHollowing ? activeModel.geometry.geometry : null);
+
+    if (!sourceGeometry) {
+      setHolePunchVerificationResults([]);
+      return;
+    }
+
+    try {
+      setHolePunchVerificationResults(verifyHolePunchPlacements(
+        sourceGeometry,
+        activeModel.geometry.center,
+        activeModel.transform,
+        activeHolePunchPlacements,
+      ));
+    } finally {
+      if (ownsSourceGeometry) sourceGeometry.dispose();
+    }
+  }, [
+    activeHolePunchPlacements,
+    activeModel,
+    activeModelModifiers?.holePunchSourcePositionCount,
+    activeModelModifiers?.holePunchSourcePositionsBase64,
+    verificationPreviewGeometry,
+    verificationUsesBakedHollowing,
+  ]);
+
+  React.useEffect(() => {
+    setHolePunchVerificationResults([]);
+  }, [
+    activeHolePunchPlacements,
+    activeModel?.geometry.geometry,
+    activeModel?.transform,
+    activeModelModifiers?.holePunchSourcePositionsBase64,
+    verificationPreviewGeometry,
+  ]);
 
   const previousRecommendedHolePunchDepthRef = React.useRef<number>(recommendedHolePunchDepthMm);
 
@@ -1327,6 +1405,9 @@ export function useHolePunchManager({
 
   return {
     holePunchState,
+    holePunchVerificationResults,
+    canVerifyHolePunches,
+    handleVerifyHolePunches,
     setHolePunchState,
     holePunchPlacements,
     setHolePunchPlacements,

@@ -5,12 +5,14 @@ import { FolderInput, Upload, Printer, Wrench } from 'lucide-react';
 import { ProgressBar } from '@/components/atoms';
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import type { MessageDescriptor } from '@lingui/core';
 import type { RecentOpenedFileEntry } from '@/features/scene/useSceneCollectionManager';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useSceneFileExtensions, useSceneFileExtensionLabels, useSceneFileInputAccept } from '@/features/plugins/pluginFileTypeExtensions';
 import { useLocaleFormat } from '@/hooks/useLocaleFormat';
 import type { UnitFormat, Unit } from '@/utils/unitFormatting';
+import { splitDurationSeconds } from '@/utils/durationParts';
 
 const BUILD_CHANNEL = (process.env.NEXT_PUBLIC_BUILD_CHANNEL ?? '').toLowerCase();
 const APP_VERSION = (process.env.NEXT_PUBLIC_APP_VERSION ?? '').toLowerCase();
@@ -37,6 +39,7 @@ type EmptySceneStateProps = {
   showFirstTimeOnboarding?: boolean;
   onAddPrinter?: () => void;
   onUseWithoutPrinter?: () => void;
+  onStartTask?: (mode: 'prepare' | 'support' | 'export') => void;
 };
 
 // Returns null for "just now" (< 60 s), or a translated compact period string for everything else.
@@ -50,12 +53,10 @@ function formatRecentOpenedAt(openedAt: number, translate: (descriptor: MessageD
   const deltaSec = Math.floor(deltaMs / 1000);
   if (deltaSec < 60) return null;
 
-  // {deltaMin} = number of minutes elapsed (1–59)
-  const deltaMin = Math.floor(deltaSec / 60);
+  const { totalMinutes: deltaMin, hours: deltaHours } = splitDurationSeconds(deltaSec);
   if (deltaMin < 60) return translate(msg`${deltaMin} min`);
 
   // {deltaHours} = number of hours elapsed (1–23)
-  const deltaHours = Math.floor(deltaMin / 60);
   if (deltaHours < 24) return translate(msg`${deltaHours} h`);
 
   // {deltaDays} = number of days elapsed (1–6)
@@ -106,6 +107,12 @@ const TAGLINES: MessageDescriptor[] = [
   msg`Join the Open Resin Alliance!`,
   // Origin story
   msg({ message: "Not all slicers are created equal. This one's free!", comment: 'Play on "all men are created equal" from the United States Declaration of Independence (1776).' }),
+];
+
+const PRINT_WORKFLOW_STEPS: MessageDescriptor[] = [
+  msg`1. Load a model`,
+  msg`2. Position and inspect it`,
+  msg`3. Add supports, slice, and export`,
 ];
 
 /** Build chip under the welcome title; reuses the updater's "Version {version}" wording. */
@@ -231,6 +238,7 @@ export function EmptySceneState({
   showFirstTimeOnboarding = false,
   onAddPrinter,
   onUseWithoutPrinter,
+  onStartTask,
 }: EmptySceneStateProps) {
   const { _ } = useLingui();
   const fmt = useLocaleFormat();
@@ -241,7 +249,7 @@ export function EmptySceneState({
   const [copied, setCopied] = React.useState(false);
   const handleCopyBuildInfo = React.useCallback(async () => {
     // Full build identity in one string — what a bug report needs.
-    const buildInfo = `DragonFruit ${APP_VERSION} (${BUILD_CHANNEL})${FULL_BUILD_LABEL ? ` — ${FULL_BUILD_LABEL}` : ''}`;
+    const buildInfo = `3DRESIN ${APP_VERSION} (${BUILD_CHANNEL})${FULL_BUILD_LABEL ? ` — ${FULL_BUILD_LABEL}` : ''}`;
     try {
       await navigator.clipboard.writeText(buildInfo);
       setCopied(true);
@@ -493,6 +501,25 @@ export function EmptySceneState({
           {_(msg`Bring in a mesh or scene to start preparing, analyzing, supporting, and exporting your print.`)}
         </p>
 
+        <div
+          className="mt-3 grid w-full grid-cols-1 gap-2 text-left sm:grid-cols-3"
+          aria-label={_(msg`Typical print preparation workflow`)}
+        >
+          {PRINT_WORKFLOW_STEPS.map((step) => (
+            <div
+              key={step.id}
+              className="rounded-md border px-2.5 py-2 text-[11px] leading-snug"
+              style={{
+                borderColor: 'color-mix(in srgb, var(--border-subtle), transparent 8%)',
+                background: 'color-mix(in srgb, var(--surface-1), transparent 6%)',
+                color: 'var(--text-muted)',
+              }}
+            >
+              {_(step)}
+            </div>
+          ))}
+        </div>
+
         {isLoading ? (
           <div
             className="rounded-lg border px-4 py-4 text-left"
@@ -568,6 +595,25 @@ export function EmptySceneState({
           </>
         ) : (
           <>
+            {onStartTask && (
+              <section className="mb-2 rounded-lg border p-3 text-left" style={{ borderColor: 'color-mix(in srgb, var(--border-subtle), transparent 8%)', background: 'color-mix(in srgb, var(--surface-1), transparent 6%)' }}>
+                <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}><Trans>Choose a task</Trans></h3>
+                <div className="grid gap-2 grid-cols-1 sm:grid-cols-3">
+                  <button type="button" onClick={() => onStartTask('prepare')} className="rounded-md border px-3 py-2 text-left transition-colors" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+                    <span className="mb-1 flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-strong)' }}><Upload className="h-3.5 w-3.5" /><Trans>Prepare a model</Trans></span>
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}><Trans>Inspect and position a model before printing.</Trans></span>
+                  </button>
+                  <button type="button" onClick={() => onStartTask('support')} className="rounded-md border px-3 py-2 text-left transition-colors" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+                    <span className="mb-1 flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-strong)' }}><Wrench className="h-3.5 w-3.5" /><Trans>Add supports</Trans></span>
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}><Trans>Scan islands and place print supports.</Trans></span>
+                  </button>
+                  <button type="button" onClick={() => onStartTask('export')} className="rounded-md border px-3 py-2 text-left transition-colors" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+                    <span className="mb-1 flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-strong)' }}><Printer className="h-3.5 w-3.5" /><Trans>Export a print file</Trans></span>
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}><Trans>Choose a printer profile and slice the scene.</Trans></span>
+                  </button>
+                </div>
+              </section>
+            )}
             <div className={`grid gap-2 w-full ${onImportSceneChange ? 'grid-cols-2' : 'grid-cols-1'}`}>
               <button
                 type="button"

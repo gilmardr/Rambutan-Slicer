@@ -15,6 +15,9 @@ type PrintingPanelProps = {
   printerName: string;
   resinName: string;
   estimatedPrintTimeLabel: string;
+  estimatedModelVolumeLabel: string;
+  estimatedSupportsVolumeLabel: string;
+  estimatedRaftVolumeLabel: string;
   estimatedVolumeLabel: string;
   canDownload: boolean;
   canSendToPrinter: boolean;
@@ -46,6 +49,9 @@ export function PrintingPanel({
   printerName,
   resinName,
   estimatedPrintTimeLabel,
+  estimatedModelVolumeLabel,
+  estimatedSupportsVolumeLabel,
+  estimatedRaftVolumeLabel,
   estimatedVolumeLabel,
   canDownload,
   canSendToPrinter,
@@ -124,7 +130,16 @@ export function PrintingPanel({
           <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Estimated print time</Trans></div>
           <div className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>{estimatedPrintTimeLabel}</div>
 
-          <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Estimated volume</Trans></div>
+          <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Model resin</Trans></div>
+          <div className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>{estimatedModelVolumeLabel}</div>
+
+          <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Supports resin</Trans></div>
+          <div className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>{estimatedSupportsVolumeLabel}</div>
+
+          <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Raft resin</Trans></div>
+          <div className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>{estimatedRaftVolumeLabel}</div>
+
+          <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Total resin</Trans></div>
           <div className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>{estimatedVolumeLabel}</div>
         </div>
 

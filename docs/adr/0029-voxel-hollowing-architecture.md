@@ -26,11 +26,17 @@ voxelizes the model, classifies shell vs. interior voxels, computes cavity
 surfaces, and returns results as binary Float32Array/Uint32Array buffers read
 back via dedicated `_read_positions` / `_read_cavity_positions` commands.
 
-Three modes: `cavity` (hollow the interior), `infill` (lattice or pillar fill),
+Three modes: `cavity` (hollow the interior), `infill` (lattice, double lattice,
+or pillar fill),
 and `shell_open_face` (remove one face of the bounding box for mold-style
 prints). A `rotationQuat` parameter orients the voxel grid to the model's scene
 rotation so pillar infills align with the build direction; the output mesh is
 inverse-rotated back to the model's unrotated frame.
+
+`double_lattice` samples the same diagonal beam families in a second pass offset
+by half a cell on both transverse axes. This is a DragonFruit geometry
+approximation of the installed Lychee hollowing type; it does not use Lychee's
+native geometry engine.
 
 ### 2. Externalized mesh modifier store
 

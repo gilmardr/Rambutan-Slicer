@@ -127,6 +127,7 @@ import {
   showModelLabel,
   shrinkWrapModelLabel,
   splitModelLabel,
+  solidOperationLabel,
   splitSupportsLabel,
   SWITCH_PRINTER_LABEL,
   switchPrinterLabel,
@@ -191,9 +192,10 @@ import {
   applyModelUngrouping,
 } from '@/features/scene/modelGroupingHistory';
 import { performModelCut, selectModelsForClipboard } from '@/features/scene/modelCut';
+import type { SolidOperationSourceSnapshot } from '@/features/mesh-boolean/solidMeshOperations';
 
 type PersistedMeshAppearance = {
-  v: 1;
+  v: 2;
   /** The view mode the camera dropdown shows, which is also the shader the viewport renders. */
   shaderType: MeshShaderType;
   /** The type the Mesh settings tab is configuring. Independent of what the viewport renders. */
@@ -255,7 +257,8 @@ const IMPORT_ARRANGE_SPACING_MM = 10;
 
 const MESH_APPEARANCE_STORAGE_KEY = 'mesh-appearance-settings';
 
-const DEFAULT_MESH_COLOR = '#a3a3a3';
+const DEFAULT_MESH_COLOR = '#f3f0e8';
+const LEGACY_DEFAULT_MESH_COLORS = new Set(['#a3a3a3', '#ed0921']);
 // Split so the Mesh tab's derived sliders read Lightness 1.40, Contrast 0.80
 // (contrast = directional / (ambient + directional)).
 const DEFAULT_AMBIENT_INTENSITY = 0.28;
@@ -642,7 +645,7 @@ function readMeshAppearanceFromLocalStorage(): PersistedMeshAppearance | null {
     const shaderType = clampPersistedMeshShaderType(parsed.shaderType, DEFAULT_SHADER_TYPE);
 
     return {
-      v: 1,
+      v: 2,
       shaderType,
       configuredShaderType: clampPersistedMeshShaderType(parsed.configuredShaderType ?? parsed.shaderType, DEFAULT_SHADER_TYPE),
       matcapVariant: clampMatcapVariant(parsed.matcapVariant, DEFAULT_MATCAP_VARIANT),
@@ -656,7 +659,11 @@ function readMeshAppearanceFromLocalStorage(): PersistedMeshAppearance | null {
       heatmapMinAngle: clampNumber(parsed.heatmapMinAngle, 0, 90, DEFAULT_HEATMAP_MIN_ANGLE),
       heatmapMaxAngle: clampNumber(parsed.heatmapMaxAngle, 0, 90, DEFAULT_HEATMAP_MAX_ANGLE),
       heatmapColors: Array.isArray(parsed.heatmapColors) && parsed.heatmapColors.length === 5 ? parsed.heatmapColors : DEFAULT_HEATMAP_COLORS,
-      meshColor: clampHexColor(parsed.meshColor, DEFAULT_MESH_COLOR),
+      meshColor: parsed.v !== 2
+        ? DEFAULT_MESH_COLOR
+        : LEGACY_DEFAULT_MESH_COLORS.has(clampHexColor(parsed.meshColor, DEFAULT_MESH_COLOR).toLowerCase())
+        ? DEFAULT_MESH_COLOR
+        : clampHexColor(parsed.meshColor, DEFAULT_MESH_COLOR),
       hoverTintStrength: clampNumber(parsed.hoverTintStrength, 0, 1, DEFAULT_HOVER_TINT_STRENGTH),
       selectedTintStrength: clampNumber(parsed.selectedTintStrength, 0, 1, DEFAULT_SELECTED_TINT_STRENGTH),
     };
@@ -1947,7 +1954,7 @@ export function useSceneCollectionManager(options?: {
   // type the Mesh tab is configuring, and every parameter either of them edits.
   useEffect(() => {
     writeMeshAppearanceToLocalStorage({
-      v: 1,
+      v: 2,
       shaderType,
       configuredShaderType,
       matcapVariant,
@@ -3675,6 +3682,7 @@ export function useSceneCollectionManager(options?: {
     baseModelId: string,
     name: string,
     historyDescription: MessageDescriptor,
+    placementTransform?: ModelTransform,
   ): string | null => {
     const currentModels = modelsRef.current;
     const base = currentModels.find((m) => m.id === baseModelId);
@@ -3706,7 +3714,8 @@ export function useSceneCollectionManager(options?: {
       fileUrl: '',
       fileSizeBytes: base.fileSizeBytes,
       geometry,
-      transform: {
+      ...(placementTransform ? { plateId: resolveModelPlateIdRef.current(base) } : {}),
+      transform: placementTransform ? cloneTransform(placementTransform) : {
         position: base.transform.position.clone(),
         rotation: base.transform.rotation.clone(),
         scale: base.transform.scale.clone(),
@@ -3742,6 +3751,89 @@ export function useSceneCollectionManager(options?: {
     return id;
   }, [pushSceneSnapshotHistory]);
 
+  /** Adds a world-space boolean result and hides its operands as one undoable scene edit. */
+  const commitSolidOperationResult = useCallback((
+    geometry: THREE.BufferGeometry,
+    sources: readonly SolidOperationSourceSnapshot[],
+    operation: 'union' | 'difference' | 'intersection',
+  ): boolean => {
+    if (sources.length < 2 || new Set(sources.map((source) => source.id)).size !== sources.length) return false;
+    const currentModels = modelsRef.current;
+    const liveSources = sources.map((source) => currentModels.find((model) => model.id === source.id));
+    const sourceChanged = liveSources.some((model, index) => {
+      if (!model) return true;
+      const snapshot = sources[index];
+      const position = model.geometry.geometry.getAttribute('position');
+      const positionVersion = position instanceof THREE.BufferAttribute
+        ? position.version
+        : position?.data.version ?? 0;
+      return !model.visible || model.isSupportGeometry
+        || model.geometry.geometry !== snapshot.geometry
+        || position !== snapshot.positionAttribute
+        || positionVersion !== snapshot.positionVersion
+        || model.geometry.geometry.index !== snapshot.indexAttribute
+        || (model.geometry.geometry.index?.version ?? 0) !== snapshot.indexVersion
+        || model.transform.position.toArray().some((value, axis) => !Object.is(value, snapshot.position[axis]))
+        || model.transform.rotation.toArray().some((value, axis) => !Object.is(value, snapshot.rotation[axis]))
+        || model.transform.scale.toArray().some((value, axis) => !Object.is(value, snapshot.scale[axis]))
+        || resolveModelPlateIdRef.current(model) !== snapshot.plateId
+        || JSON.stringify(getStoredMeshModifiers(model.id) ?? null) !== snapshot.modifiersFingerprint
+        || isModelPlateLocked(model);
+    });
+    if (sourceChanged) return false;
+    const sourceModels = liveSources as LoadedModel[];
+    const base = sourceModels[0];
+    if (sourceModels.some((model) => resolveModelPlateIdRef.current(model) !== resolveModelPlateIdRef.current(base))) return false;
+
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    const bbox = geometry.boundingBox?.clone() ?? new THREE.Box3();
+    const center = bbox.getCenter(new THREE.Vector3());
+    const size = bbox.getSize(new THREE.Vector3());
+    accelerateGeometry(geometry);
+    const result: LoadedModel = {
+      id: uuidv4(),
+      name: base.name,
+      plateId: resolveModelPlateIdRef.current(base),
+      fileUrl: '',
+      geometry: { geometry, bbox, center, size, flatteningPlanes: [] },
+      transform: {
+        position: center.clone(),
+        rotation: new THREE.Euler(),
+        scale: new THREE.Vector3(1, 1, 1),
+      },
+      visible: true,
+      color: base.color,
+      polygonCount: countTriangles(geometry),
+    };
+    const sourceIds = new Set(sourceModels.map((model) => model.id));
+    const nextModels = [
+      ...currentModels.map((model) => sourceIds.has(model.id) ? { ...model, visible: false } : model),
+      result,
+    ];
+    const before = captureSceneSnapshot(currentModels, activeModelIdRef.current, selectedModelIdsRef.current, { includeSupportState: false });
+    setModels(nextModels);
+    setActiveModelId(result.id);
+    setSelectedModelIds([result.id]);
+    const after = captureSceneSnapshot(nextModels, result.id, [result.id], { includeSupportState: false });
+    pushSceneSnapshotHistory(before, after, solidOperationLabel(operation, base.name), result.id);
+    void scheduleModelChunkBake(result);
+
+    const scheduleIdle = (cb: () => void) => {
+      if (typeof window !== 'undefined' && typeof (window as any).requestIdleCallback === 'function') {
+        (window as any).requestIdleCallback(cb, { timeout: 250 });
+      } else {
+        setTimeout(cb, 16);
+      }
+    };
+    scheduleIdle(() => {
+      const planes = computeFlatteningPlanes(geometry);
+      setModels((previous) => previous.map((model) => model.id === result.id
+        ? { ...model, geometry: { ...model.geometry, flatteningPlanes: planes } }
+        : model));
+    });
+    return true;
+  }, [isModelPlateLocked, pushSceneSnapshotHistory]);
+
   /**
    * Atomically splits one model into two: replaces the source model's geometry
    * with `partAGeometry`, and appends `partBGeometry` as a new sibling model.
@@ -3755,10 +3847,29 @@ export function useSceneCollectionManager(options?: {
     sourceId: string,
     partGeometries: THREE.BufferGeometry[],
     historyDescription: MessageDescriptor,
+    expectedSource?: SolidOperationSourceSnapshot,
   ): string[] | null => {
     const currentModels = modelsRef.current;
     const source = currentModels.find((m) => m.id === sourceId);
     if (!source || partGeometries.length === 0) return null;
+    if (expectedSource) {
+      const geometry = source.geometry.geometry;
+      const position = geometry.getAttribute('position');
+      const positionVersion = position instanceof THREE.BufferAttribute
+        ? position.version
+        : position?.data.version ?? 0;
+      if (expectedSource.id !== source.id || !source.visible || source.isSupportGeometry
+        || geometry !== expectedSource.geometry || position !== expectedSource.positionAttribute
+        || positionVersion !== expectedSource.positionVersion
+        || geometry.index !== expectedSource.indexAttribute
+        || (geometry.index?.version ?? 0) !== expectedSource.indexVersion
+        || source.transform.position.toArray().some((value, axis) => !Object.is(value, expectedSource.position[axis]))
+        || source.transform.rotation.toArray().some((value, axis) => !Object.is(value, expectedSource.rotation[axis]))
+        || source.transform.scale.toArray().some((value, axis) => !Object.is(value, expectedSource.scale[axis]))
+        || resolveModelPlateIdRef.current(source) !== expectedSource.plateId
+        || JSON.stringify(getStoredMeshModifiers(source.id) ?? null) !== expectedSource.modifiersFingerprint
+        || isModelPlateLocked(source)) return null;
+    }
 
     // KEEP EVERY PART EXACTLY WHERE IT WAS CUT (nothing moves in 3D space).
     //
@@ -3881,7 +3992,7 @@ export function useSceneCollectionManager(options?: {
     pushSceneSnapshotHistory(before, after, historyDescription);
 
     return extraIds;
-  }, [pushSceneSnapshotHistory]);
+  }, [isModelPlateLocked, pushSceneSnapshotHistory]);
 
   /**
    * The Higher Contrast Model Edges setting can be enabled after models are
@@ -5988,7 +6099,7 @@ export function useSceneCollectionManager(options?: {
             scale: importedTransform.scale,
           },
           visible: true,
-          color: '#a3a3a3',
+          color: DEFAULT_MESH_COLOR,
           polygonCount: countTriangles(processed.geometry),
           ignoreAutoLift: true,
           meshModifiers: undefined,
@@ -6594,7 +6705,7 @@ export function useSceneCollectionManager(options?: {
           }
 
           const polygonCount = countTriangles(geometry.geometry);
-          const color = clampHexColor(model.color, DEFAULT_MESH_COLOR);
+          const color = DEFAULT_MESH_COLOR;
           const importedPlateId = plateIdForImport(model.plateId);
 
           importedModels.push({
@@ -6981,6 +7092,24 @@ export function useSceneCollectionManager(options?: {
       (pathFile as File & { filePath?: string }).filePath = entry.sourcePath;
       await loadFiles([pathFile]);
       return true;
+    }
+
+    if (entry.kind === 'scene' && entry.sourcePath) {
+      try {
+        const core = await loadTauriCore();
+        const bytes = core
+          ? await core.invoke<ArrayBuffer>('read_print_file_bytes', { sourcePath: entry.sourcePath })
+          : null;
+        if (bytes && bytes.byteLength > 0) {
+          await importSceneFile(new File([new Uint8Array(bytes)], entry.name, {
+            type: 'application/octet-stream',
+            lastModified: Date.now(),
+          }), { sourcePath: entry.sourcePath });
+          return true;
+        }
+      } catch (error) {
+        console.warn('[SceneCollection] Unable to reopen recent scene from its stored path; falling back to cached copy.', error);
+      }
     }
 
     const file = await readRecentOpenedFileBlob(entry);
@@ -8197,6 +8326,7 @@ export function useSceneCollectionManager(options?: {
     setModelTransformRaw,
     replaceModelGeometry,
     addModelFromGeometry,
+    commitSolidOperationResult,
     splitModelIntoParts,
     finalizeModelGeometryPostProcessing,
     setModelManualZMoveOverride,

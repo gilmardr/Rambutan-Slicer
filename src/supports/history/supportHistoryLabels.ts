@@ -34,6 +34,8 @@ export const SUPPORT_HISTORY_LABELS: HistoryLabels<SupportHistoryPayloadMap> = {
   'support:auto-brace-replace': msg({ message: 'Auto bracing', context: 'Undo history entry' }),
   'support:auto-place': msg({ message: 'Auto supports', context: 'Undo history entry' }),
   'support:blocker-stroke': msg({ message: 'Paint support blocker', context: 'Undo history entry' }),
+  'support:paint-stroke': msg({ message: 'Paint supports', context: 'Undo history entry' }),
+  'support:projection': msg({ message: 'Project supports', context: 'Undo history entry' }),
 };
 
 // Entries that name a support type. One message per action, with the type as

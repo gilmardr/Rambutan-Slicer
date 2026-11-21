@@ -1,4 +1,5 @@
 import type { DetectedIsland } from './types';
+import { DisjointSet } from './disjointSet';
 import { SpatialHashGrid2D } from './spatialHashGrid2D';
 
 /**
@@ -54,21 +55,7 @@ export function clusterWalkOrder(
   };
 
   // --- single-linkage clustering via union-find ---
-  const parent = Array.from({ length: n }, (_, i) => i);
-  const find = (x: number): number => {
-    let root = x;
-    while (parent[root] !== root) root = parent[root];
-    // Path compression.
-    while (parent[x] !== root) {
-      const next = parent[x];
-      parent[x] = root;
-      x = next;
-    }
-    return root;
-  };
-  const union = (a: number, b: number): void => {
-    parent[find(a)] = find(b);
-  };
+  const disjointSet = new DisjointSet(n);
 
   const cellSize = opts.epsilonMm <= 0 ? 1.0 : opts.epsilonMm;
   const grid = new SpatialHashGrid2D<number>(cellSize);
@@ -80,26 +67,16 @@ export function clusterWalkOrder(
     const neighbors = grid.query(islands[i].contact.x, islands[i].contact.y, opts.epsilonMm);
     for (const j of neighbors) {
       if (j > i && near(islands[i], islands[j])) {
-        union(i, j);
+        disjointSet.union(i, j);
       }
     }
   }
 
   // --- collect clusters ---
-  const byRoot = new Map<number, DetectedIsland[]>();
-  for (let i = 0; i < n; i++) {
-    const root = find(i);
-    let bucket = byRoot.get(root);
-    if (!bucket) {
-      bucket = [];
-      byRoot.set(root, bucket);
-    }
-    bucket.push(islands[i]);
-  }
-
   const clusters: Cluster[] = [];
   let cid = 0;
-  for (const members of byRoot.values()) {
+  for (const indices of disjointSet.groups()) {
+    const members = indices.map((index) => islands[index]);
     let minZ = Infinity;
     for (const m of members) if (m.baseZ < minZ) minZ = m.baseZ;
     const id = cid++;

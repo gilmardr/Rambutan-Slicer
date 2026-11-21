@@ -126,22 +126,6 @@
 - Why: turns prod-only failures (like the Lingui one) into something visible
   before signing a release.
 
-### [refactor] Scattered, overlapping duration formatters — M · medium risk
-- Where: src/app/page.tsx (`formatApproxPrintTimeLabel`,
-  `formatProcessingElapsedLabel`, `formatEstimatedPrintTimeLabel`),
-  src/features/printing/printingMonitorFormat.ts,
-  src/components/layout/EmptySceneState.tsx.
-- What: ~3 places format durations with similar but divergent templates
-  (`{hours} h {minutes} min`, `{hours} h {paddedMinutes} min`, `~{mins} min`,
-  `{minutes} min {paddedSeconds} s`, relative `{deltaMin} min`…). Seconds are
-  zero-padded in some, rounded in others, absent in others.
-- Why: consolidate the mechanics into one duration-formatting module — and
-  translate one string instead of several.
-- Careful: the *message shapes* differ deliberately by context (estimated /
-  elapsed / relative / approximate). Do not merge messages bluntly: that would
-  change catalog ids and drop translations. Consolidate the mechanics, keep the
-  templates.
-
 ### [cleanup] Pre-existing ESLint errors in src/hotkeys — S · low risk
 - Where: src/hotkeys/ (confirmed in `__tests__/hotkeyStore.test.ts` and
   `HotkeyContext.tsx`). Regenerate with `npx eslint src/hotkeys/` — don't freeze
@@ -333,7 +317,7 @@
 - Where: src/features/slicing/components/SlicingPanel.tsx. Regenerate with
   `npx eslint <file>` — don't trust a frozen listing.
 - What: `sliceStatus` is a useState written by seven call sites and never read;
-  `formatDuration`, `fetchStatus`, `activePrinter`, `activeMaterial` and a
+  `formatDuration`, `activePrinter`, `activeMaterial` and a
   handful of `set*` setters are unused.
 - Why: `sliceStatus` in particular reads like live status and is not — it
   invites someone to "fix" a display that no longer exists. Predates the i18n
@@ -376,8 +360,7 @@
   `index.ts` files nobody imports, fixtures no test loads, undocumented scripts.
 - Why: dead code still draws upkeep — sweeps translated and restyled a stale
   copy of RaftSettingsCard before anyone noticed nothing mounted it.
-- Keep, do not re-investigate: `BackupsSettingsTab.tsx` is the GitHub backup UI,
-  parked while #30 may revive it; `loadVoxlFixture.ts` feeds the export goldens
+- In 3DRESIN, GitHub-authenticated backups are removed; local filesystem backups remain in LocalBackupsSettingsTab.tsx. loadVoxlFixture.ts feeds the export goldens
   that live outside the repo in `lysdiag/`.
 - Careful: knip lists files, not directories — count what is still live in a
   directory before calling it dead. A manual script that shows up gets

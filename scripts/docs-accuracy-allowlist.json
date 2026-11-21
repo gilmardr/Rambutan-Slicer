@@ -92,7 +92,15 @@
             "extract_union_boundary_faces",
             "resample_outer_surface",
             "projectService",
-            "directed_hole_loops"
+            "directed_hole_loops",
+            "plug_shape_cube",
+            "plug_shape_cylinder",
+            "PlanarCutPlugMesh",
+            "VirtualMeshPlanarCutPlugManager",
+            "infillTypeOptions",
+            "pocketDetection",
+            "ev_d5aab76f3923d33dd968471ea58d42a5ed6065edcfa59eb8d7a00f7e1739bd54",
+            "ev_01afcfcc463f93856b6839af7c55a8643ef84a467be4757852a341f555019d11"
       ],
       "paths": [
             "src/supports/generatedSupportRegistrations.ts",
@@ -129,7 +137,10 @@
             "VOXL_V2_SEMANTIC_REVISION": "The 2.2 modifier-chunk revision constant, renamed to VOXL_V3_SEMANTIC_REVISION (3.1) in ADR-0042's re-base. ADR-0042 names the old spelling because the record IS the rename.",
             "removed with VOXL V1": "VoxlCompressedDocumentEnvelopeV1 / VoxlCompressionRef / VoxlDocumentCompressionEncoding / SerializeVoxlOptions / VoxlMeshEncoding, and the Rust CLI's load_voxl_v1_from_bytes: all deleted with VOXL V1 read support, and named by ADR-0043 because the record IS the removal. Reimplementing any of them should be a deliberate decision, not a re-import.",
             "projectService": "typescript-eslint's parser option for type-aware linting. docs/internal/backlog.md names it because the finding IS its absence from eslint.config.mjs; it will appear in the tree once that entry is done.",
-            "directed_hole_loops": "deleted when the two boundary walks became one. repair-engine-winding-and-boundary.md names it because the record of that confusion IS the removed walk: the section explains what it returned and why that was wrong, and it also names `Topology::boundary_loops`, which survives as the single rotation walk. Rewriting the name to today's would misstate which walk was at fault."
+            "directed_hole_loops": "deleted when the two boundary walks became one. repair-engine-winding-and-boundary.md names it because the record of that confusion IS the removed walk: the section explains what it returned and why that was wrong, and it also names `Topology::boundary_loops`, which survives as the single rotation walk. Rewriting the name to today's would misstate which walk was at fault.",
+            "static Lychee bundle strings": "plug_shape_cube, plug_shape_cylinder, PlanarCutPlugMesh, VirtualMeshPlanarCutPlugManager, infillTypeOptions, and pocketDetection were observed in the installed Lychee renderUI.js/render3D.js bundles during REA and are quoted in docs/internal/lychee-slicer-comparison.md as third-party static strings. Those installed binaries are outside this repository, and static declarations are documented as evidence rather than code symbols.",
+            "ev_d5aab76f3923d33dd968471ea58d42a5ed6065edcfa59eb8d7a00f7e1739bd54": "REA evidence ID for an incomplete static trace against the installed third-party Lychee UI bundle. It is cited in docs/internal/lychee-slicer-comparison.md as an external analysis record, not as a DragonFruit code symbol.",
+            "ev_01afcfcc463f93856b6839af7c55a8643ef84a467be4757852a341f555019d11": "REA evidence ID for a focused analysis of the installed third-party Lychee UI bundle that timed out before parsing it. It is cited in docs/internal/lychee-slicer-comparison.md as an external analysis record, not as a DragonFruit code symbol."
       },
       "_comment_webkit_symbols": "The eight WebKit/JavaScriptCore internals above (javascript_gc_object_count through operationMapHash) are cited by docs/dev/performance-debugging.md as they appear in `sample` output and WebKit's own logs. They belong to the platform, not to this codebase, and will never be found here.",
       "_comment_anchor_constants": "ANCHOR_MIN_* / ANCHOR_SHAFT_MULTIPLIER: removed constants, cited by name in support-registry-findings.md because the finding IS their removal. The values live on the anchor descriptor's autoPlacement and are pinned by __tests__/autoPlacementPolicy.test.ts.",

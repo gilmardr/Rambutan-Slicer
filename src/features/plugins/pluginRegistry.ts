@@ -523,6 +523,13 @@ function sanitizeMaterialTemplate(input: unknown): Omit<MaterialProfile, 'id' | 
       y: sanitizeNumber((value as any).scaleCompensationPct?.y, 0, -100, 100),
       z: sanitizeNumber((value as any).scaleCompensationPct?.z, 0, -100, 100),
     },
+    toleranceCompensation: {
+      innerDiameterMm: sanitizeNumber((value as any).toleranceCompensation?.innerDiameterMm, 0, -5, 5),
+      outerDiameterMm: sanitizeNumber((value as any).toleranceCompensation?.outerDiameterMm, 0, -5, 5),
+      bottomEnabled: (value as any).toleranceCompensation?.bottomEnabled === true,
+      bottomInnerDiameterMm: sanitizeNumber((value as any).toleranceCompensation?.bottomInnerDiameterMm, 0, -5, 5),
+      bottomOuterDiameterMm: sanitizeNumber((value as any).toleranceCompensation?.bottomOuterDiameterMm, 0, -5, 5),
+    },
     layerHeightMm: sanitizeNumber(value.layerHeightMm, 0.05, 0.001, 10),
     normalExposureSec: sanitizeNumber(value.normalExposureSec, 2.5, 0.01, 10000),
     bottomExposureSec: sanitizeNumber(value.bottomExposureSec, 28, 0.01, 10000),

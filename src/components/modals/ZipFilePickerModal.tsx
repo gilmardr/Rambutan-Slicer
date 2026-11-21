@@ -25,7 +25,7 @@ const EXT_COLORS: Record<string, string> = {
   '.stl': '#60a5fa',
   '.3mf': '#34d399',
   '.obj': '#a78bfa',
-  '.voxl': '#baf72e',
+  '.voxl': '#ffb45d',
   '.lys': '#f59e0b',
 };
 
@@ -230,7 +230,7 @@ export function ZipFilePickerModal({
                 Select Files from ZIP
               </h2>
               <p className="mt-0.5 text-[11px] leading-snug" style={{ color: 'var(--text-muted)' }}>
-                DragonFruit found {categoryLabel} in this archive for {actionLabel}
+                3DRESIN found {categoryLabel} in this archive for {actionLabel}
               </p>
             </div>
           </div>

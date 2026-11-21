@@ -16,7 +16,7 @@ import {
   loadTauriCore,
   stageGeometryToStagedMesh,
 } from '@/utils/tauriMeshBridge';
-import type { TenonPreviewFrame, OrganicCutLoopPoint, OrganicCutOptions, OrganicCutReport, OrganicCutResult } from './types';
+import type { TenonPreviewFrame, OrganicCutLoopPoint, OrganicCutOptions, OrganicCutPlugSpec, OrganicCutReport, OrganicCutResult } from './types';
 
 let stagedCutSourceKey: string | null = null;
 // The geometry OBJECT last staged. Tracked alongside the tenon so that if a model's
@@ -171,8 +171,8 @@ export async function computeGeodesicLoop(
   }
 }
 
-/** Which tenon the preview placed: a frustum, a half-sphere dome, or none. */
-export type TenonPreviewKind = 'frustum' | 'dome' | 'none';
+/** Which registration shape the preview built. */
+export type TenonPreviewKind = 'frustum' | 'rectangular' | 'cylinder' | 'dome' | 'none';
 
 /**
  * Result of the contour-cut preview round-trip: the membrane cutter soup plus,
@@ -222,13 +222,18 @@ export async function computeMembranePreview(
   generateTenon = false,
   tenonWidthMm = 2.0,
   tenonDepthMm = 2.5,
-  tenonShape: 'frustum' | 'dome' = 'frustum',
+  tenonShape: 'frustum' | 'rectangular' | 'cylinder' | 'dome' = 'frustum',
   tenonFilletMm = 0.0,
   tenonToleranceMm = 0.1,
   tenonSwapSides = false,
   tenonAnchor: [number, number, number] | null = null,
   tenonTiltRad = 0.0,
   tenonRollRad = 0.0,
+  plugs?: (OrganicCutPlugSpec & { generateTenon: boolean })[],
+  selectedPlugIndex = 0,
+  tenonChamferSizeMm = 0,
+  tenonChamferDepthMm = 0,
+  tenonTaperAngleDeg: number | null = null,
 ): Promise<MembranePreviewResult> {
   const empty: MembranePreviewResult = {
     membrane: null,
@@ -259,6 +264,11 @@ export async function computeMembranePreview(
     tenonAnchor,
     tenonTiltRad,
     tenonRollRad,
+    tenonChamferSizeMm,
+    tenonChamferDepthMm,
+    tenonTaperAngleDeg,
+    plugs,
+    selectedPlugIndex,
   });
   try {
     const reportJson = await core.invoke<string>('mesh_organic_cut_membrane_preview', { requestJson });
@@ -306,11 +316,16 @@ export async function computePlaneTenonPreview(
   generateTenon: boolean,
   tenonWidthMm = 2.0,
   tenonDepthMm = 2.5,
-  tenonShape: 'frustum' | 'dome' = 'frustum',
+  tenonShape: 'frustum' | 'rectangular' | 'cylinder' | 'dome' = 'frustum',
   tenonFilletMm = 0.0,
   tenonToleranceMm = 0.1,
   tenonSwapSides = false,
   tenonAnchor: [number, number, number] | null = null,
+  plugs?: (OrganicCutPlugSpec & { generateTenon: boolean })[],
+  selectedPlugIndex = 0,
+  tenonChamferSizeMm = 0,
+  tenonChamferDepthMm = 0,
+  tenonTaperAngleDeg: number | null = null,
 ): Promise<MembranePreviewResult> {
   const empty: MembranePreviewResult = {
     membrane: null,
@@ -335,6 +350,11 @@ export async function computePlaneTenonPreview(
     tenonToleranceMm,
     tenonSwapSides,
     tenonAnchor,
+    tenonChamferSizeMm,
+    tenonChamferDepthMm,
+    tenonTaperAngleDeg,
+    plugs,
+    selectedPlugIndex,
   });
   try {
     const reportJson = await core.invoke<string>('mesh_organic_cut_plane_tenon_preview', { requestJson });

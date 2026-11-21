@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import * as THREE from 'three';
 import { useThree, useFrame, type ThreeEvent } from '@react-three/fiber';
 import { AxisLabels } from '@/components/scene/AxisLabels';
+import { useLocaleFormat } from '@/hooks/useLocaleFormat';
 import { fitFontToWidth } from '@/utils/canvasTextFit';
 import { PlateNameLabel } from './PlateNameLabel';
 import { PlateSideButtons } from './PlateSideButtons';
@@ -125,7 +126,7 @@ export function SceneMoodOverlay() {
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
-          background: 'radial-gradient(120% 95% at 50% 46%, rgba(0,0,0,0) 56%, color-mix(in srgb, var(--scene-gradient-radial, #ff37aa), transparent 82%) 100%)',
+          background: 'radial-gradient(120% 95% at 50% 46%, rgba(0,0,0,0) 56%, color-mix(in srgb, var(--scene-gradient-radial, #205a61), transparent 82%) 100%)',
           mixBlendMode: 'screen',
           opacity: 0.75,
         }}
@@ -134,7 +135,7 @@ export function SceneMoodOverlay() {
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
-          background: 'linear-gradient(180deg, color-mix(in srgb, var(--scene-gradient-linear-start, #ff37aa), transparent 90%) 0%, color-mix(in srgb, var(--scene-gradient-linear-mid, #6f33ff), transparent 94%) 40%, rgba(0,0,0,0) 100%)',
+          background: 'linear-gradient(180deg, color-mix(in srgb, var(--scene-gradient-linear-start, #10252d), transparent 90%) 0%, color-mix(in srgb, var(--scene-gradient-linear-mid, #154f56), transparent 94%) 40%, rgba(0,0,0,0) 100%)',
           mixBlendMode: 'screen',
           opacity: 0.8,
         }}
@@ -274,6 +275,7 @@ type PlateLayerShared = {
   /** What the scene helpers show at all, and the plate's own opacity, already clamped. */
   showGrid: boolean;
   showBuildPlate: boolean;
+  showMillimeterRuler: boolean;
   buildPlateOpacity: number;
   plate: {
     geometry: THREE.ExtrudeGeometry;
@@ -286,6 +288,7 @@ type PlateLayerShared = {
     divisions: number;
     scaleX: number;
     scaleZ: number;
+    plateEdgeOffsetMm: number;
     position: [number, number, number];
     majorColor: string;
     minorColor: string;
@@ -539,6 +542,15 @@ function PlateLayer({
       </group>
       )}
 
+      {shared.showMillimeterRuler && isActive && shared.showBuildPlate && shared.buildPlateOpacity > 0.001 && (
+        <MillimeterRuler
+          widthMm={shared.grid.baseSize * shared.grid.scaleX}
+          depthMm={shared.grid.baseSize * shared.grid.scaleZ}
+          edgeOffsetMm={shared.grid.plateEdgeOffsetMm}
+          position={shared.grid.position}
+        />
+      )}
+
       {/* The plate's name, laid flat just inside its front-left corner. The anchor is the
           plate's left and back edge: the label is shifted by half its own size inside
           the component, so this point is its bottom-left corner. */}
@@ -618,6 +630,126 @@ function PlateLayer({
   );
 }
 
+function MillimeterRuler({
+  widthMm,
+  depthMm,
+  edgeOffsetMm,
+  position,
+}: {
+  widthMm: number;
+  depthMm: number;
+  edgeOffsetMm: number;
+  position: [number, number, number];
+}) {
+  const fmt = useLocaleFormat();
+  const geometries = React.useMemo(() => {
+    const xSegments: number[][] = [[], [], []];
+    const ySegments: number[][] = [[], [], []];
+    const xStart = -widthMm * 0.5;
+    const yStart = -depthMm * 0.5;
+    const xRulerY = depthMm * 0.5 + edgeOffsetMm;
+    const yRulerX = widthMm * 0.5 + edgeOffsetMm;
+    const tickLengths = [1.2, 2.2, 3.8];
+    const z = 0.035;
+
+    const pushSegment = (target: number[], x1: number, y1: number, x2: number, y2: number) => {
+      target.push(x1, y1, z, x2, y2, z);
+    };
+
+    for (let mm = 0; mm <= Math.floor(widthMm); mm += 1) {
+      const level = mm % 10 === 0 ? 2 : mm % 5 === 0 ? 1 : 0;
+      const x = xStart + mm;
+      pushSegment(xSegments[level], x, xRulerY, x, xRulerY - tickLengths[level]);
+    }
+    for (let mm = 0; mm <= Math.floor(depthMm); mm += 1) {
+      const level = mm % 10 === 0 ? 2 : mm % 5 === 0 ? 1 : 0;
+      const y = yStart + mm;
+      pushSegment(ySegments[level], yRulerX, y, yRulerX - tickLengths[level], y);
+    }
+
+    pushSegment(xSegments[2], xStart, xRulerY, xStart + widthMm, xRulerY);
+    pushSegment(ySegments[2], yStart, yRulerX, yStart + depthMm, yRulerX);
+
+    const createGeometry = (segments: number[][]) => segments.map((vertices) => {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      return geometry;
+    });
+    const createLabelTexture = (lengthMm: number, color: string) => {
+      const pixelsPerMm = 16;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(256, Math.ceil(lengthMm * pixelsPerMm));
+      canvas.height = 80;
+      const context = canvas.getContext('2d');
+      if (!context) return null;
+
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = color;
+      context.font = '600 34px Arial';
+      context.textBaseline = 'middle';
+      for (let mm = 0; mm < lengthMm; mm += 10) {
+        context.textAlign = mm === 0 ? 'left' : 'center';
+        context.fillText(fmt.fixed(mm, 0), mm * pixelsPerMm + (mm === 0 ? 4 : 0), canvas.height / 2);
+      }
+      context.textAlign = 'right';
+      context.fillText(fmt.quantity(lengthMm, 1, 'mm'), canvas.width - 4, canvas.height / 2);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      return texture;
+    };
+    return {
+      x: createGeometry(xSegments),
+      y: createGeometry(ySegments),
+      xLabels: createLabelTexture(widthMm, '#4dc7d9'),
+      yLabels: createLabelTexture(depthMm, '#f0ad58'),
+    };
+  }, [depthMm, edgeOffsetMm, fmt, widthMm]);
+
+  React.useEffect(() => () => {
+    geometries.x.forEach((geometry) => geometry.dispose());
+    geometries.y.forEach((geometry) => geometry.dispose());
+    geometries.xLabels?.dispose();
+    geometries.yLabels?.dispose();
+  }, [geometries]);
+
+  return (
+    <group position={position} frustumCulled={false} userData={{ thumbnailHelperType: 'grid' }}>
+      {geometries.x.map((geometry, index) => (
+        <lineSegments key={`x-ruler-${index}`} geometry={geometry} renderOrder={24} raycast={nullRaycast}>
+          <lineBasicMaterial color="#4dc7d9" transparent opacity={index === 2 ? 0.95 : 0.72} depthTest={false} />
+        </lineSegments>
+      ))}
+      {geometries.y.map((geometry, index) => (
+        <lineSegments key={`y-ruler-${index}`} geometry={geometry} renderOrder={24} raycast={nullRaycast}>
+          <lineBasicMaterial color="#f0ad58" transparent opacity={index === 2 ? 0.95 : 0.72} depthTest={false} />
+        </lineSegments>
+      ))}
+      {geometries.xLabels && (
+        <mesh
+          position={[0, depthMm * 0.5 + edgeOffsetMm - 7.5, 0.045]}
+          renderOrder={25}
+          raycast={nullRaycast}
+        >
+          <planeGeometry args={[widthMm, 5]} />
+          <meshBasicMaterial map={geometries.xLabels} transparent depthTest={false} depthWrite={false} toneMapped={false} />
+        </mesh>
+      )}
+      {geometries.yLabels && (
+        <mesh
+          position={[widthMm * 0.5 + edgeOffsetMm - 7.5, 0, 0.045]}
+          rotation={[0, 0, Math.PI / 2]}
+          renderOrder={25}
+          raycast={nullRaycast}
+        >
+          <planeGeometry args={[depthMm, 5]} />
+          <meshBasicMaterial map={geometries.yLabels} transparent depthTest={false} depthWrite={false} toneMapped={false} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
 export function Helpers({
   gridWidthMm,
   gridDepthMm,
@@ -626,6 +758,7 @@ export function Helpers({
   buildPlateOpacity,
   showGrid,
   showBuildPlate,
+  showMillimeterRuler,
   safetyMarginMm,
   frontLabel = 'Front',
   plateName,
@@ -661,6 +794,7 @@ export function Helpers({
   buildPlateOpacity?: number;
   showGrid?: boolean;
   showBuildPlate?: boolean;
+  showMillimeterRuler?: boolean;
   safetyMarginMm?: { front: number; back: number; left: number; right: number };
   /**
    * Text baked into the build plate's front-edge marker, already translated.
@@ -920,11 +1054,12 @@ export function Helpers({
   // Rasterize SVG to canvas and use as texture for robust WebGL support
   const plateLogoTexture = React.useMemo(() => {
     const texture = new THREE.Texture();
-    fetch('/dragonfruit_assets/branding/text_logo.svg')
+    fetch('/rambutan-wordmark.svg')
       .then(res => res.text())
       .then(svgText => {
+        const plateWordmark = svgText.replace('fill="#5DCAA5"', 'fill="#ED0921"');
         // Create an image from SVG text
-        const svg = new Blob([svgText], { type: 'image/svg+xml' });
+        const svg = new Blob([plateWordmark], { type: 'image/svg+xml' });
         const url = URL.createObjectURL(svg);
         const img = new window.Image();
         img.onload = () => {
@@ -1167,6 +1302,7 @@ export function Helpers({
   const shared: PlateLayerShared = {
     showGrid: shouldShowGrid,
     showBuildPlate: shouldShowBuildPlate,
+    showMillimeterRuler: showMillimeterRuler ?? false,
     buildPlateOpacity: clampedBuildPlateOpacity,
     plate: {
       geometry: buildPlateGeometry,
@@ -1178,6 +1314,7 @@ export function Helpers({
       divisions,
       scaleX,
       scaleZ,
+      plateEdgeOffsetMm: buildPlateOversizeEachSideMm,
       position: [buildVolumeCenterX, buildVolumeCenterY, -0.01],
       majorColor: gridMajorColor,
       minorColor: gridMinorColor,

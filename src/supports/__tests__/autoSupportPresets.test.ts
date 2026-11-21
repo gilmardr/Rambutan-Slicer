@@ -69,16 +69,16 @@ function loadStoreWithNoStorage(): Store {
     return require(STORE_PATH) as Store;
 }
 
-test('built-in presets are the Auto Support panel light/medium/heavy tiers, settings included', () => {
+test('built-in presets include light/medium/heavy tiers and the interior pillar preset', () => {
     const { store } = loadStoreWith();
 
     // The panel's quick-select writes these same blocks through the settings
-    // store, so the two must stay equal or the panel and the preset list would
-    // describe different densities under the same names.
-    assert.deepEqual(store.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy']);
+    // store, so the tiers and preset list must stay aligned.
+    assert.deepEqual(store.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy', 'interior-pillar']);
     assert.deepEqual(store.getAutoSupportPreset('light')!.settings, DETAIL_PRESET.settings.autoSupport);
     assert.deepEqual(store.getAutoSupportPreset('medium')!.settings, STRUCTURE_PRESET.settings.autoSupport);
     assert.deepEqual(store.getAutoSupportPreset('heavy')!.settings, ANCHOR_PRESET.settings.autoSupport);
+    assert.equal(store.getAutoSupportPreset('interior-pillar')!.settings.supportScope, 'interior');
     assert.ok(store.getAutoSupportPresets().every((preset) => preset.isBuiltIn));
 
     // Loading the store must not rearrange anybody's settings: no preset is
@@ -169,7 +169,7 @@ test('create, rename, duplicate and delete persist, and built-ins are not rename
     assert.equal(created.isBuiltIn, false);
     assert.equal(store.getActiveAutoSupportPresetId(), created.id);
     assert.equal(store.isAutoSupportPresetDirty(), false);
-    assert.deepEqual(store.getAutoSupportPresets().map((preset) => preset.name), ['Light', 'Medium', 'Heavy', 'Mine']);
+    assert.deepEqual(store.getAutoSupportPresets().map((preset) => preset.name), ['Light', 'Medium', 'Heavy', 'Interior Pillar', 'Mine']);
 
     // A name already in use is made unique rather than duplicated.
     assert.equal(store.renameAutoSupportPreset(created.id, 'Medium')!.name, 'Medium (2)');
@@ -202,7 +202,7 @@ test('create, rename, duplicate and delete persist, and built-ins are not rename
     const reloaded = reloadStore();
     assert.deepEqual(
         reloaded.getAutoSupportPresets().map((preset) => preset.name),
-        ['Light', 'Medium', 'Heavy', 'Medium (2)', 'Medium (2) copy'],
+        ['Light', 'Medium', 'Heavy', 'Interior Pillar', 'Medium (2)', 'Medium (2) copy'],
     );
     // The copy is the selection, and it survives the reload: the active id is its
     // own key, not a field of the collection.
@@ -215,14 +215,14 @@ test('create, rename, duplicate and delete persist, and built-ins are not rename
     // Deleting a built-in is refused: the light/medium/heavy row and the file
     // format are defined in terms of those ids.
     reloaded.deleteAutoSupportPreset('heavy');
-    assert.deepEqual(reloaded.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy', created.id, copy.id]);
+    assert.deepEqual(reloaded.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy', 'interior-pillar', created.id, copy.id]);
 
     reloaded.deleteAutoSupportPreset(created.id);
     reloaded.deleteAutoSupportPreset(copy.id);
-    assert.deepEqual(reloaded.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy']);
+    assert.deepEqual(reloaded.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy', 'interior-pillar']);
     assert.equal(reloaded.getActiveAutoSupportPresetId(), null);
     assert.equal(storage.get(ACTIVE_KEY), undefined);
-    assert.equal(JSON.parse(storage.get(PRESETS_KEY)!).allIds.length, 3);
+    assert.equal(JSON.parse(storage.get(PRESETS_KEY)!).allIds.length, 4);
 });
 
 test('the commit writes the settings and the preset together, so no star is left behind', () => {
@@ -256,7 +256,7 @@ test('the commit writes the settings and the preset together, so no star is left
     store.setActiveAutoSupportPreset('light');
     store.commitAutoSupportSettings({ ...getAutoSupportSettings(), areaPerSupportMm2: 9 });
     assert.equal(getAutoSupportSettings().areaPerSupportMm2, 9, 'the live settings take the draft');
-    assert.equal(store.getAutoSupportPreset('light')!.settings.areaPerSupportMm2, 16, 'the built-in does not');
+    assert.equal(store.getAutoSupportPreset('light')!.settings.areaPerSupportMm2, 30, 'the built-in does not');
 });
 
 test('a knob edit dirties the active preset; save and reset are the two exits', () => {
@@ -264,17 +264,17 @@ test('a knob edit dirties the active preset; save and reset are the two exits', 
     const { store, storage } = loadStoreWith();
 
     store.setActiveAutoSupportPreset('light');
-    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 16);
+    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 30);
     assert.equal(store.isAutoSupportPresetDirty(), false);
 
     // The edit is not silently written into the preset, and it does not detach it.
     updateAutoSupportSettings({ areaPerSupportMm2: 12 });
     assert.equal(store.isAutoSupportPresetDirty(), true);
     assert.equal(store.getActiveAutoSupportPresetId(), 'light');
-    assert.equal(store.getAutoSupportPreset('light')!.settings.areaPerSupportMm2, 16);
+    assert.equal(store.getAutoSupportPreset('light')!.settings.areaPerSupportMm2, 30);
 
     store.resetToActivePreset();
-    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 16);
+    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 30);
     assert.equal(store.isAutoSupportPresetDirty(), false);
 
     // A built-in refuses the save: its block is the factory's, so Duplicate is the
@@ -356,14 +356,14 @@ test('export and import round-trip a preset document', () => {
     assert.deepEqual(imported.settings, ANCHOR_PRESET.settings.autoSupport);
     // The user asked for this policy, so it is the one now in effect.
     assert.equal(store.getActiveAutoSupportPresetId(), imported.id);
-    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 5);
+    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 12);
     assert.equal(store.isAutoSupportPresetDirty(), false);
 
     // The document survives a second round trip unchanged.
     const reExported = JSON.parse(store.exportAutoSupportPresetToJson(imported.id));
     assert.equal(reExported.preset.name, imported.name);
     assert.deepEqual(reExported.preset.settings, doc.preset.settings);
-    assert.deepEqual(store.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy', imported.id]);
+    assert.deepEqual(store.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy', 'interior-pillar', imported.id]);
 
     assert.throws(
         () => store.exportAutoSupportPresetToJson('missing'),
@@ -457,7 +457,7 @@ test('every import rejection has its own user-presentable message, and adds noth
     reject(JSON.stringify({ ...valid, preset: { name: 'Ok', settings: null } }), 'Invalid auto-support preset file: settings must be an object.');
     reject(JSON.stringify({ ...valid, preset: { name: 'Ok', settings: [1] } }), 'Invalid auto-support preset file: settings must be an object.');
 
-    assert.deepEqual(store.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy']);
+    assert.deepEqual(store.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy', 'interior-pillar']);
     assert.equal(store.getActiveAutoSupportPresetId(), null);
 });
 
@@ -479,7 +479,7 @@ test('load repairs unknown, duplicate and reserved ids, and adopts a valid activ
     const { store } = loadStoreWith(seed);
     assert.deepEqual(
         store.getAutoSupportPresets().map((preset) => preset.id),
-        ['light', 'medium', 'heavy', 'asp-ok', 'asp-broken', 'asp-nameless'],
+        ['light', 'medium', 'heavy', 'interior-pillar', 'asp-ok', 'asp-broken', 'asp-nameless'],
     );
     assert.equal(store.getAutoSupportPreset('light')!.settings.areaPerSupportMm2, 8);
     assert.equal(store.getAutoSupportPreset('light')!.name, 'Light');
@@ -500,18 +500,18 @@ test('with no storage at all the store still runs on its built-ins', () => {
     const store = loadStoreWithNoStorage();
     const live = getAutoSupportSettings();
 
-    assert.deepEqual(store.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy']);
+    assert.deepEqual(store.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy', 'interior-pillar']);
     assert.equal(store.getActiveAutoSupportPresetId(), null);
 
     const created = store.createAutoSupportPreset('Ephemeral');
-    assert.equal(store.getAutoSupportPresets().length, 4);
+    assert.equal(store.getAutoSupportPresets().length, 5);
 
     store.setActiveAutoSupportPreset('heavy');
     assert.equal(store.getActiveAutoSupportPresetId(), 'heavy');
-    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 5);
+    assert.equal(getAutoSupportSettings().areaPerSupportMm2, 12);
     assert.equal(store.isAutoSupportPresetDirty(), false);
 
     store.deleteAutoSupportPreset(created.id);
-    assert.deepEqual(store.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy']);
+    assert.deepEqual(store.getAutoSupportPresets().map((preset) => preset.id), ['light', 'medium', 'heavy', 'interior-pillar']);
     assert.ok(live);
 });

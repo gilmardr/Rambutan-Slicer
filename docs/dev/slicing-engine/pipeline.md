@@ -62,6 +62,14 @@ This path is still bounded/cancelable and useful for encoders not exposing paral
 - AA on => subscanline coverage accumulation to grayscale
 - output is row-major `Vec<RleRun>`
 
+When `SliceJobV3.model_slice_ranges` contains an enabled model range, the engine
+rasterizes each ranged model independently for that layer, applies a distance
+transform to retain the configured 2D wall, and unions the resulting shell with
+the other model triangles and support/raft triangles. RLE and block-RLE requests
+use a full layer mask for this pass so the shell distance is not clipped at row or
+block boundaries. This path runs one layer worker at a time to bound the additional
+mask and distance-buffer memory. The optional range list is empty for older jobs.
+
 ## 8) O(num_runs) PNG encode details
 
 Encode functions in `encode.rs` operate from runs directly:

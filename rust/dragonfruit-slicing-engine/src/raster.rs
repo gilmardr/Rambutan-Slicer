@@ -4,7 +4,7 @@
 //! solids and avoid spurious bridge/void artifacts.
 
 use crate::geometry::Triangle;
-use crate::types::{LayerAreaStatsV3, SliceJobV3};
+use crate::types::{LayerAreaStatsV3, ModelSliceRangeV1, SliceJobV3};
 use crate::zaa;
 use rayon::prelude::*;
 
@@ -198,12 +198,12 @@ fn build_row_spans_matched(
                 next.x.is_finite() && next.wind * entry_wind == 1 && next.x > edge.x
             });
             if let Some(next_entry) = next_entry {
-                let next_exit = active_edges[edge_index + 2..].iter().find(|candidate| {
-                    candidate.x.is_finite() && candidate.wind * entry_wind < 0
-                });
-                if next_exit.is_some_and(|next_exit| {
-                    next_entry.x - edge.x < next_exit.x - next_entry.x
-                }) {
+                let next_exit = active_edges[edge_index + 2..]
+                    .iter()
+                    .find(|candidate| candidate.x.is_finite() && candidate.wind * entry_wind < 0);
+                if next_exit
+                    .is_some_and(|next_exit| next_entry.x - edge.x < next_exit.x - next_entry.x)
+                {
                     edge_index += 2;
                     continue;
                 }
@@ -255,8 +255,7 @@ fn build_row_spans_matched(
         // Skip exit-then-entry pairs: that interval lies between objects.
         let gap_signature = w_left < 0 && w_right > 0;
         let first_inside = matched_xs.partition_point(|&x| x <= x_left);
-        let crosses_matched_fill =
-            matched_xs.get(first_inside).is_some_and(|&x| x < x_right);
+        let crosses_matched_fill = matched_xs.get(first_inside).is_some_and(|&x| x < x_right);
         if !gap_signature && !crosses_matched_fill && x_right > x_left {
             pairs.push((x_left, x_right));
         }
@@ -1128,7 +1127,7 @@ fn split_layer_candidates_by_geometry(
     }
 }
 
-fn recompute_layer_stats_from_mask(
+pub(crate) fn recompute_layer_stats_from_mask(
     mask: &[u8],
     width: usize,
     height: usize,
@@ -1504,11 +1503,14 @@ fn apply_edge_gaussian_blur_to_mask_in_roi(
                 for dist in 1..=radius {
                     let w = weights_x[dist] as u64;
                     if let Some(left_x) = x.checked_sub(dist) {
-                        accum = accum.saturating_add(w.saturating_mul(source[row_start + left_x] as u64));
+                        accum = accum
+                            .saturating_add(w.saturating_mul(source[row_start + left_x] as u64));
                     }
                     if let Some(right_x) = x.checked_add(dist) {
                         if right_x < width {
-                            accum = accum.saturating_add(w.saturating_mul(source[row_start + right_x] as u64));
+                            accum = accum.saturating_add(
+                                w.saturating_mul(source[row_start + right_x] as u64),
+                            );
                         }
                     }
                 }
@@ -1530,11 +1532,14 @@ fn apply_edge_gaussian_blur_to_mask_in_roi(
                     if dist > radius {
                         continue;
                     }
-                    accum = accum.saturating_add((weights_y[dist] as u64).saturating_mul(hrow[local_x] as u64));
+                    accum = accum.saturating_add(
+                        (weights_y[dist] as u64).saturating_mul(hrow[local_x] as u64),
+                    );
                 }
 
                 let blurred = ((accum + (denom / 2)) / denom).min(255) as u8;
-                out[row_start + roi_min_x + local_x] = if blurred < min_alpha_u8 { 0 } else { blurred };
+                out[row_start + roi_min_x + local_x] =
+                    if blurred < min_alpha_u8 { 0 } else { blurred };
             }
 
             if out_y >= radius {
@@ -2439,6 +2444,130 @@ fn rasterize_layer_with_stats_impl(
     (mask, stats)
 }
 
+fn active_model_slice_ranges(
+    job: &SliceJobV3,
+    triangle_count: usize,
+) -> Vec<(usize, usize, ModelSliceRangeV1)> {
+    let model_triangle_count = (job.model_triangle_count as usize).min(triangle_count);
+    if model_triangle_count == 0 {
+        return Vec::new();
+    }
+
+    job.model_slice_ranges
+        .iter()
+        .filter_map(|range| {
+            if range.triangle_count == 0
+                || !range.wall_thickness_mm.is_finite()
+                || range.wall_thickness_mm <= 0.0
+            {
+                return None;
+            }
+            let start = (range.start_triangle as usize).min(model_triangle_count);
+            let end = start
+                .saturating_add(range.triangle_count as usize)
+                .min(model_triangle_count);
+            (end > start).then(|| (start, end, range.clone()))
+        })
+        .collect()
+}
+
+fn rasterize_layer_with_slice_hollowing(
+    job: &SliceJobV3,
+    triangles: &[Triangle],
+    layer_indices: &[usize],
+    layer_index: u32,
+    compute_area_stats: bool,
+    ranges: &[(usize, usize, ModelSliceRangeV1)],
+) -> (Vec<u8>, LayerAreaStatsV3) {
+    let model_triangle_count = (job.model_triangle_count as usize).min(triangles.len());
+    let mut remaining_model_indices = Vec::with_capacity(layer_indices.len());
+    let mut support_indices = Vec::with_capacity(layer_indices.len());
+    let mut remaining_indices = Vec::with_capacity(layer_indices.len());
+    for &triangle_index in layer_indices {
+        let is_hollowed_model = triangle_index < model_triangle_count
+            && ranges
+                .iter()
+                .any(|(start, end, _)| triangle_index >= *start && triangle_index < *end);
+        if is_hollowed_model {
+            continue;
+        }
+        remaining_indices.push(triangle_index);
+        if triangle_index < model_triangle_count {
+            remaining_model_indices.push(triangle_index);
+        } else {
+            support_indices.push(triangle_index);
+        }
+    }
+
+    let width = job.effective_render_width_px() as usize;
+    let height = job.source_height_px as usize;
+    let mut combined_mask = vec![0u8; width.saturating_mul(height)];
+    if supports_should_bypass_aa(job, triangles.len()) {
+        let (remaining_model_mask, _) = rasterize_layer_with_stats_impl(
+            job,
+            triangles,
+            &remaining_model_indices,
+            layer_index,
+            false,
+        );
+        for (destination, source) in combined_mask.iter_mut().zip(remaining_model_mask) {
+            *destination = (*destination).max(source);
+        }
+
+        let mut support_job = job.clone();
+        support_job.anti_aliasing_level = "Off".to_string();
+        support_job.anti_aliasing_mode = "Coverage".to_string();
+        support_job.blur_brush_radius_px = 0;
+        support_job.minimum_aa_alpha_percent = 100.0;
+        support_job.aa_on_supports = true;
+        support_job.model_triangle_count = 0;
+        let (support_mask, _) = rasterize_layer_with_stats_impl(
+            &support_job,
+            triangles,
+            &support_indices,
+            layer_index,
+            false,
+        );
+        for (destination, source) in combined_mask.iter_mut().zip(support_mask) {
+            *destination = (*destination).max(source);
+        }
+    } else {
+        let (remaining_mask, _) =
+            rasterize_layer_with_stats_impl(job, triangles, &remaining_indices, layer_index, false);
+        for (destination, source) in combined_mask.iter_mut().zip(remaining_mask) {
+            *destination = (*destination).max(source);
+        }
+    }
+
+    for (start, end, range) in ranges {
+        let range_indices: Vec<usize> = layer_indices
+            .iter()
+            .copied()
+            .filter(|&triangle_index| triangle_index >= *start && triangle_index < *end)
+            .collect();
+        if range_indices.is_empty() {
+            continue;
+        }
+        let (mut model_mask, _) =
+            rasterize_layer_with_stats_impl(job, triangles, &range_indices, layer_index, false);
+        crate::tolerance::apply_slice_hollowing_to_mask(job, range, &mut model_mask);
+        for (destination, source) in combined_mask.iter_mut().zip(model_mask) {
+            *destination = (*destination).max(source);
+        }
+    }
+
+    let pixel_area_mm2 = ((job.build_width_mm as f64) / (job.source_width_px.max(1) as f64))
+        * ((job.build_depth_mm as f64) / (job.source_height_px.max(1) as f64));
+    let stats = recompute_layer_stats_from_mask(
+        &combined_mask,
+        width,
+        height,
+        pixel_area_mm2,
+        compute_area_stats,
+    );
+    (combined_mask, stats)
+}
+
 /// Rasterize one layer into an 8-bit grayscale mask (`0` or `255`), optionally
 /// bypassing AA for support/raft geometry when model/support split metadata is
 /// provided in `job.model_triangle_count`.
@@ -2449,6 +2578,18 @@ pub fn rasterize_layer_with_stats(
     layer_index: u32,
     compute_area_stats: bool,
 ) -> (Vec<u8>, LayerAreaStatsV3) {
+    let slice_hollowing_ranges = active_model_slice_ranges(job, triangles.len());
+    if !slice_hollowing_ranges.is_empty() {
+        return rasterize_layer_with_slice_hollowing(
+            job,
+            triangles,
+            layer_indices,
+            layer_index,
+            compute_area_stats,
+            &slice_hollowing_ranges,
+        );
+    }
+
     if !supports_should_bypass_aa(job, triangles.len()) {
         return rasterize_layer_with_stats_impl(
             job,
@@ -2553,6 +2694,19 @@ pub fn rasterize_layer_rle(
     if layer_indices.is_empty() || width == 0 || height == 0 {
         emit_zero_rows(&mut rle, height, width);
         return (rle.finish(), stats);
+    }
+
+    let slice_hollowing_ranges = active_model_slice_ranges(job, triangles.len());
+    if !slice_hollowing_ranges.is_empty() {
+        let (mask, stats) = rasterize_layer_with_slice_hollowing(
+            job,
+            triangles,
+            layer_indices,
+            layer_index,
+            compute_area_stats,
+            &slice_hollowing_ranges,
+        );
+        return (encode_mask_to_rle(&mask, width, height), stats);
     }
 
     if supports_should_bypass_aa(job, triangles.len()) {
@@ -2711,8 +2865,7 @@ pub fn rasterize_layer_rle(
                 continue;
             }
 
-            let spans =
-                build_row_spans_nonzero_ctx(&active_edges, width, false, Some(&prev_spans));
+            let spans = build_row_spans_nonzero_ctx(&active_edges, width, false, Some(&prev_spans));
             for span in spans.iter().copied() {
                 let left_i = span.a.floor() as i32;
                 let right_i = span.b.ceil() as i32 - 1;
@@ -2991,8 +3144,9 @@ fn window_stats_from_runs(
                 max_x = max_x.max((seg_end - 1 - row_start) as i32);
                 min_y = min_y.min(row as i32);
                 max_y = max_y.max(row as i32);
-                stats.total_solid_pixels =
-                    stats.total_solid_pixels.saturating_add((seg_end - p) as u32);
+                stats.total_solid_pixels = stats
+                    .total_solid_pixels
+                    .saturating_add((seg_end - p) as u32);
                 p = seg_end;
             }
         }
@@ -3057,9 +3211,7 @@ pub fn rasterize_layer_rle_block(
     let full_width = job.effective_render_width_px() as usize;
     let height = job.source_height_px as usize;
     let wstart = (block.start_col as usize).min(full_width);
-    let wend = wstart
-        .saturating_add(block.width as usize)
-        .min(full_width);
+    let wend = wstart.saturating_add(block.width as usize).min(full_width);
     let wwidth = wend - wstart;
 
     let mut rle = RleAccum::new();
@@ -3077,6 +3229,26 @@ pub fn rasterize_layer_rle_block(
     let pixel_area_mm2 = ((job.build_width_mm as f64)
         / (job.effective_render_width_px().max(1) as f64))
         * ((job.build_depth_mm as f64) / (job.source_height_px.max(1) as f64));
+
+    if !active_model_slice_ranges(job, triangles.len()).is_empty() {
+        let (full_mask, _) =
+            rasterize_layer_with_stats(job, triangles, layer_indices, layer_index, false);
+        let mut window_mask = Vec::with_capacity(wwidth.saturating_mul(height));
+        for row in 0..height {
+            let row_start = row * full_width;
+            window_mask.extend_from_slice(&full_mask[row_start + wstart..row_start + wend]);
+        }
+        let runs = encode_mask_to_rle(&window_mask, wwidth, height);
+        let stats = window_stats_from_runs(
+            &runs,
+            wwidth,
+            height,
+            wstart,
+            pixel_area_mm2,
+            compute_area_stats,
+        );
+        return (runs, stats);
+    }
 
     if supports_should_bypass_aa(job, triangles.len()) {
         let (mask, _) =
@@ -4168,6 +4340,12 @@ mod tests {
             build_depth_mm: 100.0,
             layer_height_mm: 1.0,
             total_layers: 1,
+            bottom_layer_count: 0,
+            inner_diameter_tolerance_mm: 0.0,
+            outer_diameter_tolerance_mm: 0.0,
+            bottom_tolerance_enabled: false,
+            bottom_inner_diameter_tolerance_mm: 0.0,
+            bottom_outer_diameter_tolerance_mm: 0.0,
             export_thumbnail_png_base64: None,
             png_compression_strategy: "fastest".to_string(),
             container_compression_level: 0,
@@ -4182,6 +4360,7 @@ mod tests {
             z_blur_sigma: 0.5,
             aa_on_supports: false,
             model_triangle_count: 0,
+            model_slice_ranges: Vec::new(),
             minimum_aa_alpha_percent: 35.0,
             mirror_x: false,
             mirror_y: false,
@@ -4335,8 +4514,7 @@ mod tests {
         }
         for row in 0..height {
             stacked.extend_from_slice(&halves[0][row * half..(row + 1) * half]);
-            stacked
-                .extend_from_slice(&halves[1][row * (width - half)..(row + 1) * (width - half)]);
+            stacked.extend_from_slice(&halves[1][row * (width - half)..(row + 1) * (width - half)]);
         }
 
         assert_eq!(stacked, full_blur_mask);
@@ -4412,11 +4590,8 @@ mod tests {
 
     #[test]
     fn unbalanced_crossings_keep_only_matched_pairs() {
-        let spans = build_row_spans_nonzero(
-            &[edge(40.0, 1), edge(64.0, 1), edge(220.0, -1)],
-            256,
-            true,
-        );
+        let spans =
+            build_row_spans_nonzero(&[edge(40.0, 1), edge(64.0, 1), edge(220.0, -1)], 256, true);
 
         assert_eq!(
             spans.len(),
@@ -4432,11 +4607,8 @@ mod tests {
         // Left object's exit crossing is missing (hole in the mesh); the
         // orphaned entry at x=10 must not leak fill across the gap into the
         // object at 100..130.
-        let spans = build_row_spans_nonzero(
-            &[edge(10.0, 1), edge(100.0, 1), edge(130.0, -1)],
-            256,
-            true,
-        );
+        let spans =
+            build_row_spans_nonzero(&[edge(10.0, 1), edge(100.0, 1), edge(130.0, -1)], 256, true);
 
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0].start, 100);
@@ -4586,10 +4758,7 @@ mod tests {
         assert!(
             spans.iter().all(|s| s.end < 5646 || s.start > 8617),
             "the 5644..8618 gap must stay empty, got {:?}",
-            spans
-                .iter()
-                .map(|s| (s.start, s.end))
-                .collect::<Vec<_>>()
+            spans.iter().map(|s| (s.start, s.end)).collect::<Vec<_>>()
         );
         assert!(
             spans.iter().any(|s| s.start <= 5000 && s.end >= 5400),
@@ -4643,7 +4812,11 @@ mod tests {
             true,
         );
 
-        assert_eq!(spans.len(), 2, "orphan entries must not pair across matched fill");
+        assert_eq!(
+            spans.len(),
+            2,
+            "orphan entries must not pair across matched fill"
+        );
         assert_eq!((spans[0].start, spans[0].end), (30, 49));
         assert_eq!((spans[1].start, spans[1].end), (100, 119));
     }
@@ -4690,12 +4863,8 @@ mod tests {
         ];
 
         for snap_to_integer in [true, false] {
-            let spans = super::build_row_spans_nonzero_ctx(
-                &defective,
-                300,
-                snap_to_integer,
-                Some(&prev),
-            );
+            let spans =
+                super::build_row_spans_nonzero_ctx(&defective, 300, snap_to_integer, Some(&prev));
 
             assert_eq!(spans.len(), 6);
             assert!(
@@ -4728,12 +4897,8 @@ mod tests {
         let prev = build_row_spans_nonzero(&prev_edges, 300, true);
 
         for snap_to_integer in [true, false] {
-            let spans = super::build_row_spans_nonzero_ctx(
-                &edges,
-                300,
-                snap_to_integer,
-                Some(&prev),
-            );
+            let spans =
+                super::build_row_spans_nonzero_ctx(&edges, 300, snap_to_integer, Some(&prev));
             assert_eq!(spans.len(), 6);
             assert!(
                 spans.iter().all(|span| span.b - span.a <= 10.0),
@@ -5058,11 +5223,27 @@ mod tests {
             rayon::scope_fifo(|scope| {
                 scope.spawn_fifo(|_| {
                     super::apply_edge_box_blur_to_mask_in_roi(
-                        &mut dark, width, height, 1, 0, 0, width - 1, 0, height - 1,
+                        &mut dark,
+                        width,
+                        height,
+                        1,
+                        0,
+                        0,
+                        width - 1,
+                        0,
+                        height - 1,
                     );
                 });
                 super::apply_edge_box_blur_to_mask_in_roi(
-                    &mut lit, width, height, 1, 0, 0, width - 1, 0, height - 1,
+                    &mut lit,
+                    width,
+                    height,
+                    1,
+                    0,
+                    0,
+                    width - 1,
+                    0,
+                    height - 1,
                 );
             });
         });

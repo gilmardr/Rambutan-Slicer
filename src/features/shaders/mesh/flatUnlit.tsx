@@ -22,7 +22,7 @@ export function FlatUnlitMaterial({
   meshColor?: string;
   clippingPlanes: THREE.Plane[];
 }) {
-  const baseFlatColor = meshColor ?? '#a3a3a3';
+  const baseFlatColor = meshColor ?? '#f3f0e8';
   const selectedStrength = clampTintStrength(selectedTintStrength, 0.70);
   const hoverStrength = clampTintStrength(hoverTintStrength, 0.5);
   const tintColor = isSelected

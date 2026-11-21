@@ -64,7 +64,7 @@ export const BraceRenderer = React.memo(function BraceRenderer({
     deferStraightShaftToSceneBatch = false,
     deferInteractionToSceneBatch = false,
     debugSectionColors = false,
-    baseColor = '#ff8800',
+    baseColor = '#78c63f',
     hoverColor = '#66e0ff',
     selectedColor = '#66e0ff',
 }: BraceRendererProps) {

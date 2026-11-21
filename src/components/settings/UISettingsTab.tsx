@@ -1,4 +1,5 @@
 import React from 'react';
+import type { MessageDescriptor } from '@lingui/core';
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
 import { Palette } from 'lucide-react';
@@ -10,7 +11,7 @@ import type { ThemeCustomColors, ThemePreference, ThemePreset, ThemeProfile } fr
 type ThemeColorField = {
 	key: keyof ThemeCustomColors;
 	label: string;
-	description: string;
+	description: string | MessageDescriptor;
 	placeholder: string;
 };
 
@@ -51,11 +52,11 @@ const THEME_COLOR_SECTIONS: ThemeColorSection[] = [
 		title: 'Primary brand accent',
 		description: 'Primary action styling, highlights, and key brand colors.',
 		rows: [
-			{ key: 'accent', label: 'Accent', description: 'Primary highlight, active icons, and focus color.', placeholder: '#ec2a77' },
-			{ key: 'accentHover', label: 'Accent hover', description: 'Hover/pressed state for primary accent actions.', placeholder: '#d81d67' },
-			{ key: 'primaryButtonSurface', label: 'Primary button surface', description: 'Filled primary buttons and pills.', placeholder: '#c11f61' },
+			{ key: 'accent', label: 'Accent', description: 'Primary highlight, active icons, and focus color.', placeholder: '#3bd2c6' },
+			{ key: 'accentHover', label: 'Accent hover', description: 'Hover/pressed state for primary accent actions.', placeholder: '#70e1d8' },
+			{ key: 'primaryButtonSurface', label: 'Primary button surface', description: 'Filled primary buttons and pills.', placeholder: '#13a99e' },
 			{ key: 'accentContrast', label: 'Accent contrast', description: 'Text/icons shown on primary accent fills.', placeholder: '#fff6ff' },
-			{ key: 'topbarAccent', label: 'Top bar accent', description: 'Glow and accent wash used by the app bar.', placeholder: '#ec2a77' },
+			{ key: 'topbarAccent', label: 'Top bar accent', description: 'Glow and accent wash used by the app bar.', placeholder: '#3bd2c6' },
 		],
 	},
 	{
@@ -63,10 +64,10 @@ const THEME_COLOR_SECTIONS: ThemeColorSection[] = [
 		title: 'Secondary brand accent',
 		description: 'Secondary action styling, complementary highlights, and secondary brand colors.',
 		rows: [
-			{ key: 'accentSecondary', label: 'Accent secondary', description: 'Secondary accent and approved-action color.', placeholder: '#baf72e' },
-			{ key: 'accentSecondaryHover', label: 'Secondary hover', description: 'Hover/pressed state for green actions.', placeholder: '#a6df29' },
-			{ key: 'secondaryButtonSurface', label: 'Secondary button surface', description: 'Filled secondary buttons and badges.', placeholder: '#9bcc26' },
-			{ key: 'accentSecondaryContrast', label: 'Secondary contrast', description: 'Text/icons shown on green fills.', placeholder: '#182106' },
+			{ key: 'accentSecondary', label: 'Accent secondary', description: 'Secondary accent and approved-action color.', placeholder: '#ffb45d' },
+			{ key: 'accentSecondaryHover', label: 'Secondary hover', description: msg`Hover and pressed state for secondary actions.`, placeholder: '#ffd08a' },
+			{ key: 'secondaryButtonSurface', label: 'Secondary button surface', description: 'Filled secondary buttons and badges.', placeholder: '#e99a42' },
+			{ key: 'accentSecondaryContrast', label: 'Secondary contrast', description: msg`Text and icons shown on secondary fills.`, placeholder: '#241302' },
 		],
 	},
 	{
@@ -74,9 +75,9 @@ const THEME_COLOR_SECTIONS: ThemeColorSection[] = [
 		title: 'Scene accents',
 		description: '3D view gradient treatment and scene chrome.',
 		rows: [
-			{ key: 'sceneGradientRadial', label: '3D radial glow', description: 'Radial color bloom in the scene backdrop.', placeholder: '#ff37aa' },
-			{ key: 'sceneGradientLinearStart', label: '3D gradient top', description: 'Top stop of the linear scene gradient.', placeholder: '#ff37aa' },
-			{ key: 'sceneGradientLinearMid', label: '3D gradient mid', description: 'Middle stop of the linear scene gradient.', placeholder: '#6f33ff' },
+			{ key: 'sceneGradientRadial', label: '3D radial glow', description: 'Radial color bloom in the scene backdrop.', placeholder: '#205a61' },
+			{ key: 'sceneGradientLinearStart', label: '3D gradient top', description: 'Top stop of the linear scene gradient.', placeholder: '#10252d' },
+			{ key: 'sceneGradientLinearMid', label: '3D gradient mid', description: 'Middle stop of the linear scene gradient.', placeholder: '#154f56' },
 		],
 	},
 	{
@@ -93,8 +94,8 @@ const THEME_COLOR_SECTIONS: ThemeColorSection[] = [
 // Mesh selection/hover tint, on their own sub-tab: they are theme entries (so
 // presets can set them individually) rather than part of the core UI token set.
 const MESH_HIGHLIGHT_COLOR_FIELDS: ThemeColorField[] = [
-	{ key: 'meshSelectionColor', label: 'Selection color', description: 'Tint applied to selected models.', placeholder: '#ec2a77' },
-	{ key: 'meshHoverColor', label: 'Hover color', description: 'Tint applied to hovered models.', placeholder: '#ec2a77' },
+	{ key: 'meshSelectionColor', label: 'Selection color', description: 'Tint applied to selected models.', placeholder: '#ffb45d' },
+	{ key: 'meshHoverColor', label: 'Hover color', description: 'Tint applied to hovered models.', placeholder: '#3bd2c6' },
 ];
 
 interface UISettingsTabProps {
@@ -226,7 +227,7 @@ export function UISettingsTab({
 				borderColor: 'var(--border-subtle)',
 				background: 'color-mix(in srgb, var(--surface-0), transparent 8%)',
 			}}
-			title={row.description}
+			title={typeof row.description === 'string' ? row.description : _(row.description)}
 		>
 			<div className="grid grid-cols-[minmax(0,1fr)_10.75rem] items-center gap-2.5">
 				<div className="min-w-0">

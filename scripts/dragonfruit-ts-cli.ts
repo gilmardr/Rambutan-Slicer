@@ -20,9 +20,11 @@
 // stubs `npm test` loads for the same reason. The CLI runs as CommonJS under tsx,
 // so the imports below are resolved one after another, after this has run.
 import './test-unit/register.mjs';
-import { readFileSync, writeFileSync, statSync } from 'fs';
-import { basename, resolve, dirname } from 'path';
-import { execFileSync, execSync } from 'child_process';
+import { readFileSync, writeFileSync, statSync, mkdtempSync, rmSync } from 'fs';
+import { basename, resolve, dirname, join } from 'path';
+import { tmpdir } from 'os';
+import { fileURLToPath } from 'url';
+import { execFileSync } from 'child_process';
 import { createRequire } from 'module';
 import { v4 as uuidv4 } from 'uuid';
 import { parseVoxlAuto } from '../src/features/scene/voxl/codec';
@@ -39,6 +41,11 @@ import type {
   VoxlDocumentV1,
   VoxlModelEntry,
 } from '../src/features/scene/voxl/types';
+
+function getRustCliPath(): string {
+  const executable = resolve(dirname(fileURLToPath(import.meta.url)), '../rust/dragonfruit-cli/target/release/dragonfruit-cli');
+  return process.platform === 'win32' ? `${executable}.exe` : executable;
+}
 import type {
   DragonfruitImportFormat,
   Roots,
@@ -1101,15 +1108,13 @@ async function sceneExportStl(args: ReturnType<typeof parseArgs>): Promise<void>
   let off = 0;
   for (const p of allPositions) { merged.set(p, off); off += p.length; }
 
-  const tmpDir = `/tmp/df-export-stl-${Date.now()}`;
-  execSync(`mkdir -p ${tmpDir}`);
+  const tmpDir = mkdtempSync(join(tmpdir(), 'df-export-stl-'));
   const posPath = resolve(tmpDir, 'positions.bin');
   writePositionsBin(posPath, merged);
 
   // Shell out to Rust CLI
-  const rustCli = resolve(dirname(new URL(import.meta.url).pathname), '../rust/dragonfruit-cli/target/release/dragonfruit-cli');
-  execSync(`${rustCli} mesh export-stl -i ${tmpDir} -o ${resolve(output)}`, { stdio: 'inherit' });
-  execSync(`rm -rf ${tmpDir}`);
+  execFileSync(getRustCliPath(), ['mesh', 'export-stl', '-i', tmpDir, '-o', resolve(output)], { stdio: 'inherit' });
+  rmSync(tmpDir, { recursive: true, force: true });
 
   if (jsonOutput(args.flags)) {
     console.log(JSON.stringify({
@@ -1661,8 +1666,7 @@ async function sceneSlice(args: ReturnType<typeof parseArgs>): Promise<void> {
   releaseHeap();
 
   // Phase 3: Write positions.bin
-  const tmpDir = `/tmp/df-scene-slice-${Date.now()}`;
-  execSync(`mkdir -p ${tmpDir}`);
+  const tmpDir = mkdtempSync(join(tmpdir(), 'df-scene-slice-'));
   const mergedPath = resolve(tmpDir, 'positions.bin');
   const totalTriangles = meshPositions.length / 9;
   writePositionsBin(mergedPath, meshPositions);
@@ -1676,7 +1680,7 @@ async function sceneSlice(args: ReturnType<typeof parseArgs>): Promise<void> {
   releaseHeap();
 
   // Phase 4: Shell out to Rust slicer
-  const rustCli = resolve(dirname(new URL(import.meta.url).pathname), '../rust/dragonfruit-cli/target/release/dragonfruit-cli');
+  const rustCli = getRustCliPath();
   const run = sliceJob.buildSceneSliceRun(job, {
     maxZMm,
     modelTriangleCount,
@@ -1714,7 +1718,7 @@ async function sceneSlice(args: ReturnType<typeof parseArgs>): Promise<void> {
   const result = execFileSync(rustCli, run.args, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
 
   // Cleanup temp
-  execSync(`rm -rf ${tmpDir}`);
+  rmSync(tmpDir, { recursive: true, force: true });
 
   if (jsonOutput(args.flags)) {
     // Parse and augment the Rust output with scene info

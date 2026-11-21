@@ -433,6 +433,7 @@ fn a_cavity_keeps_its_orientation() {
 /// own copy of the edge's vertices, moved into its own solid, so a re-read of the exported
 /// file cannot merge them back. This is the watertight repair of overlapping parts, and it is
 /// the one case the pipeline could previously only report.
+#[cfg(feature = "manifold")]
 #[test]
 fn a_shared_edge_is_separated() {
     let mut mesh = unit_cube();

@@ -9,6 +9,9 @@ import { useEscapeToClose } from '@/hotkeys/useEscapeToClose';
 import { AlertTriangle, ArchiveRestore, CheckCircle2, Eye, FolderOpen, HardDrive, RefreshCcw, Trash2, UploadCloud, X } from 'lucide-react';
 import { Button, IconButton, SegmentedControl, SettingRow, Spinner } from '@/components/atoms';
 import { getProfileStoreSnapshot } from '@/features/profiles/profileStore';
+import { shouldIncludeLocalStorageKeyInBackup } from './localBackupStorage';
+import type { PreparedModelLibraryEntry } from '@/features/backups/modelLibraryTypes';
+import { listLocalBackupModelLibrary } from '@/features/slicing/tauri/nativeSlicerBridge';
 import { NumberInput } from '@/components/ui/NumberInput';
 import { StructuredDialogModal } from '@/components/ui/StructuredDialogModal';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,12 +32,33 @@ function formatSnapshotDeletionWarning(translate: Translate, timestamp: string):
   return translate(msg`Backup snapshot from ${timestamp} will be permanently removed from disk.`);
 }
 
+function formatLocalBackupSyncResult(
+  translate: Translate,
+  syncedModelFiles: number,
+  skippedModelFiles: number,
+): string {
+  if (skippedModelFiles > 0) {
+    return translate(msg({
+      message: 'Backup saved, but {count, plural, one {# recent model file could not be included} other {# recent model files could not be included}}.',
+      comment: 'Shown after a local backup when recent mesh or scene files could not be copied into the synced model library.',
+    }), { count: skippedModelFiles });
+  }
+  if (syncedModelFiles > 0) {
+    return translate(msg({
+      message: 'Backup saved with {count, plural, one {# recent model file} other {# recent model files}}.',
+      comment: 'Shown after a local backup that includes recent mesh or scene files in its model library.',
+    }), { count: syncedModelFiles });
+  }
+  return translate(msg`Backup saved to local disk.`);
+}
+
 type BackupSnapshot = {
   version: number;
   updatedAt: string;
   clientId: string;
   localStorage: Record<string, string>;
   profiles?: unknown;
+  modelAssets?: Array<unknown>;
 };
 
 type BackupDocument = {
@@ -54,6 +78,13 @@ type LocalBackupSyncResponse = {
   historyId: string;
   statePath: string;
   historyPath: string;
+  modelFilesSynced: number;
+  modelFilesSkipped: number;
+};
+
+type LocalBackupRestoreResponse = {
+  syncedAt: string | null;
+  documentJson: string;
 };
 
 type LocalBackupHistoryEntry = {
@@ -125,32 +156,13 @@ const CLIENT_ID_KEY = 'dragonfruit-local-backups:client-id';
 const LAST_SYNC_AT_KEY = 'dragonfruit-local-backups:last-sync-at';
 const SELECTED_DIRECTORY_KEY = 'dragonfruit-local-backups:directory';
 
-const KNOWN_LOCAL_STORAGE_KEYS = [
-  'support-settings',
-  'app-hotkeys-config',
-  'app-theme-preference',
-  'app-theme-colors',
-  'app-theme-preset',
-  'lumenslicer:floating-panel-layout:v5',
-  'app-floating-layout-persistence',
-  'app-recent-opened-files',
-  'app-3d-view-settings',
-  'dragonfruit-profiles-v1',
-  'dragonfruit-profiles-v1-backup',
-  AUTO_SYNC_ENABLED_KEY,
-  AUTO_SYNC_MINUTES_KEY,
-  CLIENT_ID_KEY,
-  LAST_SYNC_AT_KEY,
-  SELECTED_DIRECTORY_KEY,
-];
-
 function isDesktopRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 async function invokeDesktop<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   if (!isDesktopRuntime()) {
-    throw new Error('Local backups are only available in the DragonFruit desktop build.');
+    throw new Error('Local backups are only available in the 3DRESIN desktop build.');
   }
 
   const { invoke } = await import('@tauri-apps/api/core');
@@ -183,17 +195,10 @@ function collectSnapshot(): BackupSnapshot {
   const localStoragePayload: Record<string, string> = {};
 
   if (typeof window !== 'undefined') {
-    const known = new Set(KNOWN_LOCAL_STORAGE_KEYS);
-
     for (let index = 0; index < window.localStorage.length; index += 1) {
       const key = window.localStorage.key(index);
       if (!key) continue;
-      if (
-        known.has(key)
-        || key.startsWith('dragonfruit-')
-        || key.startsWith('app-')
-        || key.startsWith('lumenslicer:')
-      ) {
+      if (shouldIncludeLocalStorageKeyInBackup(key)) {
         const value = window.localStorage.getItem(key);
         if (value != null) localStoragePayload[key] = value;
       }
@@ -336,11 +341,15 @@ function formatHistoryDate(item: LocalBackupHistoryEntry): string {
   return item.id;
 }
 
-export function LocalBackupsSettingsTab() {
+export function LocalBackupsSettingsTab({
+  onOpenPreparedModel,
+}: {
+  onOpenPreparedModel?: (entry: PreparedModelLibraryEntry) => Promise<boolean>;
+}) {
   const { _ } = useLingui();
   const [desktopAvailable] = React.useState<boolean>(() => isDesktopRuntime());
   const [loadingStatus, setLoadingStatus] = React.useState(true);
-  const [busy, setBusy] = React.useState<'none' | 'choose-directory' | 'sync' | 'restore' | 'reveal'>('none');
+  const [busy, setBusy] = React.useState<'none' | 'choose-directory' | 'sync' | 'restore' | 'reveal' | 'open-model'>('none');
   const [message, setMessage] = React.useState<{ kind: 'idle' | 'success' | 'error'; text: string }>({ kind: 'idle', text: '' });
 
   const [defaultDirectory, setDefaultDirectory] = React.useState<string>('');
@@ -357,6 +366,9 @@ export function LocalBackupsSettingsTab() {
 
   const [historyItems, setHistoryItems] = React.useState<LocalBackupHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = React.useState(false);
+  const [modelLibraryItems, setModelLibraryItems] = React.useState<PreparedModelLibraryEntry[]>([]);
+  const [modelLibraryLoading, setModelLibraryLoading] = React.useState(false);
+  const [modelLibrarySearch, setModelLibrarySearch] = React.useState('');
 
   const [selectedHistoryId, setSelectedHistoryId] = React.useState<string | null>(null);
   const [selectedHistoryDocument, setSelectedHistoryDocument] = React.useState<SelectedHistoryDocument | null>(null);
@@ -412,6 +424,24 @@ export function LocalBackupsSettingsTab() {
     }
   }, [_, selectedDirectory]);
 
+  const loadModelLibrary = React.useCallback(async (directoryOverride?: string) => {
+    const targetDirectory = (directoryOverride ?? selectedDirectory).trim();
+    if (!targetDirectory) {
+      setModelLibraryItems([]);
+      return;
+    }
+
+    setModelLibraryLoading(true);
+    try {
+      setModelLibraryItems(await listLocalBackupModelLibrary(targetDirectory));
+    } catch (error) {
+      setModelLibraryItems([]);
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : _(msg`Failed to load prepared model library.`) });
+    } finally {
+      setModelLibraryLoading(false);
+    }
+  }, [_, selectedDirectory]);
+
   const runSync = React.useCallback(async () => {
     const targetDirectory = selectedDirectory.trim();
     if (!targetDirectory) {
@@ -443,14 +473,42 @@ export function LocalBackupsSettingsTab() {
       setLastLocalSyncAt(syncedAt);
       setStateUpdatedAt(syncedAt);
 
-      setMessage({ kind: 'success', text: _(msg`Backup saved to local disk.`) });
-      await loadHistory(targetDirectory);
+      setMessage({
+        kind: 'success',
+        text: formatLocalBackupSyncResult(_, payload.modelFilesSynced, payload.modelFilesSkipped),
+      });
+      await Promise.all([loadHistory(targetDirectory), loadModelLibrary(targetDirectory)]);
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : _(msg`Local backup sync failed.`) });
     } finally {
       setBusy('none');
     }
-  }, [_, loadHistory, selectedDirectory]);
+  }, [_, loadHistory, loadModelLibrary, selectedDirectory]);
+
+  const handleOpenPreparedModel = React.useCallback(async (entry: PreparedModelLibraryEntry) => {
+    if (!onOpenPreparedModel) return false;
+    setBusy('open-model');
+    try {
+      const opened = await onOpenPreparedModel(entry);
+      if (!opened) throw new Error(_(msg`The prepared model could not be opened.`));
+      setMessage({ kind: 'success', text: _(msg`Prepared model opened.`) });
+      return true;
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : _(msg`The prepared model could not be opened.`) });
+      return false;
+    } finally {
+      setBusy('none');
+    }
+  }, [_, onOpenPreparedModel]);
+
+  const filteredModelLibraryItems = React.useMemo(() => {
+    const query = modelLibrarySearch.trim().toLocaleLowerCase();
+    if (!query) return modelLibraryItems;
+    return modelLibraryItems.filter((entry) => (
+      entry.name.toLocaleLowerCase().includes(query)
+      || entry.kind.toLocaleLowerCase().includes(query)
+    ));
+  }, [modelLibraryItems, modelLibrarySearch]);
 
   const handleChooseDirectory = React.useCallback(async () => {
     setBusy('choose-directory');
@@ -463,23 +521,23 @@ export function LocalBackupsSettingsTab() {
 
       const trimmed = nextDirectory.trim();
       setSelectedDirectory(trimmed);
-      await Promise.all([loadState(trimmed), loadHistory(trimmed)]);
+      await Promise.all([loadState(trimmed), loadHistory(trimmed), loadModelLibrary(trimmed)]);
       setMessage({ kind: 'success', text: _(msg`Local backup directory updated.`) });
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : _(msg`Failed to choose local backup directory.`) });
     } finally {
       setBusy('none');
     }
-  }, [_, defaultDirectory, loadHistory, loadState, selectedDirectory]);
+  }, [_, defaultDirectory, loadHistory, loadModelLibrary, loadState, selectedDirectory]);
 
   const handleUseDefaultDirectory = React.useCallback(async () => {
     if (!defaultDirectory) return;
 
     const nextDirectory = defaultDirectory.trim();
     setSelectedDirectory(nextDirectory);
-    await Promise.all([loadState(nextDirectory), loadHistory(nextDirectory)]);
+    await Promise.all([loadState(nextDirectory), loadHistory(nextDirectory), loadModelLibrary(nextDirectory)]);
     setMessage({ kind: 'success', text: _(msg`Using default local backup directory.`) });
-  }, [_, defaultDirectory, loadHistory, loadState]);
+  }, [_, defaultDirectory, loadHistory, loadModelLibrary, loadState]);
 
   const handleRevealDirectory = React.useCallback(async () => {
     const targetDirectory = selectedDirectory.trim();
@@ -541,12 +599,12 @@ export function LocalBackupsSettingsTab() {
         setShowSnapshotModal(false);
       }
 
-      await loadHistory(targetDirectory);
+      await Promise.all([loadHistory(targetDirectory), loadModelLibrary(targetDirectory)]);
       setMessage({ kind: 'success', text: _(msg`Backup snapshot deleted.`) });
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : _(msg`Failed to delete backup snapshot.`) });
     }
-  }, [_, loadHistory, selectedDirectory, selectedHistoryId]);
+  }, [_, loadHistory, loadModelLibrary, selectedDirectory, selectedHistoryId]);
 
   const handleRestoreHistory = React.useCallback(async (id: string) => {
     const targetDirectory = selectedDirectory.trim();
@@ -555,25 +613,20 @@ export function LocalBackupsSettingsTab() {
     setBusy('restore');
 
     try {
-      await invokeDesktop('local_backup_restore_history_item', {
+      const response = await invokeDesktop<LocalBackupRestoreResponse>('local_backup_restore_history_item', {
         directoryPath: targetDirectory,
         id,
       });
 
-      const restoredSnapshot = selectedHistoryId === id ? selectedHistoryDocument?.snapshot ?? null : null;
-      if (restoredSnapshot) {
-        applySnapshotToLocalApp(restoredSnapshot);
-        return;
-      }
-
-      await Promise.all([loadState(targetDirectory), loadHistory(targetDirectory)]);
-      setMessage({ kind: 'success', text: _(msg`Snapshot restored to current local backup state.`) });
+      const restoredDocument = parseBackupDocument(response.documentJson);
+      if (!restoredDocument) throw new Error(_(msg`Restored backup snapshot is malformed.`));
+      applySnapshotToLocalApp(restoredDocument.snapshot);
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : _(msg`Failed to restore backup snapshot.`) });
     } finally {
       setBusy('none');
     }
-  }, [_, loadHistory, loadState, selectedDirectory, selectedHistoryDocument, selectedHistoryId]);
+  }, [_, selectedDirectory]);
 
   React.useEffect(() => {
     if (!desktopAvailable) {
@@ -595,7 +648,7 @@ export function LocalBackupsSettingsTab() {
         const nextDirectory = (selectedDirectory.trim() || normalizedDefaultPath);
         setSelectedDirectory(nextDirectory);
 
-        await Promise.all([loadState(nextDirectory), loadHistory(nextDirectory)]);
+        await Promise.all([loadState(nextDirectory), loadHistory(nextDirectory), loadModelLibrary(nextDirectory)]);
       } catch (error) {
         if (!cancelled) {
           setMessage({ kind: 'error', text: error instanceof Error ? error.message : _(msg`Failed to initialize local backups.`) });
@@ -612,7 +665,7 @@ export function LocalBackupsSettingsTab() {
     return () => {
       cancelled = true;
     };
-  }, [_, desktopAvailable, loadHistory, loadState, selectedDirectory]);
+  }, [_, desktopAvailable, loadHistory, loadModelLibrary, loadState, selectedDirectory]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -688,7 +741,7 @@ export function LocalBackupsSettingsTab() {
   if (!desktopAvailable) {
     return (
       <div className="rounded-md border p-3 text-xs" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)', color: 'var(--text-muted)' }}>
-        <Trans>Local on-disk backups are currently available in the DragonFruit desktop build only.</Trans>
+        <Trans>Local on-disk backups are currently available in the 3DRESIN desktop build only.</Trans>
       </div>
     );
   }
@@ -716,7 +769,7 @@ export function LocalBackupsSettingsTab() {
           <div className="min-w-0 flex-1">
             <h3 className="text-xs font-semibold" style={{ color: 'var(--text-strong)' }}><Trans>Local On-Disk Backups</Trans></h3>
             <p className="mt-0.5 text-xs leading-snug" style={{ color: 'var(--text-muted)' }}>
-              <Trans>Automatically saves snapshots of your settings and profiles to a folder on your computer.</Trans>
+              <Trans>Automatically backs up app settings, printer and resin profiles, and recent model files to a folder on your computer.</Trans>
             </p>
           </div>
         </div>
@@ -897,6 +950,71 @@ export function LocalBackupsSettingsTab() {
 
         <div className="mt-2 rounded-md border p-2.5" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-0)' }}>
           <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: 'var(--text-muted)' }}><Trans>Prepared Model Library</Trans></div>
+            <Button
+              variant="secondary"
+              size="auto"
+              className="!h-8 !px-2.5 !py-0 text-xs gap-1.5 disabled:opacity-60"
+              disabled={modelLibraryLoading || !selectedDirectory}
+              onClick={() => { void loadModelLibrary(); }}
+            >
+              {modelLibraryLoading ? <Spinner size="sm" /> : <RefreshCcw className="h-3.5 w-3.5" />}
+              <Trans>Refresh</Trans>
+            </Button>
+          </div>
+          <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+            <Trans>Search saved model files and open one in the current scene.</Trans>
+          </div>
+          <input
+            type="search"
+            value={modelLibrarySearch}
+            onChange={(event) => setModelLibrarySearch(event.target.value)}
+            placeholder={_(msg`Search prepared models`)}
+            aria-label={_(msg`Search prepared models`)}
+            className="ui-input mt-2 h-9 w-full px-2.5 text-sm"
+            disabled={!selectedDirectory}
+          />
+          <div className="mt-2 max-h-56 overflow-auto custom-scrollbar">
+            {modelLibraryLoading ? (
+              <div className="flex items-center gap-2 px-3 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                <Spinner size="sm" />
+                <Trans>Loading prepared models…</Trans>
+              </div>
+            ) : filteredModelLibraryItems.length === 0 ? (
+              <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                {modelLibrarySearch.trim()
+                  ? <Trans>No matching prepared models.</Trans>
+                  : <Trans>No prepared models are stored in this backup folder.</Trans>}
+              </div>
+            ) : (
+              <ul className="space-y-1.5">
+                {filteredModelLibraryItems.map((entry) => (
+                  <li key={entry.storedName} className="flex items-center justify-between gap-2 rounded-md border px-2.5 py-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-medium" style={{ color: 'var(--text-strong)' }}>{entry.name}</div>
+                      <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {entry.kind === 'scene' ? <Trans>Scene</Trans> : <Trans>Mesh</Trans>}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { void handleOpenPreparedModel(entry); }}
+                      disabled={busy !== 'none' || !onOpenPreparedModel}
+                      className="inline-flex h-7 shrink-0 items-center justify-center rounded border px-2 text-xs disabled:opacity-60"
+                      style={accentSecondaryActionStyle92}
+                      title={_(msg`Open prepared model`)}
+                    >
+                      {busy === 'open-model' ? <Spinner size="sm" /> : <Trans>Open</Trans>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-2 rounded-md border p-2.5" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-0)' }}>
+          <div className="flex items-center justify-between gap-2">
             <div>
               <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: 'var(--text-muted)' }}><Trans>Manage Backups</Trans></div>
               <div className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}><Trans>View, restore, or delete older snapshots from disk.</Trans></div>
@@ -1046,7 +1164,7 @@ export function LocalBackupsSettingsTab() {
         )}
       >
         <p className="text-xs leading-snug" style={{ color: 'var(--text-muted)' }}>
-          <Trans>This will overwrite your current app settings and profiles with the data from this snapshot, then reload the app. This action cannot be undone.</Trans>
+          <Trans>This will overwrite your current app settings and profiles, restore the recent model files in this snapshot, then reload the app. This action cannot be undone.</Trans>
         </p>
       </StructuredDialogModal>
 
@@ -1139,7 +1257,7 @@ export function LocalBackupsSettingsTab() {
                   <div className="h-full min-h-0 rounded-md border p-3 overflow-hidden flex flex-col" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
                     {snapshotModalTab === 'overview' && (
                       <div className="h-full min-h-0 overflow-auto custom-scrollbar pr-1">
-                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                           <div className="rounded-md border px-2.5 py-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-0)' }}>
                             <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: 'var(--text-muted)' }}><Trans>Snapshot ID</Trans></div>
                             <div className="mt-1 text-xs font-medium" style={{ color: 'var(--text-strong)' }}>{selectedHistoryId}</div>
@@ -1155,6 +1273,10 @@ export function LocalBackupsSettingsTab() {
                           <div className="rounded-md border px-2.5 py-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-0)' }}>
                             <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: 'var(--text-muted)' }}><Trans>LocalStorage Keys</Trans></div>
                             <div className="mt-1 text-xs font-medium" style={{ color: 'var(--text-strong)' }}>{Object.keys(selectedHistoryDocument.snapshot.localStorage ?? {}).length}</div>
+                          </div>
+                          <div className="rounded-md border px-2.5 py-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-0)' }}>
+                            <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: 'var(--text-muted)' }}><Trans>Model Files</Trans></div>
+                            <div className="mt-1 text-xs font-medium" style={{ color: 'var(--text-strong)' }}>{selectedHistoryDocument.snapshot.modelAssets?.length ?? 0}</div>
                           </div>
                         </div>
                       </div>

@@ -61,7 +61,7 @@ export function ContactConeRenderer({
     surfaceNormal,
     diskLengthOverride,
     profile = DEFAULT_TIP_PROFILE,
-    color = '#c8752a',
+    color = '#78c63f',
     emissive = '#000000',
     emissiveIntensity = 0,
     jointColor = '#888888',
@@ -113,7 +113,7 @@ export function ContactConeRenderer({
 
     // Resolve accurate colors logic
     const finalDiskColor = diskColor || color;
-    const finalBodyColor = bodyColor || (isContactDiskSelected ? '#c11f61' : color);
+    const finalBodyColor = bodyColor || (isContactDiskSelected ? '#13a99e' : color);
 
     // Fallback: If no surfaceNormal provided, assume it aligns with cone axis
     const effectiveSurfaceNormal = surfaceNormal || normal;

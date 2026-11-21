@@ -24,7 +24,7 @@ export function useHighlight({
     isSelected = false,
     suppressHover = false,
     externalHover = false,
-    baseColor = '#c8752a',
+    baseColor = '#78c63f',
     selectedColor = '#80fffd',
     hoverColor = '#efd8c2'
 }: HighlightOptions) {

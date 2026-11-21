@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import ReactDOM from 'react-dom';
-import { PenLine, Pencil, Trash2, Save, Pin, PinOff, RotateCcw } from 'lucide-react';
+import { PenLine, Pencil, Trash2, Save, Pin, PinOff, RotateCcw, Download, Upload } from 'lucide-react';
 import { StructuredDialogModal } from '@/components/ui/StructuredDialogModal';
 import { Button } from '@/components/atoms';
 import { ContextMenu, type ContextMenuEntry } from '@/components/ui/ContextMenu';
@@ -34,9 +34,18 @@ import {
     movePresetBefore,
     isPresetDirtyForSettings,
     restoreFactoryDefaults,
+    exportSupportPresetToJson,
+    getPresetById,
+    importSupportPresetFromJson,
 } from '../presets';
 import { getSettings, subscribeToSettings } from '../state';
 import { setAnatomyPreviewHoveredPresetSettings } from '../AnatomyPreview/previewState';
+import { isTauriRuntime } from '@/utils/tauriRuntime';
+import {
+    pickOpenFilesWithNativeDialog,
+    readPrintArtifactBytesFromPath,
+    savePrintArtifactWithNativeDialog,
+} from '@/features/slicing/tauri/nativeSlicerBridge';
 
 type PresetSelectorProps = {
     selectedPresetIdOverride?: string | null;
@@ -69,6 +78,34 @@ const PRESET_DROP_TARGET_STYLE: React.CSSProperties = {
     outlineOffset: '1px',
 };
 
+async function exportPresetToFile(id: string): Promise<void> {
+    const preset = getPresetById(id);
+    if (!preset) return;
+
+    const json = exportSupportPresetToJson(id);
+    const safeName = preset.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const fileName = `${safeName || 'support-preset'}.dragonfruit-support.json`;
+
+    if (isTauriRuntime()) {
+        try {
+            await savePrintArtifactWithNativeDialog(new TextEncoder().encode(json), fileName);
+            return;
+        } catch (error) {
+            if (String(error).toLowerCase().includes('cancel')) return;
+            throw error;
+        }
+    }
+
+    const blobUrl = URL.createObjectURL(new Blob([json], { type: 'application/json;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = blobUrl;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(blobUrl);
+}
+
 export function PresetSelector({
     selectedPresetIdOverride,
     onPresetSelected,
@@ -91,6 +128,8 @@ export function PresetSelector({
     const [newPresetName, setNewPresetName] = useState(() => _(msg`My Preset`));
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; presetId: string } | null>(null);
     const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+    const [transferError, setTransferError] = useState<'import' | 'export' | null>(null);
+    const importInputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         const unsubscribe = subscribeToPresets(() => {
@@ -587,6 +626,49 @@ export function PresetSelector({
         });
     };
 
+    const applyImportedPresetText = (text: string) => {
+        try {
+            importSupportPresetFromJson(text);
+            setTransferError(null);
+            setPresetSelection([]);
+            setIsEditingName(false);
+        } catch {
+            setTransferError('import');
+        }
+    };
+
+    const handleImportPresetFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (file) void file.text().then(applyImportedPresetText).catch(() => setTransferError('import'));
+    };
+
+    const handleImportPresetFromNativeDialog = async () => {
+        try {
+            const picked = await pickOpenFilesWithNativeDialog('bundle', false);
+            const sourcePath = picked[0]?.path?.trim();
+            if (!sourcePath) return;
+            applyImportedPresetText(new TextDecoder().decode(await readPrintArtifactBytesFromPath(sourcePath)));
+        } catch (error) {
+            if (!String(error).toLowerCase().includes('cancel')) setTransferError('import');
+        }
+    };
+
+    const handleStartImport = () => {
+        setTransferError(null);
+        if (isTauriRuntime()) {
+            void handleImportPresetFromNativeDialog();
+            return;
+        }
+        importInputRef.current?.click();
+    };
+
+    const handleExportActivePreset = () => {
+        if (!activePreset) return;
+        setTransferError(null);
+        void exportPresetToFile(activePreset.id).catch(() => setTransferError('export'));
+    };
+
     // Rebuilt per render: the dirty, pinned and selection-dependent rows change
     // with the right-clicked preset. Placement and dismissal belong to ContextMenu.
     const contextMenuPreset = contextMenu ? presets.find((p) => p.id === contextMenu.presetId) : undefined;
@@ -804,7 +886,50 @@ export function PresetSelector({
                                 </div>
                             </button>
                         </div>
+
                     </div>
+                    <div className="mt-1 flex gap-1 px-1">
+                        <Button
+                            type="button"
+                            onClick={handleStartImport}
+                            variant="secondary"
+                            size="xs"
+                            className="flex-1"
+                        >
+                            <Upload className="h-3.5 w-3.5" />
+                            <Trans>Import</Trans>
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={handleExportActivePreset}
+                            disabled={!activePreset}
+                            variant="secondary"
+                            size="xs"
+                            className="flex-1"
+                        >
+                            <Download className="h-3.5 w-3.5" />
+                            <Trans>Export</Trans>
+                        </Button>
+                        <input
+                            ref={importInputRef}
+                            type="file"
+                            accept=".json,application/json"
+                            onChange={handleImportPresetFile}
+                            className="hidden"
+                            aria-label={_(msg`Support preset file`)}
+                        />
+                    </div>
+                    {transferError && (
+                        <p
+                            className="mx-1 mt-1 rounded border px-2 py-1 text-[10px]"
+                            style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
+                            role="alert"
+                        >
+                            {transferError === 'import'
+                                ? _(msg`Could not import this support preset file.`)
+                                : _(msg`Could not export this support preset.`)}
+                        </p>
+                    )}
                 </div>
             </div>
 
@@ -940,7 +1065,7 @@ export function PresetSelector({
                 )}
             >
                 <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                    <Trans>This will reset <strong style={{ color: 'var(--text-strong)' }}>Detail</strong>, <strong style={{ color: 'var(--text-strong)' }}>Structure</strong>, and <strong style={{ color: 'var(--text-strong)' }}>Anchor</strong> to their factory settings and unpin all user presets. Your user presets will <strong style={{ color: 'var(--text-strong)' }}>not</strong> be deleted.</Trans>
+                    <Trans>This will reset <strong style={{ color: 'var(--text-strong)' }}>Detail</strong>, <strong style={{ color: 'var(--text-strong)' }}>Structure</strong>, <strong style={{ color: 'var(--text-strong)' }}>Anchor</strong>, and <strong style={{ color: 'var(--text-strong)' }}>Interior Pillar</strong> to their factory settings and unpin all user presets. Your user presets will <strong style={{ color: 'var(--text-strong)' }}>not</strong> be deleted.</Trans>
                 </p>
             </StructuredDialogModal>
 

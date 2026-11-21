@@ -4,6 +4,8 @@ import { HolePunchPreviewCylinder } from '@/features/hole-punching/HolePunchPrev
 import { HolePunchGizmo } from '@/features/hole-punching/HolePunchGizmo';
 import { HollowVoxelEditOverlay } from '@/components/scene/HollowVoxelEditOverlay';
 import { HollowVoxelPreview } from '@/components/scene/HollowVoxelPreview';
+import { SuctionCupHighlightOverlay } from '@/components/scene/SuctionCupHighlightOverlay';
+import { getSuctionCupHighlight, subscribeSuctionCupHighlight } from '@/features/suction-cups/suctionCupHighlights';
 import { getUniformScaleFactorForThickness } from '@/utils/geometryScaling';
 import { quaternionFromGlobalEuler } from '@/utils/rotation';
 import type { HolePunchPlacementState } from '@/features/hole-punching/holePunchGeometry';
@@ -217,6 +219,11 @@ export function SceneOverlays({
   handleHolePunchGizmoRotate,
   handleHolePunchGizmoRotateEnd,
 }: SceneOverlaysProps) {
+  const suctionCupHighlight = React.useSyncExternalStore(
+    subscribeSuctionCupHighlight,
+    getSuctionCupHighlight,
+    getSuctionCupHighlight,
+  );
   const previewModel = hollowPreview
     ? scene.models.find((model) => model.id === hollowPreview.modelId) ?? null
     : null;
@@ -247,6 +254,10 @@ export function SceneOverlays({
   return (
     <>
       {ghostData && LysGhostOverlay ? <LysGhostOverlay data={ghostData} visible /> : null}
+
+      {!modelDragging && scene.mode === 'support'
+        && suctionCupHighlight?.modelId === activeModelId
+        && <SuctionCupHighlightOverlay surfacePoints={suctionCupHighlight.surfacePoints} />}
 
       {!modelDragging && placedPunches.map((placement) => {
         const isApplied = appliedHolePunchPlacementIds.has(placement.id);

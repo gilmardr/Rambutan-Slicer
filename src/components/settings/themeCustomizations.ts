@@ -9,6 +9,8 @@ export type ThemePreference = 'dark' | 'light';
 // below and the "is this built in" check both read it, so adding one is a single
 // entry here and a single profile further down.
 const BUILT_IN_THEME_PRESET_IDS = [
+  'rambutan-dark',
+  'rambutan-light',
   'dragonfruit-dark',
   'dragonfruit-light',
   'concepts-3d',
@@ -18,7 +20,7 @@ const BUILT_IN_THEME_PRESET_IDS = [
 export type BuiltInThemePreset = (typeof BUILT_IN_THEME_PRESET_IDS)[number];
 export type ThemePreset = BuiltInThemePreset | string;
 
-const DEFAULT_ACCENT = '#ec2a77';
+const DEFAULT_ACCENT = '#3bd2c6';
 
 export type ThemeCustomColors = {
   background: string;
@@ -84,7 +86,188 @@ type ThemeProfileExchangeDocument = {
   };
 };
 
-export const DEFAULT_THEME_CUSTOM_COLORS: ThemeCustomColors = {
+// Rambutan Slicer brand palette: red identity, leaf-green secondary actions,
+// and neutral charcoal surfaces.
+const RAMBUTAN_DARK_THEME_COLORS: ThemeCustomColors = {
+  background: '#090b12',
+  foreground: '#f1eff1',
+  surface0: '#101219',
+  surface1: '#171a22',
+  surface2: '#20232d',
+  textStrong: '#fff9f8',
+  textMuted: '#c0bdc3',
+  indicator: '#b9b6bd',
+  borderSubtle: '#2b2e38',
+  borderStrong: '#3b404b',
+  accent: '#ed0921',
+  accentHover: '#ff4654',
+  primaryButtonSurface: '#c90c23',
+  accentContrast: '#ffffff',
+  accentSecondary: '#78c63f',
+  accentSecondaryHover: '#a3df68',
+  secondaryButtonSurface: '#78c63f',
+  accentSecondaryContrast: '#10200a',
+  topbarAccent: '#ed0921',
+  sceneGradientRadial: '#310b12',
+  sceneGradientLinearStart: '#14080b',
+  sceneGradientLinearMid: '#21090e',
+  meshSelectionColor: '#f3f0e8',
+  meshHoverColor: '#78c63f',
+  danger: '#ff4d54',
+  success: '#78c63f',
+};
+
+const RAMBUTAN_LIGHT_THEME_COLORS: ThemeCustomColors = {
+  background: '#f2f2f4',
+  foreground: '#19191d',
+  surface0: '#fbfbfc',
+  surface1: '#f1f1f4',
+  surface2: '#e6e7eb',
+  textStrong: '#17171b',
+  textMuted: '#4e4e57',
+  indicator: '#4e4e57',
+  borderSubtle: '#d1d2d8',
+  borderStrong: '#b4b6bf',
+  accent: '#b50920',
+  accentHover: '#8e0719',
+  primaryButtonSurface: '#b50920',
+  accentContrast: '#ffffff',
+  accentSecondary: '#438020',
+  accentSecondaryHover: '#356a17',
+  secondaryButtonSurface: '#438020',
+  accentSecondaryContrast: '#ffffff',
+  topbarAccent: '#b50920',
+  sceneGradientRadial: '#f0d3d5',
+  sceneGradientLinearStart: '#f2f2f4',
+  sceneGradientLinearMid: '#f3e0e1',
+  meshSelectionColor: '#f3f0e8',
+  meshHoverColor: '#438020',
+  danger: '#c9302c',
+  success: '#438020',
+};
+
+export const DEFAULT_THEME_CUSTOM_COLORS: ThemeCustomColors = RAMBUTAN_DARK_THEME_COLORS;
+
+const LEGACY_RAMBUTAN_DARK_THEME_COLORS: ThemeCustomColors = {
+  background: '#071613',
+  foreground: '#e3efeb',
+  surface0: '#0b1e1a',
+  surface1: '#112823',
+  surface2: '#18342e',
+  textStrong: '#f2f8f6',
+  textMuted: '#adc4bd',
+  indicator: '#a3bbb4',
+  borderSubtle: '#24443d',
+  borderStrong: '#355a52',
+  accent: '#e0668f',
+  accentHover: '#ed93b1',
+  primaryButtonSurface: '#c2456f',
+  accentContrast: '#ffffff',
+  accentSecondary: '#5dcaa5',
+  accentSecondaryHover: '#8adbbf',
+  secondaryButtonSurface: '#2bae84',
+  accentSecondaryContrast: '#04342c',
+  topbarAccent: '#e0668f',
+  sceneGradientRadial: '#0f4a3f',
+  sceneGradientLinearStart: '#06201b',
+  sceneGradientLinearMid: '#0b3a32',
+  meshSelectionColor: '#ef9f27',
+  meshHoverColor: '#5dcaa5',
+  danger: '#e5484d',
+  success: '#3cc28f',
+};
+
+const LEGACY_RAMBUTAN_LIGHT_THEME_COLORS: ThemeCustomColors = {
+  background: '#eef4f2',
+  foreground: '#10241f',
+  surface0: '#f8fbfa',
+  surface1: '#edf3f1',
+  surface2: '#e0ebe7',
+  textStrong: '#0b201b',
+  textMuted: '#46605a',
+  indicator: '#46605a',
+  borderSubtle: '#c9d9d4',
+  borderStrong: '#a9c1ba',
+  accent: '#993556',
+  accentHover: '#72243e',
+  primaryButtonSurface: '#993556',
+  accentContrast: '#ffffff',
+  accentSecondary: '#0f6e56',
+  accentSecondaryHover: '#085041',
+  secondaryButtonSurface: '#0f6e56',
+  accentSecondaryContrast: '#ffffff',
+  topbarAccent: '#993556',
+  sceneGradientRadial: '#c4e6da',
+  sceneGradientLinearStart: '#eef4f2',
+  sceneGradientLinearMid: '#d3ebe2',
+  meshSelectionColor: '#ba7517',
+  meshHoverColor: '#0f6e56',
+  danger: '#c9302c',
+  success: '#0f6e56',
+};
+
+const DRAGONFRUIT_DARK_THEME_COLORS: ThemeCustomColors = {
+  background: '#0b1215',
+  foreground: '#e6eef0',
+  surface0: '#101a1f',
+  surface1: '#18252b',
+  surface2: '#21323a',
+  textStrong: '#f4fafb',
+  textMuted: '#b8c7cb',
+  indicator: '#afc0c5',
+  borderSubtle: '#304149',
+  borderStrong: '#465a62',
+  accent: DEFAULT_ACCENT,
+  accentHover: '#70e1d8',
+  primaryButtonSurface: '#13a99e',
+  accentContrast: '#041a19',
+  accentSecondary: '#ffb45d',
+  accentSecondaryHover: '#ffd08a',
+  secondaryButtonSurface: '#e99a42',
+  accentSecondaryContrast: '#241302',
+  topbarAccent: DEFAULT_ACCENT,
+  sceneGradientRadial: '#205a61',
+  sceneGradientLinearStart: '#10252d',
+  sceneGradientLinearMid: '#154f56',
+  meshSelectionColor: '#ffb45d',
+  meshHoverColor: DEFAULT_ACCENT,
+  danger: '#e45454',
+  success: '#2eb67d',
+};
+
+export const DRAGONFRUIT_LIGHT_THEME_COLORS: ThemeCustomColors = {
+  background: '#e8eff0',
+  foreground: '#172327',
+  surface0: '#f4f8f8',
+  surface1: '#e9f0f1',
+  surface2: '#dce7e9',
+  textStrong: '#152327',
+  textMuted: '#495a5e',
+  indicator: '#495a5e',
+  borderSubtle: '#c8d5d7',
+  borderStrong: '#aebfc3',
+  accent: DEFAULT_ACCENT,
+  accentHover: '#066b66',
+  primaryButtonSurface: '#08766f',
+  accentContrast: '#ffffff',
+  accentSecondary: '#95550c',
+  accentSecondaryHover: '#874c06',
+  secondaryButtonSurface: '#a45d0b',
+  accentSecondaryContrast: '#fff9ee',
+  topbarAccent: DEFAULT_ACCENT,
+  sceneGradientRadial: '#b8dcda',
+  sceneGradientLinearStart: '#e8eff0',
+  sceneGradientLinearMid: '#c8e0df',
+  meshSelectionColor: '#a45d0b',
+  meshHoverColor: '#087e78',
+  danger: '#c9302c',
+  // Darkened for light surfaces the same way danger is: the dark palettes'
+  // #2eb67d only reaches 1.3:1 on these ones, which is unreadable as an icon or
+  // status label.
+  success: '#146b46',
+};
+
+const LEGACY_DRAGONFRUIT_DARK_COLORS: ThemeCustomColors = {
   background: '#0b0f14',
   foreground: '#e6ebf2',
   surface0: '#111216',
@@ -95,7 +278,7 @@ export const DEFAULT_THEME_CUSTOM_COLORS: ThemeCustomColors = {
   indicator: '#c3c7cf',
   borderSubtle: '#272a33',
   borderStrong: '#353944',
-  accent: DEFAULT_ACCENT,
+  accent: '#ec2a77',
   accentHover: '#d81d67',
   primaryButtonSurface: '#c11f61',
   accentContrast: '#fff6ff',
@@ -103,17 +286,17 @@ export const DEFAULT_THEME_CUSTOM_COLORS: ThemeCustomColors = {
   accentSecondaryHover: '#a6df29',
   secondaryButtonSurface: '#9bcc26',
   accentSecondaryContrast: '#182106',
-  topbarAccent: DEFAULT_ACCENT,
+  topbarAccent: '#ec2a77',
   sceneGradientRadial: '#ff37aa',
   sceneGradientLinearStart: '#ff37aa',
   sceneGradientLinearMid: '#6f33ff',
-  meshSelectionColor: DEFAULT_ACCENT,
-  meshHoverColor: DEFAULT_ACCENT,
+  meshSelectionColor: '#ec2a77',
+  meshHoverColor: '#ec2a77',
   danger: '#e45454',
   success: '#2eb67d',
 };
 
-export const DRAGONFRUIT_LIGHT_THEME_COLORS: ThemeCustomColors = {
+const LEGACY_DRAGONFRUIT_LIGHT_COLORS: ThemeCustomColors = {
   background: '#b4b6c2',
   foreground: '#191a20',
   surface0: '#cccfe0',
@@ -124,7 +307,7 @@ export const DRAGONFRUIT_LIGHT_THEME_COLORS: ThemeCustomColors = {
   indicator: '#585c70',
   borderSubtle: '#a4a8b8',
   borderStrong: '#9195a6',
-  accent: DEFAULT_ACCENT,
+  accent: '#ec2a77',
   accentHover: '#d81d67',
   primaryButtonSurface: '#c11f61',
   accentContrast: '#fff0f7',
@@ -132,16 +315,13 @@ export const DRAGONFRUIT_LIGHT_THEME_COLORS: ThemeCustomColors = {
   accentSecondaryHover: '#5fa309',
   secondaryButtonSurface: '#4e8900',
   accentSecondaryContrast: '#f0fff4',
-  topbarAccent: DEFAULT_ACCENT,
+  topbarAccent: '#ec2a77',
   sceneGradientRadial: '#ff37aa',
   sceneGradientLinearStart: '#ff37aa',
   sceneGradientLinearMid: '#6f33ff',
-  meshSelectionColor: DEFAULT_ACCENT,
-  meshHoverColor: DEFAULT_ACCENT,
+  meshSelectionColor: '#ec2a77',
+  meshHoverColor: '#ec2a77',
   danger: '#c9302c',
-  // Darkened for light surfaces the same way danger is: the dark palettes'
-  // #2eb67d only reaches 1.3:1 on these ones, which is unreadable as an icon or
-  // status label.
   success: '#146b46',
 };
 
@@ -234,10 +414,24 @@ const ATLAS_3DSS_THEME_COLORS: ThemeCustomColors = {
 
 const BUILT_IN_THEME_PROFILES: ThemeProfile[] = [
   {
+    id: 'rambutan-dark',
+    name: 'Rambutan Dark',
+    preference: 'dark',
+    colors: RAMBUTAN_DARK_THEME_COLORS,
+    isBuiltIn: true,
+  },
+  {
+    id: 'rambutan-light',
+    name: 'Rambutan Light',
+    preference: 'light',
+    colors: RAMBUTAN_LIGHT_THEME_COLORS,
+    isBuiltIn: true,
+  },
+  {
     id: 'dragonfruit-dark',
     name: 'DragonFruit Dark',
     preference: 'dark',
-    colors: DEFAULT_THEME_CUSTOM_COLORS,
+    colors: DRAGONFRUIT_DARK_THEME_COLORS,
     isBuiltIn: true,
   },
   {
@@ -542,8 +736,8 @@ export function deriveThemeCustomColorsFromBranding(params: {
 }): ThemeCustomColors {
   const resolvedPreference = params.preference === 'light' ? 'light' : 'dark';
   const base = resolvedPreference === 'light'
-    ? cloneThemeColors(DRAGONFRUIT_LIGHT_THEME_COLORS)
-    : cloneThemeColors(DEFAULT_THEME_CUSTOM_COLORS);
+    ? cloneThemeColors(RAMBUTAN_LIGHT_THEME_COLORS)
+    : cloneThemeColors(RAMBUTAN_DARK_THEME_COLORS);
 
   const primary = normalizeHex(params.primaryBrandColor, base.accent);
   const secondary = normalizeHex(params.secondaryBrandColor, base.accentSecondary);
@@ -618,15 +812,15 @@ export function getSavedThemePreference(): ThemePreference {
 }
 
 export function getSavedThemePreset(): ThemePreset {
-  if (typeof window === 'undefined') return 'dragonfruit-dark';
+  if (typeof window === 'undefined') return 'rambutan-dark';
   const raw = window.localStorage.getItem(THEME_PRESET_STORAGE_KEY);
-  if (typeof raw !== 'string' || raw.trim().length === 0) return 'dragonfruit-dark';
+  if (typeof raw !== 'string' || raw.trim().length === 0) return 'rambutan-dark';
 
   const preset = raw.trim();
   if (isBuiltInThemePreset(preset)) return preset;
   return getSavedCustomThemeProfiles().some((profile) => profile.id === preset)
     ? preset
-    : 'dragonfruit-dark';
+    : 'rambutan-dark';
 }
 
 export function applyThemePreference(preference: ThemePreference) {
@@ -638,16 +832,41 @@ export function applyThemePreference(preference: ThemePreference) {
 export function getSavedThemeCustomColors(): ThemeCustomColors {
   if (typeof window === 'undefined') return DEFAULT_THEME_CUSTOM_COLORS;
 
-  const defaults = getThemeProfile(getSavedThemePreset()).colors;
+  const preset = getSavedThemePreset();
+  const defaults = getThemeProfile(preset).colors;
 
   const raw = window.localStorage.getItem(THEME_COLORS_STORAGE_KEY);
   if (!raw) return defaults;
 
   try {
-    const parsed = JSON.parse(raw) as Partial<ThemeCustomColors>;
-    const next = normalizeThemeCustomColors(parsed, defaults);
+    const parsed = JSON.parse(raw) as Partial<ThemeCustomColors> | null;
+    const normalized = normalizeThemeCustomColors(parsed ?? undefined, defaults);
+    const legacyDefaults = preset === 'rambutan-dark'
+      ? LEGACY_RAMBUTAN_DARK_THEME_COLORS
+      : preset === 'rambutan-light'
+        ? LEGACY_RAMBUTAN_LIGHT_THEME_COLORS
+        : preset === 'dragonfruit-dark'
+          ? LEGACY_DRAGONFRUIT_DARK_COLORS
+          : preset === 'dragonfruit-light'
+            ? LEGACY_DRAGONFRUIT_LIGHT_COLORS
+            : null;
+    const next = { ...normalized };
+    if (legacyDefaults && parsed && typeof parsed === 'object') {
+      for (const key of Object.keys(legacyDefaults) as Array<keyof ThemeCustomColors>) {
+        if (typeof parsed[key] === 'string' && parsed[key]?.toLowerCase() === legacyDefaults[key].toLowerCase()) {
+          next[key] = defaults[key];
+        }
+      }
+    }
 
-    // Keep storage in sync after migration so future loads are deterministic.
+    const previousSelectionColor = preset === 'rambutan-dark' ? '#ef9f27'
+      : preset === 'rambutan-light' ? '#ba7517'
+        : null;
+    if (previousSelectionColor && parsed?.meshSelectionColor?.toLowerCase() === previousSelectionColor) {
+      next.meshSelectionColor = defaults.meshSelectionColor;
+    }
+
+    // Migrate untouched built-in DragonFruit colors while retaining any values the user customized.
     window.localStorage.setItem(THEME_COLORS_STORAGE_KEY, JSON.stringify(next));
 
     return next;

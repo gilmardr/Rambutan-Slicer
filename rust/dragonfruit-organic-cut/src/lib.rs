@@ -37,13 +37,18 @@ pub mod organic_cut;
 pub use crate::geodesic::{surface_loop_from_mesh, surface_loop_positions, GeodesicSolver};
 #[cfg(feature = "manifold")]
 pub use crate::tenon::{
-    apply_tenon, apply_tenon_at_frame, build_tenon_preview_at_frame, build_tenon_preview_soup,
+    apply_tenon, apply_tenon_at_frame, apply_tenon_at_frame_with_chamfer, apply_tenon_with_chamfer,
+    apply_tenon_at_frame_with_chamfer_and_taper, apply_tenon_with_chamfer_and_taper,
+    build_tenon_preview_at_frame, build_tenon_preview_at_frame_with_chamfer,
+    build_tenon_preview_at_frame_with_chamfer_and_taper,
+    build_tenon_preview_soup, build_tenon_preview_soup_with_chamfer,
+    build_tenon_preview_soup_with_chamfer_and_taper,
     frame_from_plane, TenonFrame, TenonFrameInfo, TenonKind, TenonAnchor, TenonOutcome, TenonPreview,
     TenonShape,
     TenonTilt,
     DEFAULT_TENON_DEPTH_MM, DEFAULT_TENON_TOLERANCE_MM, DEFAULT_TENON_WIDTH_MM, TENON_MAX_TILT_RAD,
 };
 pub use crate::organic_cut::{
-    organic_cut, OrganicCutLoopPoint, OrganicCutOptions, OrganicCutOutcome, OrganicCutReport,
-    OrganicCutSpec,
+    organic_cut, LoopTenonPlugSpec, OrganicCutLoopPoint, OrganicCutOptions, OrganicCutOutcome,
+    OrganicCutReport, OrganicCutSpec,
 };

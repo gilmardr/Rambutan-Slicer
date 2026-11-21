@@ -2,7 +2,7 @@
 
 A preset is a named `autoSupport` settings block: the run policy an automatic
 support pass follows — support density, overhang self-support angle, merge
-radius, fan limits, the sizing band. Picking a preset applies the whole block;
+radius, fan limits, sizing profile and interior/exterior scope. Picking a preset applies the whole block;
 the collection, the active selection and the preset file format are owned by
 `src/supports/Settings/autoSupportPresets.ts`, and the built-ins' translated
 names by `src/supports/Settings/autoSupportPresetMessages.ts`.
@@ -25,7 +25,9 @@ These are **two systems**, and neither store knows the other exists:
 They have no shared storage, state, ids or functions. Support Studio's presets
 keep excluding `autoSupport`, and an auto-support preset carries no geometry: its
 `sizingPreset` is the id of the Support Studio preset the run borrows its tip,
-shaft and roots from, resolved at run time. That one read is the coupling the user
+shaft and roots from, resolved at run time. `supportScope` selects which island
+surfaces the Auto Support panel sends to that run (`combined` by default,
+`exterior`, or `interior`). That one geometry read is the coupling the user
 chose — see [backlog.md](backlog.md) for the decision and its cost. A payload
 written by the band-as-data build carries a `sizingBand` object instead; the store
 runs `migrateLegacySizingPreset` (from `src/supports/autoSupport/settings.ts`) over
@@ -59,6 +61,9 @@ Also exported: `AutoSupportPreset`, `AutoSupportPresetSettings`,
 `AutoSupportPresetDocument`, `AUTO_SUPPORT_PRESETS_STORAGE_KEY`,
 `AUTO_SUPPORT_ACTIVE_PRESET_ID_STORAGE_KEY`,
 `AUTO_SUPPORT_PRESET_DOCUMENT_KIND` and `AUTO_SUPPORT_PRESET_FORMAT_VERSION`.
+The `AutoSupportScope` type and `AutoSupportSettings.supportScope` setting are
+defined in `src/supports/autoSupport/settings.ts` and exported by
+`src/supports/autoSupport/index.ts`.
 
 Nothing here reads or writes geometry. A preset's settings object is
 `AutoSupportSettings` plus whatever other keys the file carried, so a preset
@@ -66,10 +71,14 @@ written by a newer build round-trips through this one unchanged.
 
 ## Built-ins
 
-`light`, `medium` and `heavy`, whose settings are the Auto Support panel's tier
-values — the same blocks the Support Studio preset store gives to Detail, Structure and
-Anchor. Reusing those ids and values is what keeps existing users' settings where
-they are.
+`light`, `medium`, `heavy` and `interior-pillar`. The first three are the Auto
+Support panel's tier values — the same blocks the Support Studio preset store
+gives to Detail, Structure and Anchor. Reusing those ids and values is what keeps
+existing users' settings where they are. `interior-pillar` selects interior
+surfaces, uses the sparsest built-in density, and borrows geometry from the
+Support Studio `interior-pillar` profile. That profile has a 1.5 mm shaft and
+contact tip with a 2 mm tip length, based on the dimensions in
+[J3D-Tech's Lychee support guide](https://docs.mango3d.io/doc/j3d-tech-s-guide-to-resin-printing/print-settings/introduction-to-supporting/).
 
 Built-ins are defined in code and treated as the reserved tier:
 
@@ -121,6 +130,24 @@ from one.
 Only the keys the live settings block can hold take part in that comparison, so
 a preset carrying a knob this build does not know never reads as permanently
 edited.
+
+`supportScope` is persisted and participates in the dirty state like other run
+settings. The panel updates it when the user changes **Support scope**, while
+selecting `interior-pillar` applies the interior-only policy and its larger
+support sizing profile together:
+
+```ts
+import { getAutoSupportSettings } from '@/supports/Settings/state';
+import { setActiveAutoSupportPreset } from '@/supports/Settings/autoSupportPresets';
+
+setActiveAutoSupportPreset('interior-pillar');
+getAutoSupportSettings().supportScope; // 'interior'
+```
+
+The classifier still runs in the UI thread before candidate islands reach the
+worker. `combined` preserves the unfiltered list; `interior` and `exterior`
+exclude ambiguous surfaces. See [Auto Supports](auto-supports.md#interior-and-exterior-scope)
+for the ray classification details.
 
 ## Preset files
 

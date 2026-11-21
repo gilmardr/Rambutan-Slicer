@@ -16,6 +16,7 @@ import { logToNativeFile } from '@/utils/nativeLog';
 import { runWithConcurrency } from '@/utils/runWithConcurrency';
 import { computeFlatteningPlanes, type FlatteningPlane } from '@/features/placeOnFace/logic/computeFlatteningPlanes';
 import { REFINE_MAX_TRIANGLES, refineCoarseFaces } from '@/utils/tauriMeshBridge';
+import { countTriangles } from '@/utils/geometry';
 import {
   analyzeFromGeometry,
   applyRepairedPositions,
@@ -71,6 +72,8 @@ export type GeometryWithBounds = {
     originalTriangleCount: number;
     previewTriangleCount: number;
   };
+  /** Triangle count in the source STL, before interactive refinement or repair. */
+  sourceTriangleCount?: number;
 };
 
 /**
@@ -1314,6 +1317,7 @@ export async function loadStlGeometry(fileUrl: string, options: ProcessGeometryO
         ),
         ...(nativeResult.isPreview ? { nativeProcessingMode: 'none' as const } : {}),
       });
+      processed.sourceTriangleCount = nativeResult.originalTriangleCount;
       if (nativeResult.isPreview) {
         processed.nativePreview = {
           originalTriangleCount: nativeResult.originalTriangleCount,
@@ -1328,7 +1332,10 @@ export async function loadStlGeometry(fileUrl: string, options: ProcessGeometryO
   const streamed = await loadStlBinaryStreaming(fileUrl);
   if (streamed) {
     console.log(`[${new Date().toISOString()}] [loadStlGeometry] Streaming parser succeeded, processing geometry.`);
-    return processGeometry(streamed, options);
+    const sourceTriangleCount = countTriangles(streamed);
+    const processed = await processGeometry(streamed, options);
+    processed.sourceTriangleCount = sourceTriangleCount;
+    return processed;
   }
 
   // Fall back to Three.js STLLoader (handles ASCII STL, edge cases, etc.)
@@ -1341,7 +1348,13 @@ export async function loadStlGeometry(fileUrl: string, options: ProcessGeometryO
       fileUrl,
       (bufferGeometry) => {
         console.log(`[${new Date().toISOString()}] [loadStlGeometry] STLLoader finished. Took ${(performance.now() - startLoad).toFixed(2)}ms`);
-        processGeometry(bufferGeometry, options).then(resolve).catch(reject);
+        const sourceTriangleCount = countTriangles(bufferGeometry);
+        processGeometry(bufferGeometry, options)
+          .then((processed) => {
+            processed.sourceTriangleCount = sourceTriangleCount;
+            resolve(processed);
+          })
+          .catch(reject);
       },
       undefined,
       (error) => {
@@ -1374,7 +1387,7 @@ export async function loadStlGeometryFromBuffer(buffer: Uint8Array, options: Pro
     options._refine !== false,
   );
   if (decoded) {
-    return processGeometry(mergeBodyGeometries(decoded.bodies), {
+    const processed = await processGeometry(mergeBodyGeometries(decoded.bodies), {
       ...options,
       _skipComputeNormals: true,
       bakedClassification: classificationForPayload(
@@ -1383,6 +1396,8 @@ export async function loadStlGeometryFromBuffer(buffer: Uint8Array, options: Pro
         decoded.previewTriangleCount,
       ),
     });
+    processed.sourceTriangleCount = decoded.originalTriangleCount;
+    return processed;
   }
 
   const loader = new STLLoader();
@@ -1410,11 +1425,13 @@ export async function loadStlGeometryFromBuffer(buffer: Uint8Array, options: Pro
   // at the wrong index. Dropping it just means the classify pass runs.
   const position = geometry.getAttribute('position');
   const triangles = Math.floor((geometry.getIndex()?.count ?? position?.count ?? 0) / 3);
-  return processGeometry(geometry, {
+  const processed = await processGeometry(geometry, {
     ...options,
     ...(refined ? { _skipComputeNormals: true } : {}),
     bakedClassification: classificationForPayload(undefined, options.bakedClassification, triangles),
   });
+  processed.sourceTriangleCount = sourceTriangles;
+  return processed;
 }
 
 function collectMergedGeometryFromObject3d(root: THREE.Object3D, sourceLabel: '3MF' | 'OBJ'): THREE.BufferGeometry {

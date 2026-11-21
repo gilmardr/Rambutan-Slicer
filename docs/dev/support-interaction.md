@@ -56,3 +56,26 @@ This directory is the migration foundation for support interaction refactoring.
 3. Renderers should consume resolved state, not rebuild hover/selection/preview decisions.
 4. Each placement type should migrate in isolation (branch -> leaf -> brace -> kickstand).
 5. Remove duplicated guards and cleanup only after all placement paths are migrated.
+
+## Worker collection deltas
+
+`src/supports/interaction/recordDelta.ts` owns the shared keyed-record delta
+contract used by joint-drag preview and support-render lookup workers. The main
+thread computes `diffRecordByRef(previous, next, forceFullSync)`: unchanged
+references can skip a scan, changed or new values become upserts, missing keys
+become deletes, and no-op diffs return `undefined`. A full sync upserts every
+current value. `applyRecordDeltaInPlace(target, delta)` removes keys first, then
+applies upserts in place; both workers use this same application order.
+
+The worker-specific message types re-export the shared `RecordDelta<T>` shape,
+so each protocol keeps its own payload while the common mechanics stay in one
+module. Equality is by object reference, not deep content; callers must replace
+record values when they want a changed value sent.
+
+```ts
+const delta = diffRecordByRef(workerCache, currentRecords, forceFullSync);
+applyRecordDeltaInPlace(workerCache, delta);
+```
+
+Related: [Support System](support-system.md),
+[State and Stores](state-and-stores.md).

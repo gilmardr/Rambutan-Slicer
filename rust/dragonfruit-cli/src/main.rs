@@ -1072,15 +1072,125 @@ fn cmd_rle_subtract(mask_a: &PathBuf, mask_b: &PathBuf, output: &PathBuf) -> Res
 // Slice command implementations — wraps engine::slice_with_progress_v3_to_path
 // ===========================================================================
 
-/// Whole-process CPU seconds (user+system, aggregated across all threads).
-fn cpu_total_seconds() -> f64 {
+struct ProcessResourceUsage {
+    cpu_user_s: f64,
+    cpu_system_s: f64,
+    peak_rss_bytes: u64,
+}
+
+/// Whole-process CPU and peak RSS, aggregated across all threads.
+#[cfg(unix)]
+fn read_process_resource_usage() -> Option<ProcessResourceUsage> {
     let mut usage = std::mem::MaybeUninit::<libc::rusage>::uninit();
-    if unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) } != 0 {
-        return 0.0;
-    }
+    if unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) } != 0 { return None; }
     let u = unsafe { usage.assume_init() };
-    u.ru_utime.tv_sec as f64 + u.ru_utime.tv_usec as f64 / 1e6
-        + u.ru_stime.tv_sec as f64 + u.ru_stime.tv_usec as f64 / 1e6
+    let cpu_user_s = u.ru_utime.tv_sec as f64 + u.ru_utime.tv_usec as f64 / 1e6;
+    let cpu_system_s = u.ru_stime.tv_sec as f64 + u.ru_stime.tv_usec as f64 / 1e6;
+
+    // ru_maxrss: kilobytes on Linux, bytes on macOS.
+    #[cfg(target_os = "macos")]
+    let peak_rss_bytes = u.ru_maxrss as u64;
+    #[cfg(not(target_os = "macos"))]
+    let peak_rss_bytes = (u.ru_maxrss as u64) * 1024;
+
+    Some(ProcessResourceUsage { cpu_user_s, cpu_system_s, peak_rss_bytes })
+}
+
+#[cfg(windows)]
+#[repr(C)]
+#[derive(Default)]
+struct WindowsFileTime {
+    low_date_time: u32,
+    high_date_time: u32,
+}
+
+#[cfg(windows)]
+impl WindowsFileTime {
+    fn ticks(&self) -> u64 {
+        (u64::from(self.high_date_time) << 32) | u64::from(self.low_date_time)
+    }
+}
+
+#[cfg(windows)]
+#[repr(C)]
+#[derive(Default)]
+struct WindowsProcessMemoryCounters {
+    cb: u32,
+    page_fault_count: u32,
+    peak_working_set_size: usize,
+    working_set_size: usize,
+    quota_peak_paged_pool_usage: usize,
+    quota_paged_pool_usage: usize,
+    quota_peak_non_paged_pool_usage: usize,
+    quota_non_paged_pool_usage: usize,
+    pagefile_usage: usize,
+    peak_pagefile_usage: usize,
+}
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn GetCurrentProcess() -> *mut std::ffi::c_void;
+    fn GetProcessTimes(
+        process: *mut std::ffi::c_void,
+        creation_time: *mut WindowsFileTime,
+        exit_time: *mut WindowsFileTime,
+        kernel_time: *mut WindowsFileTime,
+        user_time: *mut WindowsFileTime,
+    ) -> i32;
+}
+
+#[cfg(windows)]
+#[link(name = "psapi")]
+unsafe extern "system" {
+    fn GetProcessMemoryInfo(
+        process: *mut std::ffi::c_void,
+        counters: *mut WindowsProcessMemoryCounters,
+        size: u32,
+    ) -> i32;
+}
+
+#[cfg(windows)]
+fn read_windows_process_memory() -> Option<(u64, u64)> {
+    let mut counters = WindowsProcessMemoryCounters {
+        cb: std::mem::size_of::<WindowsProcessMemoryCounters>() as u32,
+        ..WindowsProcessMemoryCounters::default()
+    };
+    let success = unsafe {
+        GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, counters.cb)
+    };
+    (success != 0).then_some((counters.peak_working_set_size as u64, counters.working_set_size as u64))
+}
+
+#[cfg(windows)]
+fn read_process_resource_usage() -> Option<ProcessResourceUsage> {
+    let mut creation_time = WindowsFileTime::default();
+    let mut exit_time = WindowsFileTime::default();
+    let mut kernel_time = WindowsFileTime::default();
+    let mut user_time = WindowsFileTime::default();
+    let success = unsafe {
+        GetProcessTimes(
+            GetCurrentProcess(),
+            &mut creation_time,
+            &mut exit_time,
+            &mut kernel_time,
+            &mut user_time,
+        )
+    };
+    if success == 0 { return None; }
+
+    let (peak_rss_bytes, _) = read_windows_process_memory()?;
+    Some(ProcessResourceUsage {
+        cpu_user_s: user_time.ticks() as f64 / 10_000_000.0,
+        cpu_system_s: kernel_time.ticks() as f64 / 10_000_000.0,
+        peak_rss_bytes,
+    })
+}
+
+fn cpu_total_seconds() -> f64 {
+    read_process_resource_usage()
+        .map(|usage| usage.cpu_user_s + usage.cpu_system_s)
+        .unwrap_or(0.0)
 }
 
 /// Slicer-process CPU + RSS. Peak RSS is the kernel high-water mark (ru_maxrss),
@@ -1092,21 +1202,12 @@ fn capture_resources(
     samples: Vec<serde_json::Value>,
     sample_interval_ms: u64,
 ) -> serde_json::Value {
-    let mut usage = std::mem::MaybeUninit::<libc::rusage>::uninit();
-    let rc = unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) };
-    if rc != 0 {
-        return serde_json::json!({ "error": "getrusage failed" });
-    }
-    let u = unsafe { usage.assume_init() };
-    let cpu_user_s = u.ru_utime.tv_sec as f64 + u.ru_utime.tv_usec as f64 / 1e6;
-    let cpu_sys_s = u.ru_stime.tv_sec as f64 + u.ru_stime.tv_usec as f64 / 1e6;
+    let Some(usage) = read_process_resource_usage() else {
+        return serde_json::json!({ "error": "process resource metrics unavailable" });
+    };
+    let cpu_user_s = usage.cpu_user_s;
+    let cpu_sys_s = usage.cpu_system_s;
     let cpu_total_s = cpu_user_s + cpu_sys_s;
-
-    // ru_maxrss: kilobytes on Linux, bytes on macOS.
-    #[cfg(target_os = "macos")]
-    let peak_rss_bytes = u.ru_maxrss as u64;
-    #[cfg(not(target_os = "macos"))]
-    let peak_rss_bytes = (u.ru_maxrss as u64) * 1024;
 
     // Peak CPU% across the sampled series (transient spikes the average hides).
     let peak_sample_cpu = samples
@@ -1120,7 +1221,7 @@ fn capture_resources(
         "cpu_total_s": cpu_total_s,
         "cpu_percent": if wall_s > 0.0 { cpu_total_s / wall_s * 100.0 } else { 0.0 },
         "peak_sample_cpu_percent": peak_sample_cpu,
-        "peak_rss_bytes": peak_rss_bytes,
+        "peak_rss_bytes": usage.peak_rss_bytes,
         "end_rss_bytes": read_vmrss_bytes().unwrap_or(0),
         "sample_interval_ms": sample_interval_ms,
         "sample_count": samples.len(),
@@ -1128,7 +1229,8 @@ fn capture_resources(
     })
 }
 
-/// Current resident set size from /proc/self/status (Linux). Returns None elsewhere.
+/// Current resident set size. Returns None on platforms without a reader.
+#[cfg(target_os = "linux")]
 fn read_vmrss_bytes() -> Option<u64> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;
     for line in status.lines() {
@@ -1137,6 +1239,16 @@ fn read_vmrss_bytes() -> Option<u64> {
             return Some(kb * 1024);
         }
     }
+    None
+}
+
+#[cfg(windows)]
+fn read_vmrss_bytes() -> Option<u64> {
+    read_windows_process_memory().map(|(_, working_set_bytes)| working_set_bytes)
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
+fn read_vmrss_bytes() -> Option<u64> {
     None
 }
 

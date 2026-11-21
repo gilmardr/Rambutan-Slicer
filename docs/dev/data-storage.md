@@ -79,6 +79,34 @@ updateMaterialProfile(customMaterial.id, {
 });
 ```
 
+`MaterialProfile.toleranceCompensation` is also stored inside that material envelope. Its normal
+inner/outer diameter adjustments, bottom-layer override switch and bottom values default to zero or
+disabled when missing; the profile store clamps each signed value to `-5`–`5` mm. The fields are
+edited in Material → Print Settings and become native per-layer slice-job inputs. Existing profile
+records need no migration.
+
+Material profiles may also store `printTimeOverride` with `enabled`, `bottomSeconds`, and
+`normalSeconds`. When enabled, the card and print preview estimate use these per-layer durations;
+the setting does not change exported exposure or motion commands. Missing values default to disabled
+and zero, and imported profiles use the same normalization as saved profiles.
+
+Printer profiles in the same envelope can store `defaultTransitionLayersMm` and
+`display.rotateScreen`. The transition thickness is an optional non-negative value in millimetres;
+new printer profiles start at `0`, while older records that omit it keep the output adapter's existing
+default. For formats with a `transitionLayerCount` field, the printer value supplies the default when
+the material has not changed that field from the adapter default, converted to a whole layer count
+using the material's layer height. `rotateScreen` defaults to `false`; when enabled, slice-job
+assembly rotates the exposure geometry 90° clockwise and swaps the output X/Y resolution and build
+dimensions. The screen dimensions shown in the profile editor are derived from resolution × pixel
+pitch, so they are not stored separately.
+
+The profile **Material Library** takes resin presets from enabled profile plugins. A preset's
+`validForPresets` patterns filter the list when the selected printer has an official preset id; the
+cards show the owning plugin and whether a match is confirmed, absent, or unverifiable. Custom
+printer profiles have no catalog id, so printer-specific presets remain selectable but are marked
+unverified. `getMaterialPresetCompatibility` in `src/features/profiles/materialPresetLibrary.ts`
+resolves these display states with the same wildcard matcher the plugin registry uses.
+
 `src/features/slicing/components/SlicingPanel.tsx` merges material and session AA settings. `src/features/slicing/sliceExportOrchestrator.ts` applies shrink only for effective 3DAA (`Vertical2` or `3DAA`, AA level not `Off`) while `src/features/slicing/rasterLayerZipExport.ts` assembles transient support triangles. It narrows contact-cone faces and twig disk footprints, including when AA on supports is disabled; it does not change support state, viewport geometry, projected cross sections, or STL/3MF/VOXL mesh exports. A session AA override can temporarily supply a different percentage without modifying the material.
 
 Support Adjustments remain available under Auto AA presets (including Balanced and Smooth): `src/features/slicing/components/SlicingPanel.tsx` uses the material/session `aaOnSupports` setting even without Override Auto. Tip Compensation Offset Mode is shown as a disabled Automatic selector while Override Auto is off; `src/features/slicing/resolveEffectiveAaSettings.ts` then computes the Auto offset regardless of a stored Disabled or Manual choice. Turning Override Auto back on restores that saved choice, with Compensation Distance (mm) editable only in Manual mode. No existing profile data is migrated, and the other custom AA controls remain gated.
@@ -148,27 +176,48 @@ Autosave timing is stored in milliseconds: `debounceMs` defaults to `45_000` (45
 
 ## Backup and sync keys
 
-### GitHub backup settings
-
-| Key                                     | Medium       | Purpose                                   |
-| --------------------------------------- | ------------ | ----------------------------------------- |
-| `dragonfruit-backups:auto-sync-enabled` | localStorage | Enable GitHub auto-sync                   |
-| `dragonfruit-backups:auto-sync-minutes` | localStorage | GitHub auto-sync interval                 |
-| `dragonfruit-backups:client-id`         | localStorage | Client identity for snapshot coordination |
-| `dragonfruit-backups:last-sync-at`      | localStorage | Last successful sync timestamp            |
-
 ### Local (filesystem) backup settings
 
-| Key                                           | Medium       | Purpose                         |
-| --------------------------------------------- | ------------ | ------------------------------- |
-| `dragonfruit-local-backups:auto-sync-enabled` | localStorage | Enable local auto-sync          |
-| `dragonfruit-local-backups:auto-sync-minutes` | localStorage | Local auto-sync interval        |
-| `dragonfruit-local-backups:client-id`         | localStorage | Local backup client identity    |
-| `dragonfruit-local-backups:last-sync-at`      | localStorage | Last local sync timestamp       |
-| `dragonfruit-local-backups:directory`         | localStorage | Selected local backup directory |
+| Key                                          | Medium       | Purpose                         |
+| -------------------------------------------- | ------------ | ------------------------------- |
+| dragonfruit-local-backups:auto-sync-enabled  | localStorage | Enable local auto-sync          |
+| dragonfruit-local-backups:auto-sync-minutes  | localStorage | Local auto-sync interval        |
+| dragonfruit-local-backups:client-id          | localStorage | Local backup client identity    |
+| dragonfruit-local-backups:last-sync-at       | localStorage | Last local sync timestamp       |
+| dragonfruit-local-backups:directory          | localStorage | Selected local backup directory |
 
-!!! note
-      Backup auth/session state uses secure cookies and server-side endpoints in addition to client-side setting keys.
+3DRESIN has no account sign-in or remote-account backup flow. Existing
+dragonfruit-backups:* values from older builds are inert legacy data and are
+not read by this app. Local filesystem backups remain available. Each snapshot
+contains app-scoped `localStorage` values (including support presets and saved
+Magic Prepare workflows, whose legacy keys have no app prefix) and the
+printer/material profile store; this includes recent-file index metadata, but
+not the cached file
+payloads in IndexedDB or the scene/autosave files beside a project. The desktop
+`local_backup_sync` command writes the history record first and then replaces
+the current state file through a sibling staging file and atomic rename, so an
+interrupted write cannot leave a partially written snapshot or replace a good
+current state with one whose history record was never committed.
+
+Desktop sync also copies path-backed entries from `app-recent-opened-files`
+into `<backup>/models/`, using a streamed SHA-256 content name so duplicate
+files share one asset. Snapshot `modelAssets` entries link those files to the
+recent-file ids; original machine paths are removed from the synced metadata.
+Restoring a history item resolves those links against the selected backup
+folder and writes usable local paths back into the recent-file index. The
+recent-file list is capped at ten entries; entries without an available source
+path are counted as skipped in the sync response, because their IndexedDB
+payloads are not copied. Model assets remain in `models/` when a history item
+is deleted. This avoids removing files still referenced by another snapshot,
+but can leave unreferenced assets for manual cleanup.
+
+The **Prepared Model Library** in Backup settings searches the verified assets
+referenced by the current state and readable history snapshots. The desktop
+`local_backup_list_model_library` command validates each stored filename,
+extension, byte size and SHA-256 before returning it; duplicate references are
+shown once with their snapshot count. Selecting an entry reads the asset and
+opens it through the existing mesh or scene import path. Assets that are no
+longer referenced by any snapshot stay on disk but do not appear in the library.
 
 ## IndexedDB contract
 

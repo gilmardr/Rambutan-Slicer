@@ -2,25 +2,32 @@ import { msg } from '@lingui/core/macro';
 import {
   Boxes,
   Copy,
+  Droplets,
   FlipHorizontal2,
   Hand,
   LayoutGrid,
   Move3D,
+  Paintbrush,
   PencilRuler,
+  Combine,
+  ScanSearch,
+  ScanLine,
+  Stamp,
+  Waypoints,
 } from 'lucide-react';
 import type { TransformMode } from '@/hooks/useModelTransform';
 import { AutoSupportIcon, CutSeamIcon, HollowShellIcon, InteriorViewIcon, IslandPalmIcon, LineSupportIcon, PlaceOnFaceIcon, SmoothingSphereIcon, SolidSupportIcon, type ToolRailEntry } from '@/components/controls/ToolRail';
 
 /**
- * The Support tools the rail can select. One is active at a time, and its panel is
- * the one shown.
+ * The Support panel or canvas interaction tool currently selected in the rail.
  */
-export type SupportRailMode = 'auto' | 'manual' | 'islands';
+export type SupportRailMode = 'auto' | 'manual' | 'islands' | 'proximity' | 'suction';
+export type SupportInteractionMode = Extract<TransformMode, 'supportPainting' | 'supportInline' | 'supportProjection'>;
 
 /**
  * The rail's entries for each mode. They live here rather than in the rail
- * because the two modes offer different things — Prepare lists its eight model
- * tools plus the model list, Support lists its three tools plus the model list —
+ * because the two modes offer different things — Prepare lists its ten model
+ * tools plus the model list, Support lists its five panel tools plus the model list —
  * while the rail itself only knows how to draw and animate a list of entries.
  */
 
@@ -37,7 +44,7 @@ export type PrepareToolRailOptions = {
   onToggleModelsPanel?: () => void;
 };
 
-/** The eight model tools, preceded by the model list's tile when one is asked for. */
+/** The Prepare tools, preceded by the model list's tile when one is asked for. */
 export function buildPrepareToolRailEntries({
   mode,
   onModeChange,
@@ -60,6 +67,8 @@ export function buildPrepareToolRailEntries({
     { mode: 'arrange', label: msg`Arrange`, hint: msg({ message: 'Arrange models on the plate', comment: 'Tool rail entry. The tool that auto-packs the models onto the plate.' }), icon: LayoutGrid },
     { mode: 'organicCut', label: msg({ message: 'Split', comment: 'Tool rail label in Prepare mode. Splits the model along a drawn seam.' }), hint: msg`Split the model along a drawn seam`, icon: CutSeamIcon, separated: 'above' },
     { mode: 'smoothing', label: msg({ message: 'Smooth', comment: 'Tool rail label in Prepare mode. The tool brushes and smooths local surface regions.' }), hint: msg`Sculpt and smooth surface`, icon: SmoothingSphereIcon },
+    { mode: 'engraving', label: msg`Engraving`, hint: msg`Engrave text or an image on the active model`, icon: Stamp },
+    { mode: 'solidOperations', label: msg`Solid Operations`, hint: msg`Combine, cut, intersect, or split solid models`, icon: Combine },
   ];
 
   // The list's tile is a column affordance — the bar's caller passes no toggle,
@@ -98,6 +107,9 @@ export type SupportToolRailOptions = {
   /** The Support panel tool that is showing its panel. */
   mode: SupportRailMode;
   onModeChange: (mode: SupportRailMode) => void;
+  /** The active support interaction tool, if one is selected. */
+  activeInteractionMode: SupportInteractionMode | null;
+  onInteractionModeSelect: (mode: SupportInteractionMode) => void;
   /** The model list's tile. See `PrepareToolRailOptions`. */
   modelsPanelVisible?: boolean;
   onToggleModelsPanel?: () => void;
@@ -131,11 +143,10 @@ export type SupportToolRailOptions = {
 export type SupportViewMode = 'full' | 'lines';
 
 /**
- * Support mode's entries, top to bottom: the model list, the island scan, the two
- * panel groups, the hollowing pair, then the view toggle. A panel tool *selects* —
- * its panel is the one shown, the others are hidden — and the model list is a panel
- * toggle, because the list is mounted in both modes and only its visibility
- * changes. The list's tile is left out when the caller doesn't offer the toggle.
+ * Support mode's entries include the model list; support panels; canvas interaction
+ * tools; hollowing and interior view; and the support display toggle. A panel tool
+ * selects which panel is shown. Canvas tools also open the Manual panel for their
+ * settings, and the model list tile only appears when the caller offers its toggle.
  *
  * The labels are only ever read in a tile's tooltip, so they name the tool rather
  * than fitting a box, and the comments give each one the context its translation
@@ -144,6 +155,8 @@ export type SupportViewMode = 'full' | 'lines';
 export function buildSupportToolRailEntries({
   mode,
   onModeChange,
+  activeInteractionMode,
+  onInteractionModeSelect,
   modelsPanelVisible,
   onToggleModelsPanel,
   hollowingActive,
@@ -155,7 +168,7 @@ export function buildSupportToolRailEntries({
   onToggleInteriorView,
 }: SupportToolRailOptions): ToolRailEntry[] {
   /**
-   * The three panel tools by the mode each selects. Keyed rather than listed, so
+   * The five panel tools by the mode each selects. Keyed rather than listed, so
    * that the rail's order is only ever the array at the bottom of this function.
    */
   const panelTools: Record<SupportRailMode, { label: ToolRailEntry['label']; hint: ToolRailEntry['hint']; icon: ToolRailEntry['icon'] }> = {
@@ -174,6 +187,16 @@ export function buildSupportToolRailEntries({
       hint: msg({ message: 'Support settings and presets', comment: 'Tool rail entry in Support mode. Selecting it shows the support parameter sidebar (tip, shaft, roots, bracing).' }),
       icon: PencilRuler,
     },
+    proximity: {
+      label: msg({ message: 'Proximity', comment: 'Tool rail label in Support mode. Opens the support clearance check.' }),
+      hint: msg({ message: 'Check clearance around support shafts', comment: 'Tool rail entry in Support mode. Selecting it shows the support proximity analysis panel.' }),
+      icon: ScanSearch,
+    },
+    suction: {
+      label: msg({ message: 'Suction Cups', comment: 'Tool rail label in Support mode. Opens the resin suction cup detector.' }),
+      hint: msg({ message: 'Find resin-trapping concave regions on the active model', comment: 'Tool rail entry in Support mode. Selecting it shows the suction cup detector.' }),
+      icon: Droplets,
+    },
   };
 
   /** One panel tool as a tile. `separated` is the group gap on its own side. */
@@ -186,6 +209,23 @@ export function buildSupportToolRailEntries({
     tone: 'tool',
     separated,
     onSelect: () => onModeChange(railMode),
+  });
+
+  const interactionTool = (
+    toolMode: SupportInteractionMode,
+    label: ToolRailEntry['label'],
+    hint: ToolRailEntry['hint'],
+    icon: ToolRailEntry['icon'],
+    separated?: ToolRailEntry['separated'],
+  ): ToolRailEntry => ({
+    id: toolMode,
+    label,
+    hint,
+    icon,
+    active: !hollowingActive && activeInteractionMode === toolMode,
+    tone: 'tool',
+    separated,
+    onSelect: () => onInteractionModeSelect(toolMode),
   });
 
   // Same column-only tile as Prepare's.
@@ -208,6 +248,27 @@ export function buildSupportToolRailEntries({
     panelTool('islands'),
     panelTool('manual', 'above'),
     panelTool('auto'),
+    panelTool('proximity'),
+    panelTool('suction'),
+    interactionTool(
+      'supportPainting',
+      msg({ message: 'Paint', comment: 'Tool rail label in Support mode. Paints support contact points on the model surface.' }),
+      msg({ message: 'Paint support contact points on the model', comment: 'Tool rail entry in Support mode.' }),
+      Paintbrush,
+      'above',
+    ),
+    interactionTool(
+      'supportInline',
+      msg({ message: 'Inline', comment: 'Tool rail label in Support mode. Places evenly spaced supports between two points on the model.' }),
+      msg({ message: 'Place a row of supports between two surface points', comment: 'Tool rail entry in Support mode.' }),
+      Waypoints,
+    ),
+    interactionTool(
+      'supportProjection',
+      msg({ message: 'Projection', comment: 'Tool rail label in Support mode. Projects support contacts from painted surface regions.' }),
+      msg({ message: 'Project support contacts from a painted surface', comment: 'Tool rail entry in Support mode.' }),
+      ScanLine,
+    ),
     {
       id: 'hollowing',
       label: msg({ message: 'Hollow', comment: 'Tool rail label in Support mode. One word, like the other tool names: opens the hollowing tool (shell the model, add drainage holes).' }),

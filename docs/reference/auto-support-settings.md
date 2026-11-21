@@ -24,10 +24,21 @@ dropdown of your Support Studio presets — the tip, shaft and root numbers of t
 one you pick are what the run sizes with, so editing that manual preset changes
 what auto-support prints.
 
-**Edits are staged.** Changing a field or a switch in the dialog does nothing
-until you press **Apply**; **Cancel** discards the edits. Selecting a *preset* is
-the exception, and it is deliberate: picking a preset is choosing a policy for
-the next run, so it applies immediately.
+**Density** is the projected area assigned to each grid support, in mm². The
+grid spacing starts at the square root of that area: lowering the value places
+supports closer together. **Grid Threshold** decides which regions receive a
+grid, while **Flat Boost**, **Slope Relax** and **Suction Scale** adjust spacing
+for surface angle and large flat regions. **Coverage Target** controls when gap
+filling stops. These settings affect automatic placement; they do not change
+supports already placed in the scene. The built-in Light, Medium and Heavy
+presets use 30, 20 and 12 mm² per support, respectively; the grid keeps at least
+2 mm between support points to avoid crowding broad undersides.
+
+**Edits are staged.** Changing a field or switch updates the draft only. **Save**
+commits the settings and updates the selected custom preset when applicable;
+**Reset** reloads the selected preset, and **Cancel** closes the dialog without
+saving the draft. Selecting a preset applies it immediately as the policy for
+the next run.
 
 ## Presets
 

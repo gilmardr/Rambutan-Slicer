@@ -41,7 +41,7 @@ interface TrunkRendererProps {
     onContactDiskHudHoverChange?: (hovered: boolean) => void;
 }
 
-export const TrunkRenderer = React.memo(function TrunkRenderer({ trunk: baseTrunk, root, isSelected, selectedId, dimNonSelected, isHovered: propHovered, suppressHover, isInteractable = true, deferStraightShaftsToSceneBatch = false, deferInteractionToSceneBatch = false, deferRootsToSceneBatch = false, deferContactConesToSceneBatch = false, hidePlateContactPrimitives = false, baseColor = '#ff8800', hoverColor, selectedColor = '#80fffd', onContactDiskHudHoverChange }: TrunkRendererProps) {
+export const TrunkRenderer = React.memo(function TrunkRenderer({ trunk: baseTrunk, root, isSelected, selectedId, dimNonSelected, isHovered: propHovered, suppressHover, isInteractable = true, deferStraightShaftsToSceneBatch = false, deferInteractionToSceneBatch = false, deferRootsToSceneBatch = false, deferContactConesToSceneBatch = false, hidePlateContactPrimitives = false, baseColor = '#78c63f', hoverColor, selectedColor = '#80fffd', onContactDiskHudHoverChange }: TrunkRendererProps) {
     const { camera, scene, gl } = useThree();
     const highDetailPrimitiveSegments = 24;
     const lowDetailPrimitiveSegments = 8;

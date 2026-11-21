@@ -1,6 +1,6 @@
 //! Floyd-Steinberg energy-based dithering for low-bit-depth display systems.
 
-use crate::rle::{RleRun, RleAccum, emit_row, emit_zero_rows};
+use crate::rle::{emit_row, emit_zero_rows, RleAccum, RleRun};
 
 /// Lowest desired energy the binned lookup table covers.
 const MIN_ENERGY: f32 = -0.5;
@@ -16,10 +16,10 @@ pub struct DitherPaletteV3 {
     /// Maps 8-bit input grayscale directly to physical energy based on the job LUT and gamma:
     /// E = (lut[V] / 255.0) ^ gamma
     pub source_energy: [f32; 256],
-    
+
     /// Target PWM byte values for the low-bit-depth palette levels (e.g. 8 levels for 3-bit).
     pub target_bytes: Vec<u8>,
-    
+
     /// Maps each target palette index to its corresponding physical energy level.
     pub target_energy: Vec<f32>,
 
@@ -173,8 +173,16 @@ pub fn dither_rle_layer_with_lut_and_gamma(
             break;
         }
 
-        let mut lo = if content_empty { curr_lo } else { min_x.min(curr_lo) };
-        let mut hi = if content_empty { curr_hi } else { max_x.max(curr_hi) };
+        let mut lo = if content_empty {
+            curr_lo
+        } else {
+            min_x.min(curr_lo)
+        };
+        let mut hi = if content_empty {
+            curr_hi
+        } else {
+            max_x.max(curr_hi)
+        };
         lo = lo.min(width - 1);
         hi = hi.min(width - 1);
 
@@ -254,7 +262,7 @@ fn dither_rle_layer_full_frame(
     }
 
     let mut out = RleAccum::new();
-    
+
     // Auxiliary sliding row error buffers: only O(width) RAM overhead
     let mut err_curr = vec![0.0f32; width];
     let mut err_next = vec![0.0f32; width];
@@ -317,7 +325,7 @@ fn dither_rle_layer_full_frame(
 
                 err_curr[x + 1] += quant_error * 0.4375; // Right (7/16)
                 err_next[x - 1] += quant_error * 0.1875; // Bottom-Left (3/16)
-                err_next[x] += quant_error * 0.3125;     // Bottom (5/16)
+                err_next[x] += quant_error * 0.3125; // Bottom (5/16)
                 err_next[x + 1] += quant_error * 0.0625; // Bottom-Right (1/16)
             }
         } else {
@@ -346,7 +354,7 @@ fn dither_rle_layer_full_frame(
 
             if y + 1 < height {
                 err_next[x - 1] += quant_error * 0.1875; // Bottom-Left (3/16)
-                err_next[x] += quant_error * 0.3125;     // Bottom (5/16)
+                err_next[x] += quant_error * 0.3125; // Bottom (5/16)
             }
         }
 
@@ -385,7 +393,7 @@ pub fn dither_mask_in_bounds(
 
     for y in 0..row_height {
         let row_offset = y * row_width;
-        
+
         // Peel the first iteration (x = 0) and last iteration (x = row_width - 1)
         // to eliminate coordinate boundary checks in the hot inner loop.
         if row_width > 0 {
@@ -423,7 +431,7 @@ pub fn dither_mask_in_bounds(
 
                 err_curr[x + 1] += quant_error * 0.4375; // Right (7/16)
                 err_next[x - 1] += quant_error * 0.1875; // Bottom-Left (3/16)
-                err_next[x] += quant_error * 0.3125;     // Bottom (5/16)
+                err_next[x] += quant_error * 0.3125; // Bottom (5/16)
                 err_next[x + 1] += quant_error * 0.0625; // Bottom-Right (1/16)
             }
         } else {
@@ -454,7 +462,7 @@ pub fn dither_mask_in_bounds(
 
             if y + 1 < row_height {
                 err_next[x - 1] += quant_error * 0.1875; // Bottom-Left (3/16)
-                err_next[x] += quant_error * 0.3125;     // Bottom (5/16)
+                err_next[x] += quant_error * 0.3125; // Bottom (5/16)
             }
         }
 
@@ -501,7 +509,10 @@ mod tests {
 
         // Let's create an input layer with a gradient:
         // runs: 16 runs of value 128 (gray)
-        let runs = vec![RleRun { value: 128, length: 16 }];
+        let runs = vec![RleRun {
+            value: 128,
+            length: 16,
+        }];
         let dithered = dither_rle_layer_with_lut_and_gamma(&runs, &palette, 4, 4);
 
         // Decode dithered to see that all pixels are in target_bytes palette!
@@ -577,7 +588,10 @@ mod tests {
         let runs = runs_of(pixels);
         let bounded = dither_rle_layer_with_lut_and_gamma(&runs, &palette, width, height);
         let reference = dither_rle_layer_full_frame(&runs, &palette, width, height);
-        assert_eq!(bounded, reference, "{name}: bounded walk changed the output");
+        assert_eq!(
+            bounded, reference,
+            "{name}: bounded walk changed the output"
+        );
         assert_eq!(
             bounded.iter().map(|r| r.length as usize).sum::<usize>(),
             width * height,
@@ -709,7 +723,10 @@ mod tests {
             *v = (*v).max(i as u8);
         }
         let palette = DitherPaletteV3::new(&lut, 2.2, 3);
-        assert!(!zero_is_inert(&palette), "a curing LUT must not be treated as inert");
+        assert!(
+            !zero_is_inert(&palette),
+            "a curing LUT must not be treated as inert"
+        );
 
         let (w, h) = (64usize, 8usize);
         let mut px = vec![0u8; w * h];
@@ -740,7 +757,10 @@ mod tests {
         let palette = DitherPaletteV3::new(&lut, 2.2, 3);
 
         let (width, height) = (64usize, 8usize);
-        let input = vec![RleRun { length: (width * height) as u32, value: 0 }];
+        let input = vec![RleRun {
+            length: (width * height) as u32,
+            value: 0,
+        }];
         let out = dither_rle_layer_with_lut_and_gamma(&input, &palette, width, height);
 
         assert!(

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "DragonFruit",
+  "productName": "Rambutan Slicer",
   "version": "0.2.1",
-  "identifier": "org.openresinalliance.dragonfruit",
+  "identifier": "com.rambutanslicer.desktop",
   "build": {
     "beforeDevCommand": "npm run build:thumbnail-providers && npm run dev",
     "beforeBuildCommand": "npm run build:tauri && npm run build:thumbnail-providers",
@@ -11,14 +11,13 @@
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": true,
     "fileAssociations": [
       {
         "ext": [
           "voxl"
         ],
-        "name": "DragonFruit Scene File",
-        "description": "DragonFruit Scene",
+        "name": "Rambutan Slicer Scene File",
+        "description": "Rambutan Slicer Scene",
         "mimeType": "application/vnd.dragonfruit.voxl+json"
       },
       {
@@ -40,12 +39,6 @@
     ]
   },
   "plugins": {
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU0NjE2N0VERDQ3RjYwMDcKUldRSFlIL1U3V2RoNVBnc0hoWnU5NnZSdkhSRys5OFFRVXpHNWhsd3ZwRGYwc1N1UkpLR3htWmkK",
-      "windows": {
-        "installMode": "passive"
-      }
-    },
     "macos-fps": {
       "enabled": true
     }
@@ -55,8 +48,8 @@
       {
         "label": "splashscreen",
         "url": "/splashscreen.html",
-        "width": 400,
-        "height": 330,
+        "width": 600,
+        "height": 400,
         "center": true,
         "resizable": false,
         "maximizable": false,
@@ -66,16 +59,16 @@
         "visible": true,
         "alwaysOnTop": true,
         "theme": "Dark",
-        "backgroundColor": "#14061b",
-        "title": "DragonFruit"
+        "backgroundColor": "#0a0607",
+        "title": "Rambutan Slicer"
       },
       {
         "label": "main",
         "create": false,
         "visible": false,
         "theme": "Dark",
-        "backgroundColor": "#0B0F14",
-        "title": "DragonFruit",
+        "backgroundColor": "#071613",
+        "title": "Rambutan Slicer",
         "width": 1280,
         "height": 800,
         "minWidth": 960,
@@ -92,7 +85,9 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: http://asset.localhost https: http:; font-src 'self' data:; media-src 'self' data: blob: http: https:; worker-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost http: https: ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+      "devCsp": null,
+      "dangerousDisableAssetCspModification": ["style-src"],
       "capabilities": [
         "default",
         "logging"

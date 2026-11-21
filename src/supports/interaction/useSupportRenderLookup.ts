@@ -6,8 +6,8 @@ import { isSupportEditInteractionActive } from './gizmoInteractionLock';
 import { getSupportWorkerRuntimeCapabilities } from './supportWorkerCapabilities';
 import { isSupportWorkerSafetyModeEnabled } from './supportWorkerSafetyMode';
 import { noteActivity } from '@/utils/debug/heartbeatContext';
+import { applyRecordDeltaInPlace, diffRecordByRef, type RecordDelta } from './recordDelta';
 import type {
-  RecordDelta,
   SupportLookupCollections,
   SupportLookupInputDelta,
   SupportRenderLookupWorkerRequestMessage,
@@ -26,50 +26,13 @@ type WorkerCollectionsRef = {
   activePreviewSupport: SupportRenderLookupInput['activePreviewSupport'];
 };
 
+type MutableRecord<T> = Record<string, T>;
+
 function createEmptyWorkerCollectionsRef(): WorkerCollectionsRef {
   return {
     state: createEmptySupportCollections(),
     activePreviewSupport: null,
   };
-}
-
-type MutableRecord<T> = Record<string, T>;
-
-function diffRecordByRef<T>(prev: Record<string, T>, next: Record<string, T>, forceFullSync: boolean): RecordDelta<T> | undefined {
-  if (!forceFullSync && prev === next) return undefined;
-
-  const upserts: Record<string, T> = {};
-  const deleteIds: string[] = [];
-
-  for (const [id, value] of Object.entries(next)) {
-    if (forceFullSync || prev[id] !== value) {
-      upserts[id] = value;
-    }
-  }
-
-  for (const id of Object.keys(prev)) {
-    if (!(id in next)) {
-      deleteIds.push(id);
-    }
-  }
-
-  if (Object.keys(upserts).length === 0 && deleteIds.length === 0) {
-    return undefined;
-  }
-
-  return { upserts, deleteIds };
-}
-
-function applyRecordDeltaInPlace<T>(target: MutableRecord<T>, delta?: RecordDelta<T>) {
-  if (!delta) return;
-
-  for (const id of delta.deleteIds) {
-    delete target[id];
-  }
-
-  for (const [id, value] of Object.entries(delta.upserts)) {
-    target[id] = value;
-  }
 }
 
 function buildInputDelta(

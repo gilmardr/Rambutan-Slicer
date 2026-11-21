@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { isTauriRuntime } from '@/utils/tauriRuntime';
 import type { DetectedIsland } from './types';
 
 /** Raw shape returned by the `scan_mesh_minima` Tauri command (camelCase). */
@@ -11,11 +12,12 @@ interface RawLocalMinimum {
 /**
  * Invoke the stateless Rust mesh-minima scanner on world-space (build-plate)
  * positions and map the result to unified {@link DetectedIsland}s (source
- * 'minima'). The Tauri import is dynamic so this module is inert in a non-Tauri
- * (plain browser) context — it simply rejects, and the caller treats that as a
- * non-fatal "no minima". No ROIs, no brushes — just coordinates.
+ * 'minima'). The Tauri import is dynamic, and a plain browser returns no minima
+ * without trying to invoke a desktop command. No ROIs, no brushes — just coordinates.
  */
 export async function scanMeshMinima(positions: Float32Array, k?: number): Promise<DetectedIsland[]> {
+  if (!isTauriRuntime()) return [];
+
   const { invoke } = await import('@tauri-apps/api/core');
   const raw = await invoke<RawLocalMinimum[]>('scan_mesh_minima', {
     positions: Array.from(positions),

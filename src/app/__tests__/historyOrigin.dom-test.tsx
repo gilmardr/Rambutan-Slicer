@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { resolveObjectURL } from 'node:buffer';
 import test from 'node:test';
 import { createRoot } from 'react-dom/client';
+import { setupHotkeyListeners } from '@/hotkeys/HotkeyRegistryManager';
 import Home from '@/app/page';
 import type { HistoryOrigin } from '@/history/types';
 import { clearHistory, peekUndo, pushHistory, registerHistoryHandler, undo } from '@/history/historyStore';
@@ -38,7 +39,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 }) as typeof fetch;
 
 /** Drops a cube on the editor, the way a user adds a model; an empty scene is held in Prepare. */
-async function dropCube(container: HTMLElement) {
+async function dropCube(container: HTMLElement, name = 'cube.stl') {
   const target = Array.from(container.querySelectorAll('div')).find((element) => {
     const propsKey = Object.keys(element).find((key) => key.startsWith('__reactProps$'));
     return propsKey && typeof (element as unknown as Record<string, { onDrop?: unknown }>)[propsKey].onDrop === 'function';
@@ -46,7 +47,7 @@ async function dropCube(container: HTMLElement) {
   assert.ok(target, 'the editor takes drops');
   const drop = new Event('drop', { bubbles: true, cancelable: true });
   Object.defineProperty(drop, 'dataTransfer', {
-    value: { files: [new File([CUBE_STL], 'cube.stl', { type: 'model/stl' })], types: ['Files'] },
+    value: { files: [new File([CUBE_STL], name, { type: 'model/stl' })], types: ['Files'] },
   });
   target.dispatchEvent(drop);
 }
@@ -70,6 +71,7 @@ test('undo goes back to the tool an entry was made in', async (t) => {
   // Not `act`, for the reason the page smoke test gives.
   const actEnvironment = reactGlobals.IS_REACT_ACT_ENVIRONMENT;
   reactGlobals.IS_REACT_ACT_ENVIRONMENT = false;
+  const removeKeyListeners = setupHotkeyListeners();
   const unregister = registerHistoryHandler(PROBE, () => true);
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -80,6 +82,23 @@ test('undo goes back to the tool an entry was made in', async (t) => {
     assert.deepEqual(currentOrigin(), { appMode: 'prepare', transformMode: 'select' });
     await dropCube(container);
     await wait(1500);
+
+    await t.test('support keeps all models selected after Ctrl+A', async () => {
+      await dropCube(container, 'second.stl');
+      await wait(1000);
+      await undoEntryFrom({ appMode: 'support', transformMode: 'select' });
+      // i18n-ignore — this selector matches the rendered control in the test.
+      const selectAll = container.querySelector<HTMLButtonElement>('button[aria-label="Select all models"]');
+      assert.ok(selectAll && !selectAll.disabled);
+      // i18n-ignore — keyboard event values are browser key identifiers.
+      for (const [key, code] of [['Control', 'ControlLeft'], ['a', 'KeyA']]) {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key, code, ctrlKey: true, bubbles: true }));
+      }
+      await wait(200);
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'a', code: 'KeyA', bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control', code: 'ControlLeft', bubbles: true }));
+      assert.equal(selectAll.disabled, true, 'both models stay selected');
+    });
 
     await t.test('a tool in another workspace', async () => {
       await undoEntryFrom({ appMode: 'support', transformMode: 'hollowing' });
@@ -94,6 +113,7 @@ test('undo goes back to the tool an entry was made in', async (t) => {
   } finally {
     root.unmount();
     container.remove();
+    removeKeyListeners();
     unregister();
     clearHistory();
     reactGlobals.IS_REACT_ACT_ENVIRONMENT = actEnvironment;

@@ -4,6 +4,7 @@ import {
   EyeOff,
   Box,
   Plus,
+  ListChecks,
   LayoutGrid,
   AlertTriangle,
 
@@ -358,6 +359,7 @@ export function ModelManagerPanel({
       : group.models.map((model) => model.id))),
     [grouped],
   );
+  const allModelsSelected = orderedModelIds.length > 0 && orderedModelIds.every((id) => selectedSet.has(id));
   const computedBottomClearance = Math.max(140, Math.round(bottomClearancePx));
   const panelMaxHeight = `calc(100vh - var(--topbar-height) - ${computedBottomClearance}px)`;
   const panelClassName = dimmed
@@ -748,18 +750,43 @@ export function ModelManagerPanel({
             </h3>
           </>
         )}
-        right={onAddModels ? (
-          // The count that used to sit here repeated what the list below already
-          // says, line by line. The slot earns its keep as the way to add more.
-          <IconButton
-            onClick={onAddModels}
-            size="sm"
-            className="!text-[var(--text-muted)] hover:!text-[var(--text-strong)] hover:!bg-[var(--surface-2)]"
-            title={_(msg({ message: 'Add models to the plate', comment: 'Tooltip on the plus in the Models panel header, which opens the mesh picker.' }))}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </IconButton>
-        ) : undefined}
+        right={(
+          <div className="flex items-center gap-1">
+            <IconButton
+              onClick={() => {
+                if (orderedModelIds.length === 0 || allModelsSelected) return;
+                const activeId = activeModelId && orderedModelIds.includes(activeModelId)
+                  ? activeModelId
+                  : orderedModelIds[orderedModelIds.length - 1];
+                if (onSelectRange) {
+                  onSelectRange(orderedModelIds, activeId, 'replace');
+                  return;
+                }
+                onSelect(activeId, 'single');
+                orderedModelIds.filter((id) => id !== activeId).forEach((id) => onSelect(id, 'add'));
+              }}
+              disabled={orderedModelIds.length === 0 || allModelsSelected}
+              size="sm"
+              className="!text-[var(--text-muted)] hover:!text-[var(--text-strong)] hover:!bg-[var(--surface-2)]"
+              title={_(msg({ message: 'Select all models', comment: 'Tooltip on the select-all button in the Models panel header.' }))}
+              aria-label={_(msg`Select all models`)}
+            >
+              <ListChecks className="h-3.5 w-3.5" />
+            </IconButton>
+            {onAddModels && (
+              // The count that used to sit here repeated what the list below
+              // already says, line by line. The slot earns its keep as the way to add more.
+              <IconButton
+                onClick={onAddModels}
+                size="sm"
+                className="!text-[var(--text-muted)] hover:!text-[var(--text-strong)] hover:!bg-[var(--surface-2)]"
+                title={_(msg({ message: 'Add models to the plate', comment: 'Tooltip on the plus in the Models panel header, which opens the mesh picker.' }))}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </IconButton>
+            )}
+          </div>
+        )}
       />
 
       {platePendingDelete && (

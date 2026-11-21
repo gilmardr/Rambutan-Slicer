@@ -65,12 +65,20 @@ the raft is trimmed where the model stands:
 | `src/supports/Rafts/Crenelated/geometry/computeRaftFootprint.ts` | `computeRaftFootprintPolygons` (hull minus clearance), `inflateModelPlateClearance`, `raftSolidHeightMm`, `raftChamferInsetMm`, `raftDynamicMarginMm`, `raftBandTopMm`, `raftWallBaseHeightMm` |
 | `src/supports/Rafts/Crenelated/geometry/generateRaftFromFootprint.ts` | `buildRaftFootprintMeshes` (the shared seam: footprint + base + wall), `generateChamferedBaseFromPolygons`, `generateWallFromPolygons`, `isUntrimmedFootprint` |
 | `src/supports/Rafts/Crenelated/geometry/generateUnionedLineRaftMesh.ts` | line-mode beam network; `filterLineRaftEdges` drops the beams the model is in the way of |
+| `src/supports/Rafts/Crenelated/rendering/useRaftRendererInteraction.ts` | shared immediate hover/selection listeners for the solid and line viewport renderers |
 
 `buildRaftFootprintMeshes` / `computeRaftFootprintPolygons` are reached from the
 viewport (`RaftRenderer`, `LineRaftRenderer`, `RaftProxyMeshLayer` via
 `ModelAttachedSupportLayer`), the exporter (`ExportManager.exportScene`), the
 slicer (`buildSupportAndRaftWorldTriangles` in `features/slicing/rasterLayerZipExport.ts`)
 and the resin estimate (`src/app/page.tsx`).
+
+The solid and line renderers keep their geometry/material paths separate because
+their bottom modes differ. Their immediate model hover and selection state is
+shared by `useRaftRendererInteraction`; it listens to the model hover/click/
+deselection events, synchronizes the active model prop, and clears an immediate
+selection that is no longer selected. Both renderers pass the same interaction
+props to this hook.
 
 ## Constraints
 

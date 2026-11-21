@@ -3,6 +3,7 @@
 import { msg } from '@lingui/core/macro';
 import type { MessageDescriptor } from '@lingui/core';
 import type { UnitFormat } from '@/utils/unitFormatting';
+import { splitDurationSeconds } from '@/utils/durationParts';
 
 // {hours}/{minutes} are the whole-number quantities (e.g. "2h 05m", "8m") —
 // translators control abbreviation and spacing (e.g. "2 h 05 min") through their msgstr.
@@ -10,8 +11,7 @@ export function formatPrintingMonitorEstimatedTime(seconds: number | null, trans
   if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return '—';
 
   const rounded = Math.max(1, Math.round(seconds));
-  const hours = Math.floor(rounded / 3600);
-  const minutes = Math.floor((rounded % 3600) / 60);
+  const { hours, minutes } = splitDurationSeconds(rounded);
   const paddedMinutes = minutes.toString().padStart(2, '0');
 
   if (hours > 0) {

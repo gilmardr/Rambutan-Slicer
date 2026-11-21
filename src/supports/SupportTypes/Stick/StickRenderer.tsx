@@ -46,7 +46,7 @@ export const StickRenderer = React.memo(function StickRenderer({
   deferStraightShaftsToSceneBatch = false,
   deferInteractionToSceneBatch = false,
   deferContactConesToSceneBatch = false,
-  baseColor = '#ff8800',
+  baseColor = '#78c63f',
   hoverColor,
   selectedColor = '#80fffd',
   onContactDiskHudHoverChange,

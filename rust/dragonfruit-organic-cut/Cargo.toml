@@ -1,6 +1,6 @@
 [package]
 name = "dragonfruit-organic-cut"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 
@@ -39,4 +39,4 @@ cdt = "0.1"
 # pinned pair. The -sys pin (a transitive dep made direct here) forces cargo to
 # pick 3.4.103 instead of resolving the newest 3.5.x.
 manifold-csg = { version = "=0.1.4", optional = true, default-features = false }
-manifold-csg-sys = { version = "=3.4.103", optional = true }
+manifold-csg-sys = { version = "=3.4.103", optional = true, default-features = false }

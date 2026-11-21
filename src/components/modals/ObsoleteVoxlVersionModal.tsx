@@ -33,7 +33,7 @@ export function ObsoleteVoxlVersionModal({
       open={isOpen}
       ariaLabel={_(msg`Unsupported scene version`)}
       title={_(msg`Can't open this scene`)}
-      subtitle={_(msg`Saved by an obsolete DragonFruit version`)}
+      subtitle={_(msg`Saved by an obsolete 3DRESIN version`)}
       icon={<AlertTriangle className="h-4 w-4" />}
       iconTone="warning"
       zIndexClassName="z-[130]"
@@ -65,7 +65,7 @@ export function ObsoleteVoxlVersionModal({
       </p>
       <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
         <Trans>
-          To recover it, open the scene in an older version of DragonFruit and save it again — the
+          To recover it, open the scene in an older version of 3DRESIN and save it again — the
           re-saved scene will open here.
         </Trans>
       </p>

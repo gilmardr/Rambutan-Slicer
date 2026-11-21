@@ -1,130 +1,107 @@
-# DragonFruit: The Resin Slicer
+# Rambutan Slicer
 
-[![GitHub release](https://img.shields.io/github/release/Open-Resin-Alliance/DragonFruit.svg?style=for-the-badge)](https://github.com/Open-Resin-Alliance/DragonFruit/releases)
-[![GitHub issues](https://img.shields.io/github/issues/Open-Resin-Alliance/DragonFruit.svg?style=for-the-badge)](https://github.com/Open-Resin-Alliance/DragonFruit/issues)
-[![Discord](https://img.shields.io/discord/1281738817417777204?style=for-the-badge&logo=discord&logoColor=white&color=%235865F2)](https://discord.gg/beFeTaPH6v)
-[![Crowdin translations](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fbadges.crowdin.net%2Fdragonfruit%2Flocalized.svg&search=%22%3E(%5B0-9%5D%2B%25)%3C%2Ftext%3E%20%20%20%20%3C%2Fg&replace=%241&style=for-the-badge&logo=crowdin&label=Crowdin%20translations&link=https%3A%2F%2Ftranslate.dragonfruit-slicer.com)](https://translate.dragonfruit-slicer.com)
+> Downstream build of [DragonFruit](https://github.com/Open-Resin-Alliance/DragonFruit) — Open Resin Alliance · AGPL-3.0-or-later
 
+Rambutan Slicer é um fork editável do DragonFruit, o slicer de resina de código aberto da Open Resin Alliance. Mantém a licença AGPL-3.0-or-later e a atribuição upstream. O app desktop combina frontend Next.js + React com backends de fatiamento nativos em Rust e runtime Tauri.
 
-DragonFruit is an open-source resin slicer and support-generation environment built by the Open Resin Alliance. It combines a modern Next.js + React frontend with native Rust slicing backends and a Tauri desktop runtime.
+A menos que um subdiretório ou submódulo declare o contrário, o conteúdo Rambutan Slicer neste repositório é licenciado sob **AGPL-3.0-or-later**.
 
-Unless a subdirectory or submodule states otherwise, DragonFruit content in this repository is licensed under **AGPL-3.0-or-later**.
+> **Aviso de modificação (AGPL-3.0, seção 5a):** este trabalho é uma versão modificada do DragonFruit, derivada do commit upstream [`8bb1a22`](https://github.com/Open-Resin-Alliance/DragonFruit/commit/8bb1a22657b8c004f935f9ea7925fb0d8bc4d1a9). Modificado por Gilmar Afonso Druciak a partir de novembro de 2026 (rebranding, novas ferramentas de suporte, medição, corte orgânico, hollowing e documentação). O histórico completo das alterações está no log do Git deste repositório.
 
-> :warning: **DragonFruit is under active development. Please exercise caution for production print workflows, validate outputs, and avoid unattended printing on first use.**
+> ⚠️ **Este build do Rambutan Slicer é baseado em um projeto em desenvolvimento ativo. Valide os outputs antes de usar em fluxos de impressão em produção e evite impressão desacompanhada no primeiro uso.**
 
-## Table of Contents
+## Sumário
 
-- [About DragonFruit](#about-dragonfruit)
-- [Features](#features)
-- [Getting started](#getting-started)
-  - [Variant 1: Frontend development (Next.js)](#variant-1-frontend-development-nextjs)
-  - [Variant 2: Desktop development (Tauri + Rust)](#variant-2-desktop-development-tauri--rust)
-  - [Variant 3: Production build & bundling](#variant-3-production-build--bundling)
-- [Localization (i18n)](docs/dev/localization.md)
-- [Project structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
+- [Sobre o DragonFruit](#sobre-o-dragonfruit)
+- [Funcionalidades](#funcionalidades)
+- [Começando](#começando)
+  - [Variante 1: Desenvolvimento frontend (Next.js)](#variante-1-desenvolvimento-frontend-nextjs)
+  - [Variante 2: Desenvolvimento desktop (Tauri + Rust)](#variante-2-desenvolvimento-desktop-tauri--rust)
+  - [Variante 3: Build de produção e bundling](#variante-3-build-de-produção-e-bundling)
+- [Localização (i18n)](docs/dev/localization.md)
+- [Estrutura do projeto](#estrutura-do-projeto)
+- [Contribuindo](#contribuindo)
+- [Licença](#licença)
 
-## About DragonFruit
+## Sobre o DragonFruit
 
-DragonFruit focuses on practical resin-print preparation workflows, including model inspection, island analysis, transform tooling, support authoring, and native slicing integration. It is designed as a desktop-first toolchain while keeping the frontend highly iterative for rapid feature development.
+O DragonFruit foca em fluxos práticos de preparação de impressão em resina, incluindo inspeção de modelos, análise de ilhas, ferramentas de transformação, autoria de suportes e integração de fatiamento nativo. É projetado como uma toolchain desktop-first mantendo o frontend altamente iterativo para desenvolvimento rápido de features.
 
-## Features
+## Funcionalidades
 
-DragonFruit currently includes a growing set of capabilities for resin 3D printing:
+O Rambutan Slicer inclui um conjunto crescente de capacidades para impressão 3D em resina:
 
-- **Interactive 3D Workspace:** High-performance model visualization and manipulation using `three.js` + `react-three-fiber`.
-- **Advanced Transform Tooling:** Move/Rotate/Scale workflows with precision controls and viewport gizmos.
-- **Island Analysis & Volume Tools:** Layer-aware unsupported-region detection and analysis workflows.
-- **Support Authoring Systems:** Branch/grid/raft support workflows with rendering and snapping infrastructure.
-- **Desktop Runtime via Tauri:** Native desktop app pipeline with Rust backend integration.
-- **Extensible Architecture:** Plugin and profile systems for materials, printers, and ecosystem integrations.
+- **Workspace 3D Interativo:** Visualização e manipulação de modelos de alto desempenho usando `three.js` + `react-three-fiber`.
+- **Ferramentas de Transformação Avançadas:** Fluxos Move/Rotate/Scale com controles de precisão e gizmos de viewport.
+- **Análise de Ilhas e Ferramentas de Volume:** Detecção e análise de regiões sem suporte por camada.
+- **Sistemas de Autoria de Suportes:** Fluxos de suporte branch/grid/raft com infraestrutura de renderização e snapping.
+- **Runtime Desktop via Tauri:** Pipeline de app desktop nativo com integração de backend Rust.
+- **Arquitetura Extensível:** Sistemas de plugins e perfis para materiais, impressoras e integrações de ecossistema.
 
-## Getting started
+## Começando
 
-To get started with DragonFruit, follow one of these variants depending on your workflow.
+Escolha uma das variantes abaixo de acordo com seu fluxo de trabalho.
 
-### Submodule note (plugin development)
+### Nota sobre submódulos (desenvolvimento de plugins)
 
-DragonFruit supports plugins that can be sourced as Git submodules (for example `plugins/ctb`).
-If your local clone is missing plugin folders, generation/build will continue with available plugins only (missing submodules are skipped with warnings).
-Initialize/update submodules when you need to develop or validate those specific plugin integrations.
+O DragonFruit suporta plugins como submódulos Git (por exemplo `plugins/ctb`). Se sua clone local estiver com pastas de plugins faltando, o build continuará com os plugins disponíveis (submódulos ausentes são ignorados com avisos). Inicialize/atualize os submódulos quando precisar desenvolver ou validar integrações específicas de plugins.
 
-### Variant 1: Frontend development (Next.js)
+### Variante 1: Desenvolvimento frontend (Next.js)
 
-For UI and interaction development only (without full desktop packaging):
+Para desenvolvimento de UI e interação apenas (sem empacotamento desktop completo):
 
-1. **Prerequisites:** Install Node.js (LTS recommended) and npm.
-2. **Install dependencies:** From the repository root, install packages with `npm install`.
-3. **Run dev server:** Start the app with `npm run dev`.
-4. **Open in browser:** Visit `http://localhost:3005`.
+1. **Pré-requisitos:** Instale Node.js (LTS recomendado) e npm.
+2. **Instale dependências:** Na raiz do repositório, execute `npm install`.
+3. **Execute o servidor dev:** Inicie com `npm run dev`.
+4. **Abra no navegador:** Acesse `http://localhost:3005`.
 
-### Variant 2: Desktop development (Tauri + Rust)
+### Variante 2: Desenvolvimento desktop (Tauri + Rust)
 
-For full desktop development with native backend wiring:
+Para desenvolvimento desktop completo com ligação do backend nativo:
 
-1. **Prerequisites:** Install Node.js, Rust toolchain, and Tauri system dependencies for your platform.
-2. **Install JS dependencies:** Run `npm install` in the project root.
-3. **Run desktop dev mode:** Launch with `npm run tauri:dev`.
-4. **Iterate across stacks:** Frontend and Rust backend changes can be tested through the same Tauri dev workflow.
+1. **Pré-requisitos:** Instale Node.js, toolchain Rust e dependências de sistema Tauri para sua plataforma.
+2. **Instale dependências JS:** Execute `npm install` na raiz do projeto.
+3. **Execute o modo dev desktop:** Inicie com `npm run tauri:dev`.
+4. **Itere entre as stacks:** Alterações no frontend e backend Rust podem ser testadas pelo mesmo fluxo dev do Tauri.
 
-### Variant 3: Production build & bundling
+### Variante 3: Build de produção e bundling
 
-For release-style builds and bundles:
+Para builds e bundles estilo release:
 
-1. **Frontend build:** Run `npm run build` (or `npm run build:tauri` for prepared Tauri frontend artifacts).
-2. **Desktop build:** Build desktop binaries with `npm run tauri:build`.
-3. **Bundle targets:** Use `npm run tauri:bundle`, which builds this machine's
-   own target (a universal DMG on macOS). Other targets need cross toolchains
-   that CI has and a laptop usually does not — pass `--only=<triple,...>` if
-   yours is set up for one. Or use the platform-specific scripts:
+1. **Build do frontend:** Execute `npm run build` (ou `npm run build:tauri` para artefatos Tauri preparados).
+2. **Build desktop:** Compile binários desktop com `npm run tauri:build`.
+3. **Bundle targets:** Use `npm run tauri:bundle` para o target da máquina atual. Targets específicos por plataforma:
    - `npm run tauri:bundle:windows`
    - `npm run tauri:bundle:linux`
-   - `npm run tauri:bundle:macos:universal` — **canonical macOS / release target.**
-     Produces one fat `.dmg` that runs natively on both Intel and Apple Silicon.
-     It builds via `tauri-build.mjs --universal`, which sets
-     `CMAKE_OSX_ARCHITECTURES="arm64;x86_64"` so manifold's C++ links fat, embeds
-     the universal QuickLook extension, code-signs, and verifies the bundle is fat
-     - signed. See [ADR-0005](docs/adr/0005-macos-universal-distribution.md).
-   - `npm run tauri:bundle:macos` / `npm run tauri:bundle:macos:arm64` — single-arch
-     shortcuts for fast local dev only (these do **not** embed the QuickLook
-     extension and are not suitable for release).
+   - `npm run tauri:bundle:macos:universal` — **target canônico macOS/release.** Produz um `.dmg` universal para Intel e Apple Silicon.
+   - `npm run tauri:bundle:macos` / `npm run tauri:bundle:macos:arm64` — atalhos single-arch para dev local apenas.
 
-## Localization (i18n)
+## Estrutura do projeto
 
-See the [localization guide](docs/dev/localization.md) for details on DragonFruit's internationalization
-setup, including supported locales, catalog structure, workflow commands, and
-runtime language selection.
+Layout de alto nível das principais áreas do projeto:
 
-Help translate DragonFruit at **[translate.dragonfruit-slicer.com](https://translate.dragonfruit-slicer.com/)**.
+- `docs/` — Notas de arquitetura, guias de implementação e documentação de domínio.
+- `plugins/` — Arquitetura de plugins e integrações de ecossistema (veja LICENSE).
+- `profiles/` — Definições de perfis de impressora e material.
+- `rust/dragonfruit-slicing-engine/` — Workspace do backend slicer em Rust.
+- `src/` — App Next.js, componentes React, controles de cena, sistemas de suporte, hooks, catálogos i18n e utilitários.
+- `src-tauri/` — Host desktop Tauri e pontos de integração nativos.
 
-## Project structure
+## Contribuindo
 
-High-level layout of key project areas:
+Contribuições são bem-vindas e apreciadas!
 
-- `docs/` — Architecture notes, implementation guides, and domain documentation.
-- `plugins/` — Plugin architecture and ecosystem integrations (see LICENSE).
-- `profiles/` — Printer and material profile definitions.
-- `rust/dragonfruit-slicing-engine/` — Rust slicer backend workspace.
-- `src/` — Next.js app, React components, scene controls, support systems, hooks, i18n catalogs, and utilities.
-- `src-tauri/` — Tauri desktop host and native integration points.
+1. **Fork do Repositório:** Crie um fork pessoal e uma branch para sua feature/fix.
+2. **Implemente as Mudanças:** Mantenha as mudanças focadas e alinhadas com as convenções do projeto.
+3. **Execute as Verificações:** Valide com `npm run lint` e `npm run test` onde aplicável.
+4. **Envie um Pull Request:** Abra um PR com resumo claro, justificativa e notas de validação.
 
-## Contributing
+## Licença
 
-We welcome and appreciate contributions to DragonFruit! If you'd like to contribute:
+A menos que declarado de outra forma em um subdiretório ou submódulo, o Rambutan Slicer é licenciado sob **AGPL-3.0-or-later**. Veja o arquivo `LICENSE` na raiz para os termos completos.
 
-1. **Fork the Repository:** Create a personal fork and branch for your feature/fix.
-2. **Implement Changes:** Keep changes focused and aligned with project conventions.
-3. **Run Checks:** Validate with `npm run lint` and `npm run test` where applicable.
-4. **Submit a Pull Request:** Open a PR with a clear summary, rationale, and validation notes.
+Os submódulos de plugins em `plugins/` são licenciados separadamente sob **MIT**. Cada repositório de plugin inclui seu próprio arquivo `LICENSE`.
 
-## License
+---
 
-Unless stated otherwise in a subdirectory or submodule, DragonFruit is licensed under **AGPL-3.0-or-later**. See the top-level `LICENSE` file for the full terms.
-
-The plugin submodules under `plugins/` are licensed separately under **MIT**. Each plugin repository includes its own `LICENSE` file.
-
-## Contact
-
-If you have questions, feedback, or ideas, join us on the [Open Resin Alliance Discord](https://discord.gg/beFeTaPH6v).
+*Rambutan Slicer é um fork downstream do [DragonFruit](https://github.com/Open-Resin-Alliance/DragonFruit) da Open Resin Alliance. Todo crédito upstream preservado conforme AGPL-3.0-or-later.*

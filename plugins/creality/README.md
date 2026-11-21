@@ -1,0 +1,42 @@
+# Creality printer profiles
+
+The built-in profile plugin contains presets for the Creality LD and HALOT
+models in the printer compatibility catalog. Existing LD-002R, LD-002H, and
+LD-006 presets were completed with images and manufacturer specifications;
+HALOT models now have printer presets. Firmware variants and model
+aliases reuse the same image when they refer to the same physical printer.
+
+> **Asset source notice**
+>
+> Printer preview assets were sourced from Creality, Creality Cloud, the
+> Creality Wiki, Creality's store, and Creality's LD-002R launch material.
+> Explicit redistribution permission has not been confirmed, so the image
+> files are **not distributed in this repository** (they are git-ignored).
+> Without them the UI shows its "No image" fallback.
+
+## Profile data sources
+
+- [LD-002H and LD-002R specifications](https://www.creality.com/uk/blog/ld-002h-vs-ld-002r-what-are-the-improvements-in-ld-002h)
+- [LD-006 manual](https://file-cdn.creality.com/product/7d93afe3-280b-485c-af48-d114318d5edb)
+- [HALOT ONE, ONE PRO, ONE PLUS, LITE, RAY, MAX, and legacy SKY comparison](https://store.creality.com/blogs/all/creality-halot-series-resin-printers-parameter-comparison)
+- [HALOT-MAGE family comparison](https://store.creality.com/blogs/all/halot-mage-s-depth-review)
+- [HALOT-MAGE S official specifications](https://www.creality.com/products/creality-halot-mage-s)
+- [HALOT-MAGE PRO official specifications](https://www.creality.com/products/halot-mage-pro-3d-printer)
+- [HALOT-R6 manual](https://cdn.creality.com/ow/official/caefb0c7-fa70-4132-9b3d-e0f9524ee60f.pdf)
+- [HALOT-PLAY and HALOT-R6 specifications](https://www.piocreat3d.com/wp-content/uploads/2025/04/PioCreat-3D-product-catalog.pdf)
+- [HALOT-SKY 2025 Wiki](https://wiki.creality.com/en/halot-series/halot-sky-2025)
+- [HALOT-X1 family specifications](https://www.creality.com/products/halot-x1-max)
+- [HALOT-X1 Neo resolution and pixel size](https://www.creality.com/products/halot-x1-neo)
+- [HALOT-X1 specifications](https://www.creality.com/eu/products/halot-x1)
+
+The LD-002R's per-axis pixel sizes are calculated from its documented 65 ×
+119 mm build area and 1440 × 2560 screen resolution. Its reference lists
+0.075 mm XY precision, which is not the same measurement as pixel pitch.
+
+## Export formats
+
+Preset output formats preserve the printer formats reported by the
+compatibility catalog. The built-in encoder supports CTB; CXDLP and CXDLPv4
+profiles remain selectable but need an encoder plugin before DragonFruit can
+export those files. Resin exposure and lift settings remain in material
+profiles because they depend on the resin and print conditions.

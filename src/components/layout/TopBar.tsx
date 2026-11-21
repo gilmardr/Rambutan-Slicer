@@ -12,7 +12,7 @@ import type { MatcapVariant, MeshShaderType } from '@/features/shaders/mesh';
 import { AlertDiamondIcon, Button } from '@/components/atoms';
 import { StructuredDialogModal } from '@/components/ui/StructuredDialogModal';
 import { ContextMenu, type ContextMenuEntry } from '@/components/ui/ContextMenu';
-import { Activity, AlertTriangle, Anchor, ChevronDown, FilePlus2, FolderInput, FolderOpen, Lock, Maximize2, Minimize2, Power, Printer, Save, SaveAll, Settings, Square, Upload, X } from 'lucide-react';
+import { Activity, AlertTriangle, Anchor, ChevronDown, FilePlus2, FolderInput, FolderOpen, Lock, Maximize2, Minimize2, Power, Printer, Ruler, Save, SaveAll, Settings, Square, Upload, X } from 'lucide-react';
 import {
   applyThemeCustomColors,
   getSavedThemeCustomColors,
@@ -35,8 +35,9 @@ import {
 
 import type { View3DSettings } from '@/components/settings/view3dPreferences';
 import type { SlicingThumbnailRenderSettings } from '@/components/settings/PerformanceSettingsTab';
+import type { PreparedModelLibraryEntry } from '@/features/backups/modelLibraryTypes';
 import { useSceneFileInputAccept } from '@/features/plugins/pluginFileTypeExtensions';
-import { formatTopbarPrinterAriaLabel, formatTopbarPrinterTitle } from '@/components/layout/topBarMessages';
+import { formatTopbarPrinterAriaLabel, formatTopbarPrinterTitle, formatTopbarProfileTitle } from '@/components/layout/topBarMessages';
 
 interface TopBarProps {
   meshColor: string;
@@ -82,6 +83,8 @@ interface TopBarProps {
   /** True while the Overhangs view mode is active, so the quick toggle can show it. */
   overhangViewActive: boolean;
   onOverhangViewChange: (value: boolean) => void;
+  millimeterRulerVisible: boolean;
+  onMillimeterRulerVisibleChange: (value: boolean) => void;
   heatmapColors: string[];
   onHeatmapColorChange: (index: number, color: string) => void;
   isSlicingBusy?: boolean;
@@ -89,6 +92,7 @@ interface TopBarProps {
   onSaveScene?: () => void;
   onSaveSceneAs?: () => void;
   onOpenScene?: () => void;
+  onOpenPreparedModel?: (entry: PreparedModelLibraryEntry) => Promise<boolean>;
   onLoadMeshChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onImportSceneChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onCloseProgram?: () => void;
@@ -143,6 +147,8 @@ export function TopBar({
   onViewTypeChange,
   overhangViewActive,
   onOverhangViewChange,
+  millimeterRulerVisible,
+  onMillimeterRulerVisibleChange,
   heatmapColors,
   onHeatmapColorChange,
   isSlicingBusy = false,
@@ -152,6 +158,7 @@ export function TopBar({
   onSaveScene,
   onSaveSceneAs,
   onOpenScene,
+  onOpenPreparedModel,
   onCloseProgram,
   showMonitorButton = false,
   monitorButtonActive = false,
@@ -499,7 +506,9 @@ export function TopBar({
       const printerName = topbarFleetPrinterName ?? _(msg`No active printer`);
       return formatTopbarPrinterTitle(profileName, printerName, _);
     }
-    return activePrinterProfile ? _(msg`Printer profile: ${activePrinterProfile.name}`) : _(msg`Select printer profile`);
+    return activePrinterProfile
+      ? formatTopbarProfileTitle(activePrinterProfile.name, _)
+      : _(msg`Select printer profile`);
   }, [_, activePrinterProfile, topbarFleetPrinterName, topbarUsesFleetLabelOrder]);
   const topbarPrinterButtonAriaLabel = React.useMemo(() => {
     if (topbarUsesFleetLabelOrder) {
@@ -619,7 +628,7 @@ export function TopBar({
     },
   ];
 
-  // Same rows the DragonFruit dropdown has always offered; placement, grouping
+  // Same rows the 3DRESIN dropdown has always offered; placement, grouping
   // rules and dismissal belong to ContextMenu.
   const appMenuEntries: ContextMenuEntry[] = [
     {
@@ -727,14 +736,14 @@ export function TopBar({
               ? 'color-mix(in srgb, var(--accent), transparent 80%)'
               : 'transparent',
           }}
-          title={_(msg({ message: 'DragonFruit menu', comment: '"DragonFruit" is the product name and should stay untranslated/unchanged; only "menu" needs translating.' }))}
-          aria-label={_(msg({ message: 'Open DragonFruit menu', comment: '"DragonFruit" is the product name and should stay untranslated/unchanged.' }))}
+          title={_(msg({ message: '3DRESIN menu', comment: '"3DRESIN" is the product name and should stay untranslated/unchanged; only "menu" needs translating.' }))}
+          aria-label={_(msg({ message: 'Open 3DRESIN menu', comment: '"3DRESIN" is the product name and should stay untranslated/unchanged.' }))}
           data-no-window-drag="true"
         >
           <img
-            src="/dragonfruit_assets/branding/simple_icon.svg"
+            src="/rambutan-icon-small.svg"
             // i18n-ignore: product name
-            alt="DragonFruit"
+            alt="Rambutan Slicer"
             className="h-7 w-7 object-contain"
             draggable={false}
             style={isLightTheme ? { filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.35))' } : undefined}
@@ -840,8 +849,8 @@ export function TopBar({
           onClose={closeAppMenu}
           dismissIgnoreRef={appMenuButtonRef}
           // i18n-ignore: product name
-          title="DragonFruit"
-          ariaLabel={_(msg({ message: 'DragonFruit app menu', comment: '"DragonFruit" is the product name and should stay untranslated/unchanged.' }))}
+          title="3DRESIN"
+          ariaLabel={_(msg({ message: '3DRESIN app menu', comment: '"3DRESIN" is the product name and should stay untranslated/unchanged.' }))}
         />
       )}
 
@@ -1006,7 +1015,7 @@ export function TopBar({
                     : locked
                     ? (item.mode === 'printing'
                       ? _(msg`Run slicing in Export to unlock Printing preview`)
-                      : _(msg`Load a model in Prepare to unlock this stage`))
+                      : _(msg`Load a model in Prepare to unlock Support and Export`))
                     : item.hint}
                 >
                   <span
@@ -1068,6 +1077,19 @@ export function TopBar({
             data-no-window-drag="true"
           >
             <AlertDiamondIcon className="w-4 h-4" />
+          </Button>
+          <Button
+            type="button"
+            variant={millimeterRulerVisible ? 'primary' : 'secondary'}
+            className="!p-2"
+            onClick={() => onMillimeterRulerVisibleChange(!millimeterRulerVisible)}
+            disabled={topbarActionsDisabled}
+            title={millimeterRulerVisible ? _(msg`Millimeter ruler: On`) : _(msg`Millimeter ruler: Off`)}
+            aria-label={millimeterRulerVisible ? _(msg`Millimeter ruler: On`) : _(msg`Millimeter ruler: Off`)}
+            aria-pressed={millimeterRulerVisible}
+            data-no-window-drag="true"
+          >
+            <Ruler className="w-4 h-4" />
           </Button>
           </>
           )}
@@ -1226,6 +1248,7 @@ export function TopBar({
         activeOutputFormat={activePrinterProfile?.display.outputFormat ?? null}
         heatmapColors={heatmapColors}
         onHeatmapColorChange={onHeatmapColorChange}
+        onOpenPreparedModel={onOpenPreparedModel}
       />
 
       <ProfileSettingsModal

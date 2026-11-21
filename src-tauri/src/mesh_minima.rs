@@ -15,10 +15,11 @@ use dragonfruit_islands::{
     stream::run_island_scan_streaming,
 };
 use dragonfruit_mesh_repair::{core::mesh::Vec3, IndexedMesh};
-use rayon::prelude::*;
+use rayon::{prelude::*, ThreadPool, ThreadPoolBuilder};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::sync::OnceLock;
 use tauri::Emitter;
 
 use crate::overhang;
@@ -166,7 +167,27 @@ thread_local! {
     static SCAN_CONTEXT: RefCell<Option<ThreadLocalScanContext>> = RefCell::new(None);
 }
 
+static MINIMA_POOL: OnceLock<ThreadPool> = OnceLock::new();
+
+fn minima_pool() -> &'static ThreadPool {
+    MINIMA_POOL.get_or_init(|| {
+        let available = std::thread::available_parallelism()
+            .map(|count| count.get())
+            .unwrap_or(1);
+        let threads = available.saturating_sub(2).clamp(1, 8);
+        ThreadPoolBuilder::new()
+            .thread_name(|index| format!("dragonfruit-mesh-minima-{index}"))
+            .num_threads(threads)
+            .build()
+            .expect("failed to create mesh-minima thread pool")
+    })
+}
+
 fn scan_minima_internal(mesh: &IndexedMesh, k: Option<usize>) -> Vec<LocalMinimum> {
+    minima_pool().install(|| scan_minima_parallel(mesh, k))
+}
+
+fn scan_minima_parallel(mesh: &IndexedMesh, k: Option<usize>) -> Vec<LocalMinimum> {
     let tri_count = mesh.triangle_count();
     let vert_count = mesh.vertex_count();
 

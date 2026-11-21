@@ -67,6 +67,48 @@ pub struct LoopTenonSpec {
     pub tenon_shape: String,
     #[serde(default)]
     pub tenon_fillet_mm: f32,
+    /// Mortise-mouth chamfer size and depth in mm. A zero size disables it.
+    #[serde(default)]
+    pub tenon_chamfer_size_mm: f32,
+    #[serde(default)]
+    pub tenon_chamfer_depth_mm: f32,
+    /// Optional frustum side angle from vertical, in degrees. Absent keeps the historical tip scale.
+    #[serde(default)]
+    pub tenon_taper_angle_deg: Option<f32>,
+    #[serde(default = "default_tenon_tolerance")]
+    pub tenon_tolerance_mm: f32,
+    #[serde(default)]
+    pub tenon_anchor: Option<[f32; 3]>,
+    #[serde(default)]
+    pub tenon_swap_sides: bool,
+    #[serde(default)]
+    pub tenon_tilt_rad: f32,
+    #[serde(default)]
+    pub tenon_roll_rad: f32,
+    /// When present, this independently positioned list replaces the legacy single tenon.
+    #[serde(default)]
+    pub plugs: Option<Vec<LoopTenonPlugSpec>>,
+}
+
+/// Geometry settings for one independently anchored tenon/mortise pair.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoopTenonPlugSpec {
+    #[serde(default = "default_tenon_width")]
+    pub tenon_width_mm: f32,
+    #[serde(default = "default_tenon_depth")]
+    pub tenon_depth_mm: f32,
+    #[serde(default = "default_tenon_shape")]
+    pub tenon_shape: String,
+    #[serde(default)]
+    pub tenon_fillet_mm: f32,
+    /// Mortise-mouth chamfer size and depth in mm. A zero size disables it.
+    #[serde(default)]
+    pub tenon_chamfer_size_mm: f32,
+    #[serde(default)]
+    pub tenon_chamfer_depth_mm: f32,
+    #[serde(default)]
+    pub tenon_taper_angle_deg: Option<f32>,
     #[serde(default = "default_tenon_tolerance")]
     pub tenon_tolerance_mm: f32,
     #[serde(default)]
@@ -102,6 +144,10 @@ pub struct OrganicCutSpec {
     /// `tenon_*` fields, so a single-loop cut without `loop_tenons` is unchanged.
     #[serde(default)]
     pub loop_tenons: Vec<LoopTenonSpec>,
+    /// Independently placed plugs for a flat cut. `None` preserves legacy settings;
+    /// an empty list explicitly requests no plugs.
+    #[serde(default)]
+    pub tenon_plugs: Option<Vec<LoopTenonPlugSpec>>,
     /// Wafer thickness in mm. Unused by the M2 planar cut.
     #[serde(default)]
     pub thickness_mm: f32,
@@ -154,6 +200,14 @@ pub struct OrganicCutSpec {
     /// 0 = sharp box. Ignored by the dome. Defaults to 0.
     #[serde(default)]
     pub tenon_fillet_mm: f32,
+    /// Mortise-mouth chamfer size and depth in mm. A zero size disables it.
+    #[serde(default)]
+    pub tenon_chamfer_size_mm: f32,
+    #[serde(default)]
+    pub tenon_chamfer_depth_mm: f32,
+    /// Optional frustum side angle from vertical, in degrees. Absent keeps the historical tip scale.
+    #[serde(default)]
+    pub tenon_taper_angle_deg: Option<f32>,
     /// Tenon/mortise fit tolerance in mm: the mortise is carved this much larger than
     /// the tenon on every face, so the halves slide together instead of jamming.
     /// 0 = press fit. Defaults to 0.1 mm (a print-scale slide fit).
@@ -467,6 +521,9 @@ struct ResolvedTenon {
     depth: f32,
     shape: crate::tenon::TenonShape,
     fillet: f32,
+    chamfer_size: f32,
+    chamfer_depth: f32,
+    taper_angle_deg: Option<f32>,
     tolerance: f32,
     at: crate::tenon::TenonAnchor,
     swap: bool,
@@ -475,31 +532,99 @@ struct ResolvedTenon {
 
 /// Resolve loop `i`'s tenon: prefer its `loop_tenons` entry, else the spec-level fields.
 #[cfg(feature = "manifold")]
-fn resolve_loop_tenon(spec: &OrganicCutSpec, i: usize) -> ResolvedTenon {
-    match spec.loop_tenons.get(i) {
-        Some(k) => ResolvedTenon {
-            generate: k.generate_tenon,
-            width: k.tenon_width_mm,
-            depth: k.tenon_depth_mm,
-            shape: crate::tenon::TenonShape::from_str_or_default(&k.tenon_shape),
-            fillet: k.tenon_fillet_mm,
-            tolerance: k.tenon_tolerance_mm,
-            at: k.tenon_anchor.map(|p| Vec3::new(p[0], p[1], p[2])),
-            swap: k.tenon_swap_sides,
-            tilt: crate::tenon::TenonTilt::new(k.tenon_tilt_rad, k.tenon_roll_rad),
-        },
-        None => ResolvedTenon {
-            generate: spec.generate_tenon,
-            width: spec.tenon_width_mm,
-            depth: spec.tenon_depth_mm,
-            shape: crate::tenon::TenonShape::from_str_or_default(&spec.tenon_shape),
-            fillet: spec.tenon_fillet_mm,
-            tolerance: spec.tenon_tolerance_mm,
-            at: spec.tenon_anchor.map(|p| Vec3::new(p[0], p[1], p[2])),
-            swap: spec.tenon_swap_sides,
-            tilt: crate::tenon::TenonTilt::new(spec.tenon_tilt_rad, spec.tenon_roll_rad),
-        },
+fn resolved_plug(
+    width: f32,
+    depth: f32,
+    shape: &str,
+    fillet: f32,
+    chamfer_size: f32,
+    chamfer_depth: f32,
+    taper_angle_deg: Option<f32>,
+    tolerance: f32,
+    anchor: Option<[f32; 3]>,
+    swap: bool,
+    tilt: f32,
+    roll: f32,
+    generate: bool,
+) -> ResolvedTenon {
+    ResolvedTenon {
+        generate,
+        width,
+        depth,
+        shape: crate::tenon::TenonShape::from_str_or_default(shape),
+        fillet,
+        chamfer_size,
+        chamfer_depth,
+        taper_angle_deg,
+        tolerance,
+        at: anchor.map(|p| Vec3::new(p[0], p[1], p[2])),
+        swap,
+        tilt: crate::tenon::TenonTilt::new(tilt, roll),
     }
+}
+
+#[cfg(feature = "manifold")]
+fn resolve_plug_spec(k: &LoopTenonPlugSpec) -> ResolvedTenon {
+    resolved_plug(
+        k.tenon_width_mm,
+        k.tenon_depth_mm,
+        &k.tenon_shape,
+        k.tenon_fillet_mm,
+        k.tenon_chamfer_size_mm,
+        k.tenon_chamfer_depth_mm,
+        k.tenon_taper_angle_deg,
+        k.tenon_tolerance_mm,
+        k.tenon_anchor,
+        k.tenon_swap_sides,
+        k.tenon_tilt_rad,
+        k.tenon_roll_rad,
+        true,
+    )
+}
+
+#[cfg(feature = "manifold")]
+fn resolve_loop_tenons(spec: &OrganicCutSpec, i: usize) -> Vec<ResolvedTenon> {
+    if let Some(plugs) = spec.loop_tenons.get(i).and_then(|entry| entry.plugs.as_ref()) {
+        return plugs.iter().map(resolve_plug_spec).collect();
+    }
+    let k = spec.loop_tenons.get(i);
+    vec![resolved_plug(
+        k.map_or(spec.tenon_width_mm, |entry| entry.tenon_width_mm),
+        k.map_or(spec.tenon_depth_mm, |entry| entry.tenon_depth_mm),
+        k.map_or(&spec.tenon_shape, |entry| &entry.tenon_shape),
+        k.map_or(spec.tenon_fillet_mm, |entry| entry.tenon_fillet_mm),
+        k.map_or(spec.tenon_chamfer_size_mm, |entry| entry.tenon_chamfer_size_mm),
+        k.map_or(spec.tenon_chamfer_depth_mm, |entry| entry.tenon_chamfer_depth_mm),
+        k.and_then(|entry| entry.tenon_taper_angle_deg).or(spec.tenon_taper_angle_deg),
+        k.map_or(spec.tenon_tolerance_mm, |entry| entry.tenon_tolerance_mm),
+        k.map_or(spec.tenon_anchor, |entry| entry.tenon_anchor),
+        k.map_or(spec.tenon_swap_sides, |entry| entry.tenon_swap_sides),
+        k.map_or(spec.tenon_tilt_rad, |entry| entry.tenon_tilt_rad),
+        k.map_or(spec.tenon_roll_rad, |entry| entry.tenon_roll_rad),
+        k.map_or(spec.generate_tenon, |entry| entry.generate_tenon),
+    )]
+}
+
+#[cfg(feature = "manifold")]
+fn resolve_spec_tenons(spec: &OrganicCutSpec) -> Vec<ResolvedTenon> {
+    if let Some(plugs) = &spec.tenon_plugs {
+        return plugs.iter().map(resolve_plug_spec).collect();
+    }
+    vec![resolved_plug(
+        spec.tenon_width_mm,
+        spec.tenon_depth_mm,
+        &spec.tenon_shape,
+        spec.tenon_fillet_mm,
+        spec.tenon_chamfer_size_mm,
+        spec.tenon_chamfer_depth_mm,
+        spec.tenon_taper_angle_deg,
+        spec.tenon_tolerance_mm,
+        spec.tenon_anchor,
+        spec.tenon_swap_sides,
+        spec.tenon_tilt_rad,
+        spec.tenon_roll_rad,
+        spec.generate_tenon,
+    )]
 }
 
 #[cfg(feature = "manifold")]
@@ -579,7 +704,7 @@ fn contour_cut_by_surface(
     mesh: &IndexedMesh,
     options: &OrganicCutOptions,
     loops: &[Vec<Vec3>],
-    loop_tenons: &[ResolvedTenon],
+    loop_tenons: &[Vec<ResolvedTenon>],
     // Filled with the places the cut went wrong, so the caller can DRAW them. A
     // coordinate in a sentence is no use to someone looking at a model.
     leaks: &mut Vec<[f32; 3]>,
@@ -738,13 +863,10 @@ fn contour_cut_by_surface(
     // about. It simply crosses the gap and the mortise is carved wherever it lands.
     //
     let (mut tenon_kind, mut tenon_detail) = (crate::tenon::TenonKind::None, String::new());
-    let requested = loop_tenons.iter().filter(|k| k.generate).count();
+    let requested = loop_tenons.iter().flatten().filter(|k| k.generate).count();
     let mut placed = 0usize;
     let mut skipped: Vec<String> = Vec::new();
-    for (s, rk) in loop_tenons.iter().enumerate() {
-        if !rk.generate {
-            continue;
-        }
+    for (s, plugs) in loop_tenons.iter().enumerate() {
         // The seam's own caps, and the pieces they face that are not the binned
         // strip. Without a clearance that is one cap and its two pieces; with one it
         // is two caps, each facing the strip on its other side.
@@ -759,37 +881,42 @@ fn contour_cut_by_surface(
         // Frame the tenon on a cap that closes a KEPT piece — with a clearance, a
         // seam also has caps on the binned strip, and a frame on one of those would
         // stand the tenon on skin that is about to be thrown away.
-        let cap_index =
-            mine.iter().copied().find(|&c| !binned.contains(&closed.cap_between[c].0));
-        let (Some(cap_index), [p, q]) = (cap_index, sides.as_slice()) else {
-            skipped.push(format!("seam {}: no cut face to stand a tenon on", s + 1));
-            continue;
-        };
-        let cap = &closed.caps[cap_index];
-        let plus_first = crate::membrane::side_of_mesh(cap, &solids[*p as usize]) >= 0.0;
-        let (ia, ib) =
-            if plus_first { (*p as usize, *q as usize) } else { (*q as usize, *p as usize) };
-        let tenoned = crate::tenon::apply_tenon(
-            mesh,
-            std::mem::take(&mut solids[ia]),
-            std::mem::take(&mut solids[ib]),
-            cap,
-            rk.shape,
-            rk.swap,
-            rk.tilt,
-            rk.width,
-            rk.depth,
-            rk.fillet,
-            rk.tolerance,
-            rk.at,
-        );
-        solids[ia] = tenoned.part_a;
-        solids[ib] = tenoned.part_b;
-        if tenoned.kind != crate::tenon::TenonKind::None {
-            placed += 1;
-            tenon_kind = tenoned.kind;
-        } else if !tenoned.detail.is_empty() {
-            skipped.push(format!("seam {}: {}", s + 1, tenoned.detail));
+        for (plug_index, rk) in plugs.iter().enumerate().filter(|(_, plug)| plug.generate) {
+            let cap_index =
+                mine.iter().copied().find(|&c| !binned.contains(&closed.cap_between[c].0));
+            let (Some(cap_index), [p, q]) = (cap_index, sides.as_slice()) else {
+                skipped.push(format!("seam {}, plug {}: no cut face to stand a tenon on", s + 1, plug_index + 1));
+                continue;
+            };
+            let cap = &closed.caps[cap_index];
+            let plus_first = crate::membrane::side_of_mesh(cap, &solids[*p as usize]) >= 0.0;
+            let (ia, ib) =
+                if plus_first { (*p as usize, *q as usize) } else { (*q as usize, *p as usize) };
+            let tenoned = crate::tenon::apply_tenon_with_chamfer_and_taper(
+                mesh,
+                std::mem::take(&mut solids[ia]),
+                std::mem::take(&mut solids[ib]),
+                cap,
+                rk.shape,
+                rk.swap,
+                rk.tilt,
+                rk.width,
+                rk.depth,
+                rk.fillet,
+                rk.tolerance,
+                rk.chamfer_size,
+                rk.chamfer_depth,
+                rk.taper_angle_deg,
+                rk.at,
+            );
+            solids[ia] = tenoned.part_a;
+            solids[ib] = tenoned.part_b;
+            if tenoned.kind != crate::tenon::TenonKind::None {
+                placed += 1;
+                tenon_kind = tenoned.kind;
+            } else if !tenoned.detail.is_empty() {
+                skipped.push(format!("seam {}, plug {}: {}", s + 1, plug_index + 1, tenoned.detail));
+            }
         }
     }
     if requested > 0 {
@@ -899,18 +1026,18 @@ fn organic_cut_contour(
     // index 0, then `extra_loops` in order. Degenerate loops (<3 points) are dropped
     // along with their tenon, so `loops[i]` ↔ `loop_tenons[i]` stays 1:1.
     let mut loops: Vec<Vec<Vec3>> = Vec::new();
-    let mut loop_tenons: Vec<ResolvedTenon> = Vec::new();
+    let mut loop_tenons: Vec<Vec<ResolvedTenon>> = Vec::new();
     {
         let primary = to_vec3(&options.cut.loop_points);
         if primary.len() >= 3 {
             loops.push(primary);
-            loop_tenons.push(resolve_loop_tenon(&options.cut, 0));
+            loop_tenons.push(resolve_loop_tenons(&options.cut, 0));
         }
         for (j, extra) in options.cut.extra_loops.iter().enumerate() {
             let v = to_vec3(extra);
             if v.len() >= 3 {
                 loops.push(v);
-                loop_tenons.push(resolve_loop_tenon(&options.cut, j + 1));
+                loop_tenons.push(resolve_loop_tenons(&options.cut, j + 1));
             }
         }
     }
@@ -973,45 +1100,49 @@ fn organic_cut_contour(
         // body/tail aren't grouped by side, so classify each membrane and pass the
         // parts in the right order, then map the result back. A failed/too-thin tenon
         // at one seam never affects the others (apply_tenon returns parts unchanged).
-        let requested = loop_tenons.iter().filter(|k| k.generate).count();
+        let requested = loop_tenons.iter().flatten().filter(|k| k.generate).count();
         if requested > 0 {
             let mut placed = 0usize;
             let mut skipped: Vec<String> = Vec::new();
             for (i, membrane) in split.membranes.iter().enumerate() {
-                let rk = &loop_tenons[i];
-                if !rk.generate {
-                    continue;
-                }
                 // Whichever part is on this membrane's +normal side is `part_a`.
                 let a_on_plus = crate::membrane::side_of_mesh(membrane, &part_a) >= 0.0;
-                let (pa, pb) = if a_on_plus { (part_a, part_b) } else { (part_b, part_a) };
-                let tenoned = crate::tenon::apply_tenon(
-                    mesh,
-                    pa,
-                    pb,
-                    membrane,
-                    rk.shape,
-                    rk.swap,
-                    rk.tilt,
-                    rk.width,
-                    rk.depth,
-                    rk.fillet,
-                    rk.tolerance + clearance,
-                    rk.at,
-                );
-                // Map the (+normal, −normal) result back to (body, freed) = (a, b).
-                if a_on_plus {
-                    part_a = tenoned.part_a;
-                    part_b = tenoned.part_b;
-                } else {
-                    part_a = tenoned.part_b;
-                    part_b = tenoned.part_a;
-                }
-                if tenoned.kind != crate::tenon::TenonKind::None {
-                    placed += 1;
-                    tenon_kind = tenoned.kind;
-                } else if !tenoned.detail.is_empty() {
-                    skipped.push(format!("loop {}: {}", i + 1, tenoned.detail));
+                for (plug_index, rk) in loop_tenons[i].iter().enumerate() {
+                    if !rk.generate {
+                        continue;
+                    }
+                    let (pa, pb) = if a_on_plus { (part_a, part_b) } else { (part_b, part_a) };
+                    let tenoned = crate::tenon::apply_tenon_with_chamfer_and_taper(
+                        mesh,
+                        pa,
+                        pb,
+                        membrane,
+                        rk.shape,
+                        rk.swap,
+                        rk.tilt,
+                        rk.width,
+                        rk.depth,
+                        rk.fillet,
+                        rk.tolerance + clearance,
+                        rk.chamfer_size,
+                        rk.chamfer_depth,
+                        rk.taper_angle_deg,
+                        rk.at,
+                    );
+                    // Map the (+normal, −normal) result back to (body, freed) = (a, b).
+                    if a_on_plus {
+                        part_a = tenoned.part_a;
+                        part_b = tenoned.part_b;
+                    } else {
+                        part_a = tenoned.part_b;
+                        part_b = tenoned.part_a;
+                    }
+                    if tenoned.kind != crate::tenon::TenonKind::None {
+                        placed += 1;
+                        tenon_kind = tenoned.kind;
+                    } else if !tenoned.detail.is_empty() {
+                        skipped.push(format!("loop {}, plug {}: {}", i + 1, plug_index + 1, tenoned.detail));
+                    }
                 }
             }
             tenon_detail = if placed == requested {
@@ -1081,9 +1212,11 @@ fn organic_cut_contour(
     // part_b. Uses this loop's resolved tenon (`loop_tenons[0]` — the per-loop override
     // or the spec-level fallback). A failed/skipped tenon NEVER fails the cut —
     // `apply_tenon` returns the parts unchanged with `TenonKind::None` + a reason.
-    let rk = &loop_tenons[0];
-    if rk.generate {
-        let tenoned = crate::tenon::apply_tenon(
+    for (plug_index, rk) in loop_tenons[0].iter().enumerate() {
+        if !rk.generate {
+            continue;
+        }
+        let tenoned = crate::tenon::apply_tenon_with_chamfer_and_taper(
             mesh,
             part_a,
             part_b,
@@ -1095,12 +1228,19 @@ fn organic_cut_contour(
             rk.depth,
             rk.fillet,
             rk.tolerance + clearance,
+            rk.chamfer_size,
+            rk.chamfer_depth,
+            rk.taper_angle_deg,
             rk.at,
         );
         part_a = tenoned.part_a;
         part_b = tenoned.part_b;
-        tenon_kind = tenoned.kind;
-        tenon_detail = tenoned.detail;
+        if tenoned.kind != crate::tenon::TenonKind::None {
+            tenon_kind = tenoned.kind;
+        } else if !tenoned.detail.is_empty() {
+            if !tenon_detail.is_empty() { tenon_detail.push_str("; "); }
+            tenon_detail.push_str(&format!("plug {}: {}", plug_index + 1, tenoned.detail));
+        }
     }
 
     // A single-loop cut is exactly two parts.
@@ -1189,50 +1329,63 @@ fn organic_cut_plane(
     // and the section it carves instead of from a membrane, and there is no kerf
     // to span (`split_by_plane` is a zero-thickness split, both halves meet ON the
     // plane). A tenon that doesn't fit never fails the cut.
-    let rk = resolve_loop_tenon(&options.cut, 0);
+    let tenons = resolve_spec_tenons(&options.cut);
     let mut tenon_kind = crate::tenon::TenonKind::None;
     let mut tenon_detail = String::new();
     let (mut part_a, mut part_b) = (part_a, part_b);
-    if rk.generate {
-        let axis = plane.normal;
-        let (u, v) = crate::tenon::plane_basis(axis);
-        let frames = tenon_frames_per_section(&part_a, &part_b, axis, plane.offset, u, v, rk.at);
-        if frames.is_empty() {
-            tenon_detail = "No tenon — the plane carves no usable cross-section.".to_string();
-        }
-        // One tenon per mating pair. `split_by_plane` hands back (+normal side,
-        // −normal side) and the frame axis IS that +normal, so `first` is part_a.
-        let (mut placed, mut skipped) = (0usize, Vec::new());
-        for frame in &frames {
-            let tenoned = crate::tenon::apply_tenon_at_frame(
-                mesh,
-                part_a,
-                part_b,
-                *frame,
-                rk.shape,
-                rk.swap,
-                rk.tilt,
-                rk.width,
-                rk.depth,
-                rk.fillet,
-                rk.tolerance,
-            );
-            if tenoned.kind != crate::tenon::TenonKind::None {
-                placed += 1;
-                tenon_kind = tenoned.kind;
-            } else if !tenoned.detail.is_empty() {
-                skipped.push(tenoned.detail.clone());
-            }
-            part_a = tenoned.part_a;
-            part_b = tenoned.part_b;
-        }
-        if !frames.is_empty() && placed < frames.len() {
-            tenon_detail = if placed == 0 {
-                format!("no tenons placed ({})", skipped.join("; "))
+    let axis = plane.normal;
+    let (u, v) = crate::tenon::plane_basis(axis);
+    let plug_frames: Vec<Vec<crate::tenon::TenonFrame>> = tenons
+        .iter()
+        .map(|rk| {
+            if rk.generate {
+                tenon_frames_per_section(&part_a, &part_b, axis, plane.offset, u, v, rk.at)
             } else {
-                format!("{placed}/{} tenons placed ({})", frames.len(), skipped.join("; "))
+                Vec::new()
+            }
+        })
+        .collect();
+    let requested: usize = plug_frames.iter().map(Vec::len).sum();
+    if requested > 0 {
+        let mut placed = 0usize;
+        let mut skipped: Vec<String> = Vec::new();
+        for (plug_index, (rk, frames)) in tenons.iter().zip(plug_frames.iter()).enumerate() {
+            for frame in frames {
+                let tenoned = crate::tenon::apply_tenon_at_frame_with_chamfer_and_taper(
+                    mesh,
+                    part_a,
+                    part_b,
+                    *frame,
+                    rk.shape,
+                    rk.swap,
+                    rk.tilt,
+                    rk.width,
+                    rk.depth,
+                    rk.fillet,
+                    rk.tolerance,
+                    rk.chamfer_size,
+                    rk.chamfer_depth,
+                    rk.taper_angle_deg,
+                );
+                if tenoned.kind != crate::tenon::TenonKind::None {
+                    placed += 1;
+                    tenon_kind = tenoned.kind;
+                } else if !tenoned.detail.is_empty() {
+                    skipped.push(format!("plug {}: {}", plug_index + 1, tenoned.detail));
+                }
+                part_a = tenoned.part_a;
+                part_b = tenoned.part_b;
+            }
+        }
+        if placed < requested {
+            tenon_detail = if placed == 0 {
+                format!("no plugs placed ({})", skipped.join("; "))
+            } else {
+                format!("{placed}/{requested} plugs placed ({})", skipped.join("; "))
             };
         }
+    } else if tenons.iter().any(|rk| rk.generate) {
+        tenon_detail = "No tenon — the plane carves no usable cross-section.".to_string();
     }
 
     // Hand back every SOLID the plane produced, not two bags of them. A plane
@@ -1919,11 +2072,15 @@ mod tests {
             tenon_depth_mm: 3.0,
             tenon_shape: "frustum".to_string(),
             tenon_fillet_mm: 0.0,
+            tenon_chamfer_size_mm: 0.0,
+            tenon_chamfer_depth_mm: 0.0,
+            tenon_taper_angle_deg: None,
             tenon_tolerance_mm: 0.1,
             tenon_anchor: None,
             tenon_swap_sides: false,
             tenon_tilt_rad: 0.0,
             tenon_roll_rad: 0.0,
+            plugs: None,
         };
         let run = |loop_tenons: Vec<LoopTenonSpec>| {
             let mesh = IndexedMesh::from_triangle_soup(&cube_soup(size), 1e-6);

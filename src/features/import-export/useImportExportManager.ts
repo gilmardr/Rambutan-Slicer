@@ -4,6 +4,7 @@ import { detectIsIOS } from '@/hooks/usePlatform';
 import { suppressSceneAutosave } from '@/hooks/useSceneAutosave';
 import { extractFilesFromZip, getFileExtensionLower } from '@/utils/zipImport';
 import { readNativeFileSize } from '@/utils/pluginNetworkBridge';
+import type { PreparedModelLibraryEntry } from '@/features/backups/modelLibraryTypes';
 import {
   pickOpenFilesWithNativeDialog,
   readPrintArtifactBytesFromPath,
@@ -386,6 +387,28 @@ export function useImportExportManager({
     }
     return reopened;
   }, [importSceneFilesWithPluginWarning, markSceneSaveBaseline, maybeConfirmPluginImportWarning, recentOpenedFiles, reopenRecentOpenedFile]);
+
+  const handleOpenPreparedModel = React.useCallback(async (entry: PreparedModelLibraryEntry) => {
+    const bytes = await readPrintArtifactBytesFromPath(entry.path);
+    if (bytes.byteLength === 0) return false;
+    const fileBytes = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(fileBytes).set(bytes);
+
+    const file = new File([fileBytes], entry.name, {
+      type: getDroppedFileMimeType(entry.name),
+      lastModified: Date.now(),
+    });
+    if (entry.kind === 'scene') {
+      return await importSceneFilesWithPluginWarning([file], {
+        resultingScenePath: entry.path,
+        sourcePaths: [entry.path],
+      });
+    }
+
+    (file as File & { filePath?: string }).filePath = entry.path;
+    await scene.loadFiles([file]);
+    return true;
+  }, [importSceneFilesWithPluginWarning, scene]);
 
   const buildSyntheticFileChangeEvent = React.useCallback((nextFiles: File[]): React.ChangeEvent<HTMLInputElement> => {
     const dt = new DataTransfer();
@@ -1316,6 +1339,7 @@ export function useImportExportManager({
     handleLoadMeshChangeWithZip,
     handleImportSceneChangeWithZip,
     handleReopenRecentFile,
+    handleOpenPreparedModel,
     handleOpenMeshDialog,
     handleOpenSceneDialog,
     importSceneFilesWithPluginWarning,

@@ -22,8 +22,8 @@ const geistMono = Geist_Mono({
 
 // i18n-ignore-start: static HTML metadata, rendered before any locale is known; product and org names
 export const metadata: Metadata = {
-  title: "DragonFruit",
-  description: "DragonFruit by Open Resin Alliance",
+  title: "Rambutan Slicer",
+  description: "Rambutan Slicer resin 3D printing slicer",
 };
 // i18n-ignore-end
 
@@ -37,16 +37,16 @@ export default function RootLayout({
       lang="en"
       suppressHydrationWarning
       style={{
-        background: 'var(--background, #0b0f14)',
-        color: 'var(--foreground, #e6ebf2)',
+        background: 'var(--background, #071613)',
+        color: 'var(--foreground, #e3efeb)',
       }}
     >
       <body
         suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{
-          background: 'var(--background, #0b0f14)',
-          color: 'var(--foreground, #e6ebf2)',
+          background: 'var(--background, #071613)',
+          color: 'var(--foreground, #e3efeb)',
         }}
       >
         <I18nClientProvider>

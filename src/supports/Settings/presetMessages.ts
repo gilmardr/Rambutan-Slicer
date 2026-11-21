@@ -22,6 +22,7 @@ const BUILT_IN_NAMES: Record<string, MessageDescriptor> = {
   detail: msg({ message: 'Detail', comment: 'Support preset for delicate features. Shown on a narrow card next to "Structure" and "Anchor".' }),
   structure: msg({ message: 'Structure', comment: 'Support preset for general use. Shown on a narrow card next to "Detail" and "Anchor".' }),
   anchor: msg({ message: 'Anchor', comment: 'Support preset for large overhangs. Shown on a narrow card next to "Detail" and "Structure".' }),
+  'interior-pillar': msg({ message: 'Interior Pillar', comment: 'Factory support preset with a large shaft and tip for interior surfaces.' }),
 };
 
 const BUILT_IN_DESCRIPTIONS: Record<string, MessageDescriptor> = {

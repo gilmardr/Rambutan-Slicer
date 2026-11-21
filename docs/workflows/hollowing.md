@@ -18,8 +18,20 @@ Hollowing removes interior volume from a model, reducing material and print time
 | Mode | Description |
 |------|-------------|
 | **Cavity** | Standard hollow — removes interior volume, leaves a shell. Best for most prints. |
-| **Infill** | Adds internal lattice or pillar infill. Useful when the shell alone is too thin for structural load. |
+| **Infill** | Adds internal lattice, double-lattice or pillar infill. Useful when the shell alone is too thin for structural load. |
 | **Shell Open Face** | Removes one face of the bounding box so the cavity is open to the outside. No drain holes needed. |
+
+Choose **Lattice**, **Double Lattice** or **Pillar** for Infill. Double Lattice
+adds a second half-cell-shifted pass of diagonal beams to increase internal
+bracing. Pillar keeps the build-axis columns; both lattice modes use diagonal
+beam families.
+
+For **Cavity** or **Infill**, enable **Resin traps** or **Interior suction cups**
+under **Detect and fill pockets** to fill trapped cavity voxels in the preview
+and applied mesh. Detection follows the model's build Z axis and uses manual
+hole punches as vent paths; it leaves sealed cavities without an opening
+unchanged. The detector is a geometric approximation, so inspect the preview
+and adjust hole placement before applying.
 
 ---
 
@@ -45,6 +57,19 @@ The minimum wall thickness of the hollow shell in mm.
 - Shell thickness is quantized for preview to match the voxel grid.
 
 ---
+
+## Slice-only 2D hollowing
+
+Use **2D hollowing when slicing** when the model should stay unchanged in the scene
+but each exported layer should become a shell. Set the wall thickness from 0.5 to
+10 mm; this modifier is stored per model and applies only to its model triangles.
+Supports and rafts remain solid. The operation uses the rasterized cross-section,
+so its wall is an approximate pixel-distance offset and can vary with printer
+resolution. It does not add infill or dimming.
+
+This is separate from voxel hollowing: it does not change the 3D preview, make a
+cavity that can be inspected before slicing, or create drain holes. Use voxel
+hollowing when the hollowed geometry itself needs to be reviewed or edited.
 
 ## Solid Areas
 
@@ -99,6 +124,17 @@ and interior view. Use the gizmo arrows for axis-constrained movement instead.
 ### Auto depth
 
 When depth mode is set to **Auto**, the hole depth is computed from the distance to the internal cavity surface. This ensures the hole reaches the cavity without going deeper than necessary.
+
+### Verify drain holes
+
+In the **3D Hole Verification** section, choose **Verify** to check each placed
+hole against the current hollowed source mesh. A confirmed result means the ray
+found a path through the shell and into the cavity within the configured depth.
+An insufficient-depth result means the cavity wall is beyond the punch depth.
+Other geometry is marked uncertain and should be reviewed in the 3D view.
+
+The check is geometric and approximate. Open faces, complex intersections, and
+internal infill can make the ray result inconclusive.
 
 ---
 

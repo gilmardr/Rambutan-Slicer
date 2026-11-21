@@ -19,6 +19,13 @@ The largest subsystem in the frontend. `src/supports/` owns everything from the 
 
 Four files at the root carry the weight: `supportTypeRegistry.ts` (what every type IS — see below), `types.ts` (every entity interface plus `SupportState`), `state.ts` (the store and serialization), and `SupportRenderer.tsx` (the scene render loop).
 
+`SupportEntity.supportTags` is optional metadata shared by every top-level
+support type. Projection Supports uses it to label generated border and infill
+supports and to select all entities carrying a chosen tag. Store snapshots,
+history and scene serialization preserve the field with the entity. A tag does
+not change placement, geometry or the support's owning model. Its session-only
+visibility toggle is a render filter and leaves the support entity intact.
+
 ## What each piece is
 
 The vocabulary — and the distinctions people get wrong, like knot versus joint or brace versus kickstand — is in [Anatomy of Supports](../reference/support-anatomy/index.md), one page per piece. The domain glossary in `CONTEXT.md` records the terms to avoid and where the code spells them differently.
@@ -46,11 +53,19 @@ See [Adding a New Support Type](support-type-extension.md) for which steps are r
 
 **Two rendering paths must agree.** Unselected straight geometry renders through instanced groups (`InstancedShaftGroup`, `InstancedJointGroup`, `InstancedRootsGroup`, `InstancedContactConeGroup`); selected and edited geometry renders individually. Both paths must produce the same hover and click semantics, or a support behaves differently depending on whether it happens to be selected.
 
+The projection tag visibility store (`src/supports/supportTagVisibility.ts`)
+feeds both paths. The scene renderer filters tagged entities from its detail and
+batch builders; the proxy layer keeps its instance arrays and hides matching
+straight primitives with their existing per-instance matrix path. Curved proxy
+shafts are merged, so a visibility change rebuilds only their merged tube groups
+without the hidden supports. Visibility is view state and does not mutate the
+support entities or their history.
+
 **The shaft batch answers hover through a grid, not through three's walk.** R3F raycasts every instance of every mesh carrying a pointer handler, so a hover on a batch that draws every shaft of every model in one mesh costs O(supports) per pointer move and per click. That batch carries a custom `raycast` (`src/supports/proxyHoverIndex.ts`): the shafts are indexed into cells over the plate and a ray only tests the cells it crosses, with a ray-to-segment distance per candidate. The index is built by `InstancedShaftGroup`, from the exact list that mesh draws — a target's `index` is the instance index the event reports, so an index built anywhere else can be shifted against the drawn list and every hit past the shift resolves to a neighbouring support's model. The split rule (`splitBatchedShafts`) is what must agree: a leaf's contact point is a zero-length shaft, which is not drawn, and 67 of an 18-model plate's shafts per model are exactly that. The other kinds keep three's own raycast, because their groups bucket their instances by geometry parameters into hundreds of small meshes: a whole-kind grid handed to them is asked once per bucket, and a bucket's `instanceId` indexes its own list, not the grid's. A hit means the ray passes within a support's radius plus a grab radius, and the grab radius scales with the **depth of the closest approach**, not with how far the ray missed: a miss is near zero whenever the pointer is anywhere near a support, so sizing the radius by it would leave a hit only when the pointer was exactly on one. The reported distance is along the ray, so callers sort by depth, and each intersection names the mesh that produced it: R3F walks `hit.object` up the parents to find the handlers, so a hit that names no object goes inert. The straight shafts, roots, joints and contact cones each carry a grid, and the same handlers they had before. Hover and clicks resolve a model, which is all they ever needed, but the *hit* is per support: a box per model was tried and rejected, because it covers the gaps between supports (hovering empty space tints a model) and covers the model itself (hovering the model stops highlighting it). Curved shafts keep three's own raycast on their merged tube, which is fine at their count. If you add a pointer handler to an instanced batch without giving it an indexed raycast, you have reintroduced the O(supports) raycast.
 
-**The selection and the hover tint are one colour per instance.** The batches hold every visible model's primitives and are laid out from the support state, not from the selection or the hover. A model's supports are recoloured in place (`instanceColor` on the four groups, one merged tube per colour for curved shafts), which is why selecting every model on the plate costs a colour pass rather than one overlay per model. The tint is a **colour**, computed by `createProxySupportTint` (base, active, and a hovered model's blend of the two), not a translucent pass drawn over the batch: blending on top made a hovered support's orange depend on what was underneath it, so a support that was also selected came out a different orange than its neighbours in the same model. A selected model keeps the active colour, with nothing added for hover. The colour pass is a separate layout effect from the matrices: a tint must not re-derive every instance matrix to change a colour.
+**The selection and the hover tint are one colour per instance.** The batches hold every visible model's primitives and are laid out from the support state, not from the selection or the hover. A model's supports are recoloured in place (`instanceColor` on the four groups, one merged tube per colour for curved shafts), which is why selecting every model on the plate costs a colour pass rather than one overlay per model. The tint is a **colour**, computed by `createProxySupportTint` (base, active, and a hovered model's blend of the two), not a translucent pass drawn over the batch: blending on top made a hovered support's colour depend on what was underneath it, so a support that was also selected came out a different colour than its neighbours in the same model. A selected model keeps the active colour, with nothing added for hover. The colour pass is a separate layout effect from the matrices: a tint must not re-derive every instance matrix to change a colour.
 
-**The world layer hides an excluded model instead of dropping it.** The active model's supports are drawn by the layer attached to its group (so they follow a live transform), and the world layer used to leave them out of its batches. It now keeps them and zero-scales their instances (`isHidden` on the four groups), so making a model active costs the instances that changed state rather than a full re-layout of the plate. Curved shafts are the exception: a merged tube cannot hide one shaft, so the world layer takes those from the visible set and merges them again, which is cheap because each shaft's sweep is cached. A layer with a `modelFilterId` (the ghost and preview ones) still filters its geometry, because it draws one model by definition.
+**The world layer hides an excluded model instead of dropping it.** In the Support workspace, supports for all visible models are rendered together; selection controls interaction and tint, not whether a model's supports exist in the view. In Prepare's live transform path, the active model's supports are drawn by the layer attached to its group (so they follow the model), and the world layer keeps them in its batches but zero-scales their instances (`isHidden` on the four groups). Curved shafts are the exception: a merged tube cannot hide one shaft, so the world layer takes those from the visible set and merges them again, which is cheap because each shaft's sweep is cached. A layer with a `modelFilterId` (the ghost and preview ones) still filters its geometry, because it draws one model by definition.
 
 **A batch layout is ~0.1 us per instance, and it is paid per re-layout.** The four groups derive a matrix per instance whenever their arrays change (a support edit, or the active model moving between the world layer and its own attached layer). Keep the arrays stable when only a colour or a visibility changes, and hoist scratch objects in any helper the layout calls: minting a `Vector3` per instance per pass cost more than the maths in the cone batch.
 
@@ -93,6 +108,59 @@ height); diameters floor just above zero because a zero-radius disk or cone has
 no usable normal. Upper bounds are generous — they catch a stray digit, not model
 a printer. A new General-tab field is not protected until it is in that table and
 clamped in `clampProfileFields`.
+
+### Support preset files
+
+`src/supports/Settings/presets.ts` exposes the versioned JSON contract for a
+manual support preset:
+
+```ts
+const json = exportSupportPresetToJson(presetId);
+const imported = importSupportPresetFromJson(json);
+```
+
+`SupportPresetDocument`, `SUPPORT_PRESET_DOCUMENT_KIND`, and
+`SUPPORT_PRESET_FORMAT_VERSION` describe the file envelope. Version 1 contains
+`kind: "dragonfruit-support-preset"`, an `exportedAt` timestamp, and one preset
+with its name, optional description, and `SupportSettings`. Import rejects an
+unknown kind or version, assigns a fresh custom id and unique name, stores the
+preset, and makes it active through `setActivePreset`.
+
+The preset selector reads or writes this JSON as a desktop file in Tauri and as
+a browser download/upload on the web build. Applying the imported preset uses
+the normal support-settings path: grid, auto-bracing, auto-support policy, and
+the navigation view retain their current values because manual support presets
+do not own those settings. The format is DragonFruit-specific; it does not read
+Lychee `.lys` scenes or translate another slicer's preset files.
+
+### Relative scaling for selected supports
+
+`applyRelativeSupportScaleToSelectedSupports(factor, group)` in
+`src/supports/Settings/applySettingsToSelectedSupports.ts` scales each selected
+support from its own stored profile instead of copying one support's values to
+the rest. `factor` is a multiplier (`1.1` adds 10%); `group` is `tip`, `shaft`,
+`base`, or `all`. The helper resolves selected primitives to their editable
+owner, de-duplicates owners, batches store notifications, and returns the number
+of support entities updated.
+
+The Tip group scales contact/body diameters, length, penetration and disk
+dimensions. Shaft scales both stored shaft diameters. Base scales root and base
+flare dimensions. Shape, angles, routing and visibility settings are preserved.
+Dimensions are rounded to 0.001 mm and clamped to their geometry limits.
+
+The Support sidebar exposes this as a percentage control (10–300%). Its Apply
+action captures one before/after support snapshot and pushes one undoable edit:
+
+```ts
+const updated = applyRelativeSupportScaleToSelectedSupports(1.1, 'tip');
+```
+
+This covers percentage scaling for the dimensions represented by DragonFruit's
+support model. Lychee's millimetre adjustment mode and its separate Base Tip
+profile do not map to this interface.
+
+Related: [State and Stores](state-and-stores.md),
+[Support Placement Workflow](../workflows/support-placement.md).
 
 The settings sidebar shows the last selected support's values. Changing a value
 applies those settings to the complete selection. The sidebar captures one

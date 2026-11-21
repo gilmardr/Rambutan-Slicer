@@ -18,6 +18,9 @@ Use the vertical layer slider to inspect layers:
 - optionally toggle cross-section rendering mode (`smooth`/`rasterized`)
 
 During scrubbing, DragonFruit can use fast preview rendering paths to keep interaction responsive.
+After slicing completes, the app opens Printing mode with the first layer selected. Layer
+images are smoothed for on-screen readability; this display filtering does not change the
+printer-resolution pixels stored in the exported artifact.
 
 ## 3) Review print summary
 

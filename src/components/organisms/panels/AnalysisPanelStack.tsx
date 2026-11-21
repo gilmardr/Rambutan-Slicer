@@ -5,6 +5,10 @@ import { TerritoryVoxelControls } from '@/components/controls/TerritoryVoxelCont
 import { IslandListCard } from '@/components/controls/IslandListCard';
 import { IslandScanWorkflowCard } from '@/volumeAnalysis/IslandScan/workflow/IslandScanWorkflowCard';
 import { IslandVolumesHierarchyCard } from '@/volumeAnalysis/IslandVolumes/components/IslandVolumesHierarchyCard';
+import { ModelDimensionsCard } from '@/components/controls/ModelDimensionsCard';
+import { DistanceMeasurementCard } from '@/components/controls/DistanceMeasurementCard';
+import { ModelCollisionPanel } from '@/components/controls/ModelCollisionPanel';
+import { SupportProximityPanel } from '@/components/controls/SupportProximityPanel';
 import type { useSceneCollectionManager } from '@/features/scene/useSceneCollectionManager';
 import type { useSlicingManager } from '@/features/slicing/useSlicingManager';
 import type { useIslandManager } from '@/volumeAnalysis/IslandScan/useIslandManager';
@@ -13,6 +17,9 @@ export type AnalysisPanelStackProps = {
   scene: ReturnType<typeof useSceneCollectionManager>;
   slicing: ReturnType<typeof useSlicingManager>;
   islands: ReturnType<typeof useIslandManager>;
+  onScaleMeasuredDistance: (factor: number) => void;
+  canInspectSliceLayer: boolean;
+  onInspectSliceLayer: (layerNumber: number) => void;
 };
 
 /** ANALYSIS-mode floating panel group: island scan / volume / overlay / voxel cards. */
@@ -20,11 +27,24 @@ export function AnalysisPanelStack({
   scene,
   slicing,
   islands,
+  onScaleMeasuredDistance,
+  canInspectSliceLayer,
+  onInspectSliceLayer,
 }: AnalysisPanelStackProps) {
   // Invoked inline by Home (not as <JSX/>) so FloatingPanelStack can flatten these keyed panels as direct children for its layout-profile positioning. 'use no memo' keeps React Compiler from injecting a useMemoCache hook (the conditional inline call must stay hook-free).
   'use no memo';
   return (
     <>
+      <ModelDimensionsCard key="analysis-model-size" model={scene.activeModel ?? null} />
+      <DistanceMeasurementCard
+        key="analysis-distance-measurement"
+        activeModelId={scene.activeModelId}
+        selectedModelIds={scene.selectedModelIds}
+        onScaleByFactor={onScaleMeasuredDistance}
+      />
+      <ModelCollisionPanel key="analysis-model-collision" scene={scene} />
+      <SupportProximityPanel key="analysis-support-proximity" scene={scene} />
+
       <IslandScanCard
         key="analysis-scan-card"
         islands={islands}
@@ -50,7 +70,9 @@ export function AnalysisPanelStack({
         showMerged={islands.showMerged}
         onShowMergedChange={islands.setShowMerged}
         layerHeightMm={slicing.layerHeightMm}
-        zOffsetMm={0}
+        zOffsetMm={islands.scanBBox?.min.z ?? 0}
+        canInspectSliceLayer={canInspectSliceLayer}
+        onInspectSliceLayer={onInspectSliceLayer}
       />
 
       <IslandOverlayControls

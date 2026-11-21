@@ -26,6 +26,7 @@ import { gridSnappedXYFromKey } from '../../PlacementLogic/Grid/gridMath';
 import { normalizeFirstConstructionJoint, withCentralStraightSupportJoint } from './trunkConstructionJoints';
 import { encodeSupportSettingsHex } from '../../Settings/supportSettingsCodec';
 import { perfMark, perfMeasureWithSpike } from '../../PlacementLogic/Pathfinding/pathfindingPerf';
+import type { SupportSettings } from '../../Settings/types';
 
 const JOINT_CHAIN_Z_EPSILON = 0.0001;
 const BUILD_PLATE_Z_EPSILON_MM = 1e-6;
@@ -142,6 +143,8 @@ export interface TrunkBuildInput {
      * own gates.
      */
     ignoreGrid?: boolean;
+    /** Per-placement profile used by projection zones; defaults to Support Studio. */
+    settingsOverride?: SupportSettings;
 }
 export interface TrunkBuildResult {
     root: Roots;
@@ -169,7 +172,7 @@ export function buildTrunkData(input: TrunkBuildInput): TrunkBuildResult {
     const { tipPos, tipNormal, modelId, mesh, overrides, isPreview } = input;
 
     // Read current settings
-    const settings = getSettings();
+    const settings = input.settingsOverride ?? getSettings();
     const tipProfile = buildTipProfile(settings, overrides);
     const diskHeight = overrides?.rootsDiskHeightMm ?? settings.roots.diskHeightMm;
     const coneHeight = overrides?.rootsConeHeightMm ?? settings.roots.coneHeightMm;
@@ -219,7 +222,7 @@ export function buildTrunkData(input: TrunkBuildInput): TrunkBuildResult {
 
 export function buildTrunkDataFromPlacement(input: TrunkBuildInput, placement: TrunkPlacementResult): TrunkBuildResult {
     const { tipPos, tipNormal, modelId, overrides, mesh } = input;
-    const settings = getSettings();
+    const settings = input.settingsOverride ?? getSettings();
     // Hex must describe the geometry actually built — tier overrides applied
     // (auto supports) — or Support Studio loads the global parameters instead
     // of the support's own.

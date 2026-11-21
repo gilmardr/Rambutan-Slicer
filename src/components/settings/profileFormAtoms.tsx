@@ -1,6 +1,9 @@
 'use client';
 
 import React from 'react';
+import { Trans } from '@lingui/react/macro';
+import { msg } from '@lingui/core/macro';
+import { useLingui } from '@lingui/react';
 import { CarFront, ChevronDown, ChevronUp, CircleHelp, Snail } from 'lucide-react';
 import { Button } from '@/components/atoms';
 import { NumberInput } from '@/components/ui/NumberInput';
@@ -14,6 +17,7 @@ import {
     type SavedCurve,
 } from '@/features/slicing/components/LutCurveEditor';
 import {
+    DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
     DEFAULT_MATERIAL_ANTI_ALIASING_SETTINGS,
     type MaterialAntiAliasingSettings,
     type MaterialProfile,
@@ -158,7 +162,7 @@ export function FieldHelpTooltip({ label, help }: { label: string; help: string 
                     style={{
                         background: 'rgba(24, 24, 24, 0.98)',
                         color: 'var(--text-strong, #e0e0e0)',
-                        border: '1px solid var(--accent, #baf72e)',
+                        border: '1px solid var(--accent-secondary, #ffb45d)',
                         maxWidth: 260,
                         whiteSpace: 'normal',
                         textAlign: 'left',
@@ -232,11 +236,18 @@ type LabeledNumberInputProps = {
      *  right-hand space, so a field carries one or the other. The stepper's carets
      *  still announce the unit either way. */
     unit?: string;
+    allowNegative?: boolean;
+    min?: number;
+    max?: number;
     onChange: (value: number) => void;
 };
 
-export function LabeledNumberInput({ label, helpText, tag, color, disabled = false, value, step: propStep, precision, title, unit, onChange }: LabeledNumberInputProps) {
-    const safeValue = clampNonNegativeNumber(value);
+export function LabeledNumberInput({ label, helpText, tag, color, disabled = false, value, step: propStep, precision, title, unit, allowNegative = false, min, max, onChange }: LabeledNumberInputProps) {
+    const clampValue = React.useCallback(
+        (next: number) => Math.max(min ?? (allowNegative ? Number.NEGATIVE_INFINITY : 0), Math.min(max ?? Number.POSITIVE_INFINITY, next)),
+        [allowNegative, max, min],
+    );
+    const safeValue = clampValue(Number.isFinite(value) ? value : 0);
     const formatVal = React.useCallback((val: number) => {
         if (precision !== undefined) return val.toFixed(precision);
         return String(val);
@@ -272,10 +283,10 @@ export function LabeledNumberInput({ label, helpText, tag, color, disabled = fal
             return;
         }
 
-        const sanitized = clampNonNegativeNumber(next);
+        const sanitized = clampValue(next);
         onChange(sanitized);
         setLocalValue(formatVal(sanitized));
-    }, [formatVal, localValue, onChange, value]);
+    }, [clampValue, formatVal, localValue, onChange, value]);
 
     const nudge = React.useCallback((direction: 1 | -1) => {
         const fallback = safeValue;
@@ -283,10 +294,11 @@ export function LabeledNumberInput({ label, helpText, tag, color, disabled = fal
         const current = Number.isFinite(parsed) ? parsed : fallback;
         const activeStep = propStep ?? (Math.abs(current) < 1 ? 0.01 : 1);
         const decimals = precision ?? (activeStep < 1 ? 3 : 0);
-        const next = clampNonNegativeNumber(Number((current + direction * activeStep).toFixed(decimals)));
+        const stepped = Number((current + direction * activeStep).toFixed(decimals));
+        const next = clampValue(stepped);
         onChange(next);
         setLocalValue(formatVal(next));
-    }, [formatVal, localValue, onChange, precision, propStep, safeValue]);
+    }, [clampValue, formatVal, localValue, onChange, precision, propStep, safeValue]);
 
     return (
         <label className="space-y-1 block">
@@ -301,7 +313,7 @@ export function LabeledNumberInput({ label, helpText, tag, color, disabled = fal
                     value={localValue}
                     title={title}
                     onChange={(event) => {
-                        if (event.target.value.includes('-')) return;
+                        if (!allowNegative && event.target.value.includes('-')) return;
                         setLocalValue(event.target.value);
                     }}
                     onFocus={() => setIsFocused(true)}
@@ -547,7 +559,7 @@ export function LabeledToggleInput({ label, helpText, checked, onChange, disable
                         color: checked ? 'var(--text-strong)' : 'var(--text-muted)',
                     }}
             >
-                <span>{checked ? 'Enabled' : 'Disabled'}</span>
+                <span>{checked ? <Trans>Enabled</Trans> : <Trans>Disabled</Trans>}</span>
                 <span
                     className="inline-flex h-5 w-9 rounded-full p-0.5 transition-colors"
                     style={disabled
@@ -658,6 +670,45 @@ export function MaterialProfileIdentitySection({ draft, onChange }: MaterialProf
     );
 }
 
+function MaterialPrintTimeOverride({ draft, onChange }: MaterialProfileIdentitySectionProps) {
+    const { _ } = useLingui();
+    const value = draft.printTimeOverride ?? { enabled: false, bottomSeconds: 0, normalSeconds: 0 };
+    const update = (changes: Partial<typeof value>) => onChange((prev) => ({
+        ...prev,
+        printTimeOverride: { ...value, ...changes },
+    }));
+    return (
+        <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-2)' }}>
+            <label className="flex items-center gap-2 text-sm font-semibold">
+                <input type="checkbox" checked={value.enabled} onChange={(event) => update({ enabled: event.target.checked })} />
+                <Trans>Print time override (experimental)</Trans>
+            </label>
+            <p className="ui-meta" style={{ color: 'var(--text-muted)' }}><Trans>Changes the estimated time only; it does not change printer settings.</Trans></p>
+            <div className="grid grid-cols-2 gap-2">
+                <LabeledNumberInput label={_(msg`Bottom layer time (s) (experimental)`)} value={value.bottomSeconds} min={0} disabled={!value.enabled} onChange={(bottomSeconds) => update({ bottomSeconds })} />
+                <LabeledNumberInput label={_(msg`Normal layer time (s) (experimental)`)} value={value.normalSeconds} min={0} disabled={!value.enabled} onChange={(normalSeconds) => update({ normalSeconds })} />
+            </div>
+        </div>
+    );
+}
+
+function MaterialScaleCompensation({ draft, onChange }: MaterialProfileIdentitySectionProps) {
+    const { _ } = useLingui();
+    const fields = [
+        { axis: 'x' as const, label: _(msg`Scale X (%) (experimental)`) },
+        { axis: 'y' as const, label: _(msg`Scale Y (%) (experimental)`) },
+        { axis: 'z' as const, label: _(msg`Scale Z (%) (experimental)`) },
+    ];
+    return (
+        <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-2)' }}>
+            <div className="ui-meta font-semibold uppercase tracking-wide"><Trans>Scene scale compensation (experimental)</Trans></div>
+            <div className="grid grid-cols-3 gap-2">
+                {fields.map(({ axis, label }) => <LabeledNumberInput key={axis} label={label} value={100 + draft.scaleCompensationPct[axis]} min={1} onChange={(value) => onChange((prev) => ({ ...prev, scaleCompensationPct: { ...prev.scaleCompensationPct, [axis]: value - 100 } }))} />)}
+            </div>
+        </div>
+    );
+}
+
 // ─── MaterialProfileFormSections ──────────────────────────────────────────────
 
 type MaterialProfileFormSectionsProps = {
@@ -666,9 +717,11 @@ type MaterialProfileFormSectionsProps = {
 };
 
 export function MaterialProfileFormSections({ draft, onChange }: MaterialProfileFormSectionsProps) {
+    const { _ } = useLingui();
     return (
         <>
             <MaterialProfileIdentitySection draft={draft} onChange={onChange} />
+            <MaterialPrintTimeOverride draft={draft} onChange={onChange} />
 
             <div className="rounded-xl border p-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-2)' }}>
                 <div className="ui-meta font-semibold uppercase tracking-wide mb-2">Print Settings</div>
@@ -750,6 +803,87 @@ export function MaterialProfileFormSections({ draft, onChange }: MaterialProfile
                         }))}
                     />
                 </div>
+            </div>
+
+            <div className="rounded-xl border p-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-2)' }}>
+                <div className="ui-meta font-semibold uppercase tracking-wide mb-2">
+                    <Trans>Layer tolerance compensation</Trans>
+                </div>
+                <p className="ui-meta mb-3" style={{ color: 'var(--text-muted)' }}>
+                    <Trans>Positive inner values narrow holes; positive outer values enlarge the model. Negative values reverse the change.</Trans>
+                </p>
+                {(() => {
+                    const tolerance = draft.toleranceCompensation ?? DEFAULT_MATERIAL_TOLERANCE_COMPENSATION;
+                    const updateTolerance = (key: keyof typeof tolerance, value: number | boolean) => onChange((prev) => ({
+                        ...prev,
+                        toleranceCompensation: {
+                            ...(prev.toleranceCompensation ?? DEFAULT_MATERIAL_TOLERANCE_COMPENSATION),
+                            [key]: value,
+                        },
+                    }));
+                    return (
+                        <>
+                            <div className="grid grid-cols-2 gap-2">
+                                <LabeledNumberInput
+                                    label={_(msg`Inner diameter`)}
+                                    value={tolerance.innerDiameterMm}
+                                    step={0.01}
+                                    precision={3}
+                                    unit={_(msg`mm`)}
+                                    allowNegative
+                                    min={-5}
+                                    max={5}
+                                    onChange={(value) => updateTolerance('innerDiameterMm', value)}
+                                />
+                                <LabeledNumberInput
+                                    label={_(msg`Outer diameter`)}
+                                    value={tolerance.outerDiameterMm}
+                                    step={0.01}
+                                    precision={3}
+                                    unit={_(msg`mm`)}
+                                    allowNegative
+                                    min={-5}
+                                    max={5}
+                                    onChange={(value) => updateTolerance('outerDiameterMm', value)}
+                                />
+                            </div>
+                            <label className="mt-3 flex items-center gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={tolerance.bottomEnabled}
+                                    onChange={(event) => updateTolerance('bottomEnabled', event.target.checked)}
+                                />
+                                <Trans>Use separate compensation for bottom layers</Trans>
+                            </label>
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                                <LabeledNumberInput
+                                    label={_(msg`Bottom inner diameter`)}
+                                    value={tolerance.bottomInnerDiameterMm}
+                                    step={0.01}
+                                    precision={3}
+                                    unit={_(msg`mm`)}
+                                    allowNegative
+                                    min={-5}
+                                    max={5}
+                                    disabled={!tolerance.bottomEnabled}
+                                    onChange={(value) => updateTolerance('bottomInnerDiameterMm', value)}
+                                />
+                                <LabeledNumberInput
+                                    label={_(msg`Bottom outer diameter`)}
+                                    value={tolerance.bottomOuterDiameterMm}
+                                    step={0.01}
+                                    precision={3}
+                                    unit={_(msg`mm`)}
+                                    allowNegative
+                                    min={-5}
+                                    max={5}
+                                    disabled={!tolerance.bottomEnabled}
+                                    onChange={(value) => updateTolerance('bottomOuterDiameterMm', value)}
+                                />
+                            </div>
+                        </>
+                    );
+                })()}
             </div>
         </>
     );
@@ -1557,7 +1691,7 @@ function MaterialAntiAliasingSectionDense({ draft, onChange }: MaterialAntiAlias
             >
                 <LabeledToggleInput
                     label="Enable Anti-Aliasing Override"
-                    helpText="When disabled, DragonFruit ignores this material profile's AA settings and uses the slicer's Auto AA configuration."
+                    helpText="When disabled, 3DRESIN ignores this material profile's AA settings and uses the slicer's Auto AA configuration."
                     checked={overrideEnabled}
                     onChange={(value) => updateAaSettings({ enableOverride: value })}
                 />
@@ -2569,6 +2703,8 @@ export function ReplacementMaterialEditorShell({
             return (
                 <>
                     <MaterialProfileIdentitySection draft={draft} onChange={onDraftChange} />
+                    <MaterialScaleCompensation draft={draft} onChange={onDraftChange} />
+                    <MaterialPrintTimeOverride draft={draft} onChange={onDraftChange} />
                     <PluginLocalMaterialSettingsMetaTab
                         outputFormat={outputFormat}
                         settingsMode={settingsMode}

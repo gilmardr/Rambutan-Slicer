@@ -93,7 +93,7 @@ const BUILT_IN_PRESETS: readonly AutoSupportPreset[] = [
         isBuiltIn: true,
         settings: {
             ...createDefaultAutoSupportSettings(),
-            areaPerSupportMm2: 16,
+            areaPerSupportMm2: 30,
             sizingPreset: 'detail',
         },
     },
@@ -109,8 +109,19 @@ const BUILT_IN_PRESETS: readonly AutoSupportPreset[] = [
         isBuiltIn: true,
         settings: {
             ...createDefaultAutoSupportSettings(),
-            areaPerSupportMm2: 5,
+            areaPerSupportMm2: 12,
             sizingPreset: 'anchor',
+        },
+    },
+    {
+        id: 'interior-pillar',
+        name: 'Interior Pillar',
+        isBuiltIn: true,
+        settings: {
+            ...createDefaultAutoSupportSettings(),
+            areaPerSupportMm2: 30,
+            sizingPreset: 'interior-pillar',
+            supportScope: 'interior',
         },
     },
 ];

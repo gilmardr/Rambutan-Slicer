@@ -24,6 +24,8 @@ export const SUPPORT_AUTO_BRACE_REPLACE = 'support:auto-brace-replace' as const;
 export const SUPPORT_EDIT_REPLACE = 'support:edit-replace' as const;
 export const SUPPORT_AUTO_PLACE = 'support:auto-place' as const;
 export const SUPPORT_BLOCKER_STROKE = 'support:blocker-stroke' as const;
+export const SUPPORT_PAINT_STROKE = 'support:paint-stroke' as const;
+export const SUPPORT_PROJECTION = 'support:projection' as const;
 
 /** Every support history action type, derived from the payload map below. */
 export type SupportHistoryActionType = keyof SupportHistoryPayloadMap;
@@ -176,4 +178,6 @@ export type SupportHistoryPayloadMap =
     [SUPPORT_AUTO_BRACE_REPLACE]: SupportReplaceStatePayload;
     [SUPPORT_AUTO_PLACE]: SupportReplaceStatePayload;
     [SUPPORT_BLOCKER_STROKE]: SupportBlockerStrokePayload;
+    [SUPPORT_PAINT_STROKE]: SupportReplaceStatePayload;
+    [SUPPORT_PROJECTION]: SupportReplaceStatePayload;
   };

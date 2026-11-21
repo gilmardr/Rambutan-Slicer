@@ -16,6 +16,7 @@ import { generateChamferedBeam } from '../geometry/generateChamferedBeam';
 import { generatePerimeterWall } from '../geometry/generatePerimeterWall';
 import { generateCrenelatedWallManual } from '../geometry/generateCrenelatedWallManual';
 import { collectRaftBaseCirclesByModel, fromRaftModelKey } from '../raftFootprintCircles';
+import { useRaftRendererInteraction } from './useRaftRendererInteraction';
 
 type EdgeKey = string;
 
@@ -156,70 +157,13 @@ export default function LineRaftRenderer({
 }: LineRaftRendererProps) {
   const supportState = useSyncExternalStore(subscribe, getSnapshot);
   const raft = useSyncExternalStore(subscribeToRaftStore, getRaftSettings, getRaftSettings);
-  const [immediateModelHoverId, setImmediateModelHoverId] = React.useState<string | null>(null);
-  const [immediatePrepareActiveModelId, setImmediatePrepareActiveModelId] = React.useState<string | null>(null);
-  const lastSyncedPrepareActiveModelIdRef = React.useRef<string | null>(activeModelId ?? null);
-
-  React.useEffect(() => {
-    if (passive) {
-      setImmediateModelHoverId((prev) => (prev === null ? prev : null));
-      return;
-    }
-
-    const handleImmediateModelHover = (event: Event) => {
-      if (navigationLodActive) return;
-      const customEvent = event as CustomEvent<{ modelId?: string | null }>;
-      setImmediateModelHoverId(customEvent.detail?.modelId ?? null);
-    };
-
-    window.addEventListener('model-pointer-hover-immediate', handleImmediateModelHover as EventListener);
-    return () => {
-      window.removeEventListener('model-pointer-hover-immediate', handleImmediateModelHover as EventListener);
-    };
-  }, [navigationLodActive, passive]);
-
-  const effectiveHoverModelId = passive ? null : (immediateModelHoverId ?? hoverModelId);
-  const effectiveVisualActiveModelId = passive
-    ? activeModelId
-    : (immediatePrepareActiveModelId ?? activeModelId);
-
-  React.useEffect(() => {
-    if (passive) {
-      setImmediatePrepareActiveModelId((prev) => (prev === null ? prev : null));
-      return;
-    }
-
-    const handleModelClicked = (event: Event) => {
-      const customEvent = event as CustomEvent<{ modelId?: string | null }>;
-      const modelId = customEvent.detail?.modelId ?? null;
-      setImmediatePrepareActiveModelId((prev) => (prev === modelId ? prev : modelId));
-    };
-
-    const handleModelDeselected = () => {
-      setImmediatePrepareActiveModelId((prev) => (prev === null ? prev : null));
-    };
-
-    window.addEventListener('model-clicked', handleModelClicked as EventListener);
-    window.addEventListener('model-deselected', handleModelDeselected);
-    return () => {
-      window.removeEventListener('model-clicked', handleModelClicked as EventListener);
-      window.removeEventListener('model-deselected', handleModelDeselected);
-    };
-  }, [passive]);
-
-  React.useEffect(() => {
-    const next = passive ? null : (activeModelId ?? null);
-    if (lastSyncedPrepareActiveModelIdRef.current === next) return;
-    lastSyncedPrepareActiveModelIdRef.current = next;
-    setImmediatePrepareActiveModelId((prev) => (prev === next ? prev : next));
-  }, [activeModelId, passive]);
-
-  React.useEffect(() => {
-    if (passive) return;
-    if (!immediatePrepareActiveModelId) return;
-    if (selectedModelIds.includes(immediatePrepareActiveModelId)) return;
-    setImmediatePrepareActiveModelId((prev) => (prev === null ? prev : null));
-  }, [immediatePrepareActiveModelId, passive, selectedModelIds]);
+  const { effectiveHoverModelId, effectiveVisualActiveModelId } = useRaftRendererInteraction({
+    activeModelId,
+    hoverModelId,
+    navigationLodActive,
+    passive,
+    selectedModelIds,
+  });
 
   // Initialize clipping planes once (update in-place to avoid recreation)
   const clippingPlanesRef = React.useRef<THREE.Plane[]>([]);

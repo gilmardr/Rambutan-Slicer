@@ -62,9 +62,9 @@ export type AutoSupportDefaultMigration = {
  * Every shipped auto-support default change, oldest batch first.
  *
  * Version 1 — the auto-support sizing terms (`leafFanMaxAngleDeg` c2234f2,
- * `areaPerSupportMm2` 893ffea). A factory profile that materialized the old
- * numbers would otherwise keep them while the band-derived sizing around them
- * moved on.
+ * `areaPerSupportMm2` 893ffea). Version 2 relaxes the shipped medium support
+ * spacing after real scenes showed that the previous flat and suction boosts
+ * packed too many supports onto broad undersides.
  *
  * A default that a *constraint* already forces needs no entry: `leafFanRadiusMm`
  * moved 5 to 8 with `MIN_LEAF_FAN_RADIUS_MM`, and `normalizeAutoSupportSettings`
@@ -74,6 +74,7 @@ export type AutoSupportDefaultMigration = {
 export const AUTO_SUPPORT_DEFAULT_MIGRATIONS: readonly AutoSupportDefaultMigration[] = [
     { version: 1, key: 'leafFanMaxAngleDeg', from: 60, to: 45 },
     { version: 1, key: 'areaPerSupportMm2', from: 8, to: 10 },
+    { version: 2, key: 'areaPerSupportMm2', from: 10, to: 20 },
 ];
 
 /** The batch a save stamps into the blob it writes. */

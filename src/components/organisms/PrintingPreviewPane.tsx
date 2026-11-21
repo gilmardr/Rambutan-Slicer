@@ -221,7 +221,6 @@ export function PrintingPreviewPane({
                           width={printingPreviewTargetResolution.viewportWidth}
                           height={printingPreviewTargetResolution.viewportHeight}
                           preserveAspectRatio="none"
-                          style={{ imageRendering: 'pixelated' }}
                         />
                       </svg>
                     ) : (
@@ -229,7 +228,6 @@ export function PrintingPreviewPane({
                         src={printingPreviewPngUrlForDisplay}
                         alt={formatLayerPreviewAlt(_, printingSelectedLayer)}
                         className="block rounded w-full h-full object-contain"
-                        style={{ imageRendering: 'pixelated' }}
                       />
                     )}
                   </div>
@@ -257,10 +255,7 @@ export function PrintingPreviewPane({
             <canvas
               ref={printingPreviewCanvasRef}
               className="pointer-events-none absolute inset-0 block h-full w-full rounded transition-opacity duration-75"
-              style={{
-                imageRendering: 'pixelated',
-                opacity: isPrintingSettledCanvasReady ? 1 : 0,
-              }}
+              style={{ opacity: isPrintingSettledCanvasReady ? 1 : 0 }}
               aria-label={formatLayerPreviewAlt(_, printingSelectedLayer)}
             />
           )}

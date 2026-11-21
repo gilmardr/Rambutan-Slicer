@@ -12,6 +12,9 @@ export type PrintingPanelStackProps = {
   activePrinterProfile: PrinterProfile | null;
   printingResinName: React.ComponentProps<typeof PrintingPanel>['resinName'];
   estimatedPrintTimeLabel: React.ComponentProps<typeof PrintingPanel>['estimatedPrintTimeLabel'];
+  estimatedModelVolumeMlLabel: React.ComponentProps<typeof PrintingPanel>['estimatedModelVolumeLabel'];
+  estimatedSupportsVolumeMlLabel: React.ComponentProps<typeof PrintingPanel>['estimatedSupportsVolumeLabel'];
+  estimatedRaftVolumeMlLabel: React.ComponentProps<typeof PrintingPanel>['estimatedRaftVolumeLabel'];
   estimatedVolumeMlLabel: React.ComponentProps<typeof PrintingPanel>['estimatedVolumeLabel'];
   canDownloadPrintArtifact: boolean;
   canSendToPrinter: boolean;
@@ -35,6 +38,9 @@ export function PrintingPanelStack({
   activePrinterProfile,
   printingResinName,
   estimatedPrintTimeLabel,
+  estimatedModelVolumeMlLabel,
+  estimatedSupportsVolumeMlLabel,
+  estimatedRaftVolumeMlLabel,
   estimatedVolumeMlLabel,
   canDownloadPrintArtifact,
   canSendToPrinter,
@@ -61,6 +67,9 @@ export function PrintingPanelStack({
         printerName={activePrinterProfile?.name ?? 'No printer selected'}
         resinName={printingResinName}
         estimatedPrintTimeLabel={estimatedPrintTimeLabel}
+        estimatedModelVolumeLabel={estimatedModelVolumeMlLabel}
+        estimatedSupportsVolumeLabel={estimatedSupportsVolumeMlLabel}
+        estimatedRaftVolumeLabel={estimatedRaftVolumeMlLabel}
         estimatedVolumeLabel={estimatedVolumeMlLabel}
         canDownload={canDownloadPrintArtifact}
         canSendToPrinter={canSendToPrinter}

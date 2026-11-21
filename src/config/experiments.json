@@ -3,9 +3,9 @@
   "experiments": [
     {
       "id": "chitubox-import",
-      "name": "Chitubox File Import",
+      "name": "CHITUBOX Project Import",
       "description": "Enable importing .chitubox project files. Lacks comprehensive testing and may not work with all files.",
-      "defaultEnabled": false,
+      "defaultEnabled": true,
       "gatedPlugins": ["chitubox-import"]
     },
     {

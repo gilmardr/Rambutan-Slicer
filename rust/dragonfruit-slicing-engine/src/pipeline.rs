@@ -10,7 +10,8 @@ use crate::geometry::Triangle;
 use crate::index::LayerIndex;
 use crate::metrics::SlicingPerfV3;
 use crate::raster::{
-    rasterize_layer_rle, rasterize_layer_with_stats, recompute_layer_stats_from_rle,
+    rasterize_layer_rle, rasterize_layer_with_stats, recompute_layer_stats_from_mask,
+    recompute_layer_stats_from_rle,
 };
 use crate::rle::{RleAccum, RleRun};
 use crate::types::{
@@ -329,6 +330,14 @@ fn choose_max_concurrent() -> usize {
     env.clamp(1, hw)
 }
 
+fn choose_max_concurrent_for_job(job: &SliceJobV3) -> usize {
+    if crate::tolerance::has_slice_hollowing(job) {
+        1
+    } else {
+        choose_max_concurrent()
+    }
+}
+
 fn cap_concurrency_for_mask_bytes(
     requested: usize,
     layer_pixels_len: usize,
@@ -429,7 +438,12 @@ pub fn render_layers_bounded(
 
     let layer_pixels =
         (job.effective_render_width_px() as usize).saturating_mul(job.source_height_px as usize);
-    let mut max_concurrent = choose_max_concurrent();
+    let mut max_concurrent = choose_max_concurrent_for_job(job);
+    let apply_tolerance = crate::tolerance::has_tolerance_compensation(job);
+    let tolerance_settings = crate::tolerance::ToleranceSettings::from_job(job);
+    if apply_tolerance {
+        max_concurrent = 1;
+    }
 
     let need_raw_masks = emit_raw_mask_layers || on_raw_mask_layer.is_some();
     // When PNG layers are needed but raw pixel masks are not, we can take the
@@ -543,7 +557,7 @@ pub fn render_layers_bounded(
                             // ── Fast path: RLE rasteriser + streaming PNG ──
                             if use_rle_png_path {
                                 let raster_start = std::time::Instant::now();
-                                let (runs, stats) = rasterize_layer_rle(
+                                let (runs, mut stats) = rasterize_layer_rle(
                                     job,
                                     triangles,
                                     layer_candidates,
@@ -555,10 +569,34 @@ pub fn render_layers_bounded(
                                     Ordering::Relaxed,
                                 );
                                 let png_start = std::time::Instant::now();
+                                let adjusted_runs = if apply_tolerance {
+                                    crate::tolerance::apply_to_rle_layer(
+                                        &tolerance_settings,
+                                        layer,
+                                        &runs,
+                                        job.effective_render_width_px() as usize,
+                                        job.source_height_px as usize,
+                                    )
+                                } else {
+                                    runs
+                                };
+                                if apply_tolerance {
+                                    let width = job.effective_render_width_px() as usize;
+                                    let height = job.source_height_px as usize;
+                                    let pixel_area_mm2 = (job.build_width_mm as f64 / width.max(1) as f64)
+                                        * (job.build_depth_mm as f64 / height.max(1) as f64);
+                                    stats = recompute_layer_stats_from_rle(
+                                        &adjusted_runs,
+                                        width,
+                                        height,
+                                        pixel_area_mm2,
+                                        compute_area_stats,
+                                    );
+                                }
                                 let png = crate::encode::encode_grayscale_png_from_rle(
                                     job.effective_render_width_px(),
                                     job.source_height_px,
-                                    &runs,
+                                    &adjusted_runs,
                                     &job.png_compression_strategy,
                                     binary_png_expected,
                                 )?;
@@ -570,7 +608,7 @@ pub fn render_layers_bounded(
                             }
 
                             let raster_start = std::time::Instant::now();
-                            let (mask, stats) = rasterize_layer_with_stats(
+                            let (mut mask, mut stats) = rasterize_layer_with_stats(
                                 job,
                                 triangles,
                                 layer_candidates,
@@ -581,6 +619,28 @@ pub fn render_layers_bounded(
                                 raster_start.elapsed().as_nanos() as u64,
                                 Ordering::Relaxed,
                             );
+
+                            if apply_tolerance
+                                && crate::tolerance::apply_to_mask(
+                                    &tolerance_settings,
+                                    layer,
+                                    &mut mask,
+                                    job.effective_render_width_px() as usize,
+                                    job.source_height_px as usize,
+                                )
+                            {
+                                let width = job.effective_render_width_px() as usize;
+                                let height = job.source_height_px as usize;
+                                let pixel_area_mm2 = (job.build_width_mm as f64 / width.max(1) as f64)
+                                    * (job.build_depth_mm as f64 / height.max(1) as f64);
+                                stats = recompute_layer_stats_from_mask(
+                                    &mask,
+                                    width,
+                                    height,
+                                    pixel_area_mm2,
+                                    compute_area_stats,
+                                );
+                            }
 
                             let png = if emit_png_layers {
                                 let png_start = std::time::Instant::now();
@@ -759,7 +819,7 @@ pub fn render_layers_rle(
 ) -> Result<(RenderedLayersV3, Vec<LayerAreaStatsV3>, SlicingPerfV3), SlicerV3Error> {
     let render_wall_start = std::time::Instant::now();
     let total_layers = job.total_layers;
-    let max_concurrent = choose_max_concurrent();
+    let max_concurrent = choose_max_concurrent_for_job(job);
     // RLE output is small; allow a generous channel buffer so producers stay fed.
     let buffer = (max_concurrent * 4).clamp(4, 64);
 
@@ -921,7 +981,7 @@ pub fn render_layers_rle_encoded(
 ) -> Result<(RenderedLayersV3, Vec<LayerAreaStatsV3>, SlicingPerfV3), SlicerV3Error> {
     let render_wall_start = std::time::Instant::now();
     let total_layers = job.total_layers;
-    let max_concurrent = choose_max_concurrent();
+    let max_concurrent = choose_max_concurrent_for_job(job);
     let buffer = (max_concurrent * 4).clamp(4, 64);
 
     let raster_ns = AtomicU64::new(0);
@@ -1087,6 +1147,7 @@ pub enum RleBlockPayload {
 /// block of layer N+1.
 pub fn render_layers_rle_blocks(
     total_layers: u32,
+    limit_parallelism: bool,
     produce_layer: impl Fn(u32) -> Result<(Vec<RleBlockPayload>, LayerAreaStatsV3), SlicerV3Error>
         + Sync,
     mut on_block: impl FnMut(u32, u32, RleBlockPayload) -> Result<(), SlicerV3Error>,
@@ -1094,7 +1155,11 @@ pub fn render_layers_rle_blocks(
     cancel_flag: Option<&AtomicBool>,
 ) -> Result<(Vec<LayerAreaStatsV3>, SlicingPerfV3), SlicerV3Error> {
     let render_wall_start = std::time::Instant::now();
-    let max_concurrent = choose_max_concurrent();
+    let max_concurrent = if limit_parallelism {
+        1
+    } else {
+        choose_max_concurrent()
+    };
     let buffer = (max_concurrent * 4).clamp(4, 64);
 
     let raster_ns = AtomicU64::new(0);

@@ -1,6 +1,6 @@
 # Tauri IPC and Native Bridge
 
-The desktop app (Tauri) exposes **109** native commands to the frontend
+The desktop app (Tauri) exposes **120** native commands to the frontend
 (`#[tauri::command]` under `src-tauri/src/`, all registered in the single
 `tauri::generate_handler![…]` list in `main.rs`).
 
@@ -476,6 +476,9 @@ Native pickers are wrapped with explicit filter control:
   `dev/experiments-framework.md`) are hidden from the filter.
 - `pick_save_path` takes `defaultFilename` + `filters`.
 - `local_backup_pick_directory` is a folder picker.
+- `local_backup_list_model_library` lists backup model assets after checking
+  their content hash and size; its named wrapper lives in
+  `nativeSlicerBridge.ts`.
 
 ## Guardrails
 

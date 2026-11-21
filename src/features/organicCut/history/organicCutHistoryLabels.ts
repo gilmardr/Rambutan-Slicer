@@ -24,4 +24,7 @@ export const CUT_EDIT_LABELS = {
   clearAll: msg({ message: 'Clear cut', context: 'Undo history entry' }),
   addLoop: msg({ message: 'Add cut loop', context: 'Undo history entry' }),
   removeLoop: msg({ message: 'Remove cut loop', context: 'Undo history entry' }),
+  addPlug: msg({ message: 'Add registration plug', context: 'Undo history entry' }),
+  addOppositeSidePlug: msg({ message: 'Add opposite-side registration plug', context: 'Undo history entry' }),
+  removePlug: msg({ message: 'Remove registration plug', context: 'Undo history entry' }),
 };

@@ -67,7 +67,7 @@ test('grids a large flat region with dynamic spacing (never cut off)', () => {
     // radius: nx = round(19.5/1.98) = 10 → spacingX = 19.5/10 = 1.95, 11
     // columns from -9.75 to +9.75 — the outer ring sits just inside the
     // boundary so the contact disc never hangs past the edge.
-    const settings = { ...createDefaultAutoSupportSettings(), areaPerSupportMm2: 8, gridAreaThresholdMm2: 25, suctionAreaExponent: 0 };
+    const settings = { ...createDefaultAutoSupportSettings(), areaPerSupportMm2: 8, gridAreaThresholdMm2: 25, flatDensityBoost: 0.7, suctionAreaExponent: 0 };
     const candidates = generateGridCandidates([rectRegion('o0', -10, 10, -10, 10, 400)], settings);
 
     // Lattice 11×11 = 121 + boundary ring at 0.7× spacing tracing the edge
@@ -99,18 +99,19 @@ test('flat boost and slope relax knobs modulate the angle density', () => {
     assert.ok(flat.length >= 65 && flat.length <= 90,
         `flat boost 1 → plain grid + ring (${flat.length} ≈ 76)`);
 
-    // Default boost (0.7) densifies the flat grid; slope relax relaxes the
-    // steep end.
-    const defaultSettings = { ...createDefaultAutoSupportSettings(), areaPerSupportMm2: 8, gridAreaThresholdMm2: 25 };
-    const densified = generateGridCandidates([rectRegion('o0', -10, 10, -10, 10, 400, 6.5, 0)], defaultSettings);
-    assert.ok(densified.length > flat.length, 'default flat boost densifies');
+    // The default stays close to neutral; a lower explicit boost still tightens
+    // the spacing without changing how the selected value is interpreted.
+    const defaultSettings = { ...createDefaultAutoSupportSettings(), areaPerSupportMm2: 8, gridAreaThresholdMm2: 25, suctionAreaExponent: 0 };
+    const defaultSpacing = computeRegionSpacing(rectRegion('o0', -10, 10, -10, 10, 400, 6.5, 0), defaultSettings);
+    const neutralSpacing = computeRegionSpacing(rectRegion('o0', -10, 10, -10, 10, 400, 6.5, 0), { ...defaultSettings, flatDensityBoost: 1 });
+    assert.ok(defaultSpacing < neutralSpacing, 'default flat boost gently densifies');
 });
 
 test('angle-aware density: flat anchor surfaces grid denser than slopes', () => {
     // Same 20×20 region, same density setting — only the surface angle
     // differs. Flat (0°) → spacing 2.83×0.7 ≈ 1.98 → ~11×11.
     // 40° slope → spacing 2.83×1.28 ≈ 3.63 → ~6×6.
-    const settings = { ...createDefaultAutoSupportSettings(), areaPerSupportMm2: 8, gridAreaThresholdMm2: 25, suctionAreaExponent: 0 };
+    const settings = { ...createDefaultAutoSupportSettings(), areaPerSupportMm2: 8, gridAreaThresholdMm2: 25, flatDensityBoost: 0.7, suctionAreaExponent: 0 };
     const flat = generateGridCandidates([rectRegion('o0', -10, 10, -10, 10, 400, 6.5, 0)], settings);
     const slope = generateGridCandidates([rectRegion('o0', -10, 10, -10, 10, 400, 6.5, 40)], settings);
 
@@ -255,7 +256,7 @@ test('the slope relaxation is a last stretch, and the flat spacing holds below i
     // And the relaxation is still reachable: just under the threshold the surface is
     // most of the way to the slope spacing.
     const nearlySelfSupporting = at(selfSupport - 1);
-    assert.ok(nearlySelfSupporting > flatSpacing * 1.5, `44° must be well relaxed (${nearlySelfSupporting.toFixed(2)} mm)`);
+    assert.ok(nearlySelfSupporting > flatSpacing * 1.3, `44° must be well relaxed (${nearlySelfSupporting.toFixed(2)} mm)`);
     assert.ok(nearlySelfSupporting < slopeSpacing, 'without passing the slope end');
 
     // Monotonic in angle, so the ramp is a ramp rather than a step.
@@ -275,7 +276,7 @@ test('per-region candidate count is capped (densification never exceeds the cap)
         slopeRelaxFactor: 1,
         suctionAreaExponent: 0.4,
     };
-    // 40×40 mm at the 1.2 mm floor would be ~35×35 ≈ 1248 lattice points —
+    // 40×40 mm at the 2.0 mm floor would be ~21×21 ≈ 441 lattice points —
     // the cap must pull it back to the base grid and subsample.
     const candidates = generateGridCandidates(
         [rectRegion('o0', -20, 20, -20, 20, 1600, 6.5, 0)],

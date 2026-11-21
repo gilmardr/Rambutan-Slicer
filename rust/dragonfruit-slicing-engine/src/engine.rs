@@ -528,9 +528,7 @@ struct SupportMaskLayer {
 impl SupportMaskContext {
     fn from_job(job: &SliceJobV3, triangles_xyz: &[f32]) -> Option<Self> {
         if job.aa_on_supports {
-            eprintln!(
-                "[SupportAA] full-mask support context disabled: aa_on_supports=true"
-            );
+            eprintln!("[SupportAA] full-mask support context disabled: aa_on_supports=true");
             return None;
         }
 
@@ -1697,10 +1695,13 @@ fn forward_to_encode(
     cross_blend_touched_pixels.fetch_add(done.cross_blend_touched_pixels, Ordering::Relaxed);
     cross_blend_contributing_layers
         .fetch_add(done.cross_blend_contributing_layers, Ordering::Relaxed);
-    post.post_blur_ns.fetch_add(done.post_blur_ns, Ordering::Relaxed);
+    post.post_blur_ns
+        .fetch_add(done.post_blur_ns, Ordering::Relaxed);
     post.dither_ns.fetch_add(done.dither_ns, Ordering::Relaxed);
-    post.tail_remap_ns.fetch_add(done.tail_remap_ns, Ordering::Relaxed);
-    post.support_merge_ns.fetch_add(done.support_merge_ns, Ordering::Relaxed);
+    post.tail_remap_ns
+        .fetch_add(done.tail_remap_ns, Ordering::Relaxed);
+    post.support_merge_ns
+        .fetch_add(done.support_merge_ns, Ordering::Relaxed);
 
     // Topology window for future cross-blend priors (consumer-thread state).
     if keep_emitted_topologies {
@@ -1897,6 +1898,8 @@ fn rasterize_vertical_aa_streaming_v3(
             );
         let enc_w = width as u32;
         let enc_h = height as u32;
+        let enc_tolerance_enabled = crate::tolerance::has_tolerance_compensation(job);
+        let enc_tolerance_settings = crate::tolerance::ToleranceSettings::from_job(job);
         let enc_compress = raster_job.png_compression_strategy.clone();
         let enc_total_layers = job.total_layers as u64;
         let enc_log_every = encode_progress_log_every;
@@ -1923,16 +1926,53 @@ fn rasterize_vertical_aa_streaming_v3(
                             debug_assert!(png_layers_enc.is_none());
                             debug_assert!(raw_mask_layers_enc.is_none());
                             let fmt_t0 = std::time::Instant::now();
+                            let (mask, active_bounds) = if enc_tolerance_enabled {
+                                let mut full_mask = task
+                                    .mask
+                                    .into_full_frame(enc_w as usize, enc_h as usize);
+                                crate::tolerance::apply_to_mask(
+                                    &enc_tolerance_settings,
+                                    task.layer_index,
+                                    &mut full_mask,
+                                    enc_w as usize,
+                                    enc_h as usize,
+                                );
+                                let bounds = crate::tolerance::nonzero_bounds(
+                                    &full_mask,
+                                    enc_w as usize,
+                                    enc_h as usize,
+                                );
+                                let mask = BoundedGrayMask::from_full_frame_in_bounds(
+                                    full_mask,
+                                    enc_w as usize,
+                                    enc_h as usize,
+                                    bounds,
+                                );
+                                (mask, bounds)
+                            } else {
+                                (task.mask, task.active_bounds)
+                            };
                             // SAFETY: exclusive access guaranteed — only this thread calls the
                             // fn, and it is joined before rasterize_vertical_aa_streaming_v3
                             // returns (enforced by EncodeThreadHandle::Drop).
-                            unsafe { (*ptr)(task.layer_index, task.mask, task.active_bounds) }?;
+                            unsafe { (*ptr)(task.layer_index, mask, active_bounds) }?;
                             format_ns = format_ns.saturating_add(
                                 fmt_t0.elapsed().as_nanos().min(u64::MAX as u128) as u64,
                             );
                         } else {
                             let mut full_mask =
                                 Some(task.mask.into_full_frame(enc_w as usize, enc_h as usize));
+                            if enc_tolerance_enabled {
+                                if let Some(mask) = full_mask.as_mut() {
+                                    crate::tolerance::apply_to_mask(
+                                        &enc_tolerance_settings,
+                                        task.layer_index,
+                                        mask,
+                                        enc_w as usize,
+                                        enc_h as usize,
+                                    );
+                                }
+                            }
                             if let Some(out_pngs) = &mut png_layers_enc {
                                 let png_t0 = std::time::Instant::now();
                                 let png = encode_grayscale_png(
@@ -2027,8 +2067,7 @@ fn rasterize_vertical_aa_streaming_v3(
     // `raster_job.triangles_xyz` is intentionally cleared above to avoid a
     // multi-GB duplicate. Build support masking from the real external mesh
     // buffer or classified model/support boundaries silently disappear.
-    let mut support_mask_context =
-        SupportMaskContext::from_job(raster_job, &raster_triangles_xyz);
+    let mut support_mask_context = SupportMaskContext::from_job(raster_job, &raster_triangles_xyz);
     let model_active_layer_window = resolve_model_active_layer_window(raster_job);
 
     // Pending queue for symmetric forward-compensation blending.
@@ -3531,6 +3570,9 @@ pub fn slice_and_rasterize_rle_v3(
     let super_height = raster_job.source_height_px as usize;
     let out_width = job.effective_render_width_px() as usize;
     let out_height = job.source_height_px as usize;
+    let tolerance_settings = crate::tolerance::ToleranceSettings::from_job(job);
+    let tolerance_enabled = crate::tolerance::has_tolerance_compensation(job);
+    let mut tolerance_stats = vec![None; job.total_layers as usize];
 
     // Wrap on_rle_layer to downsample (if ssaa_factor > 1) and/or blur before
     // forwarding.  When neither applies the closure is a thin pass-through.
@@ -3566,6 +3608,18 @@ pub fn slice_and_rasterize_rle_v3(
                 post_aa_runs
             };
 
+            let final_runs = if tolerance_enabled {
+                crate::tolerance::apply_to_rle_layer(
+                    &tolerance_settings,
+                    layer_idx,
+                    &final_runs,
+                    out_width,
+                    out_height,
+                )
+            } else {
+                final_runs
+            };
+
             let final_runs = if let Some(support_raster_runs) = support_raster_runs.as_ref() {
                 let support_runs = if ssaa_factor > 1 {
                     downsample_binary_rle_to_gray_rle(
@@ -3583,10 +3637,23 @@ pub fn slice_and_rasterize_rle_v3(
                 final_runs
             };
 
+            if tolerance_enabled {
+                let pixel_area_mm2 = (job.build_width_mm as f64 / out_width.max(1) as f64)
+                    * (job.build_depth_mm as f64 / out_height.max(1) as f64);
+                tolerance_stats[layer_idx as usize] =
+                    Some(crate::raster::recompute_layer_stats_from_rle(
+                        &final_runs,
+                        out_width,
+                        out_height,
+                        pixel_area_mm2,
+                        compute_area_stats,
+                    ));
+            }
+
             on_rle_layer(layer_idx, final_runs)
         };
 
-    let (rendered_layers, layer_area_stats, mut perf) = render_layers_rle(
+    let (rendered_layers, mut layer_area_stats, mut perf) = render_layers_rle(
         raster_job,
         &triangles,
         &layer_index,
@@ -3596,6 +3663,11 @@ pub fn slice_and_rasterize_rle_v3(
         on_progress,
         cancel_flag,
     )?;
+    for (layer, stats) in tolerance_stats.into_iter().enumerate() {
+        if let Some(stats) = stats {
+            layer_area_stats[layer] = stats;
+        }
+    }
     perf.index_build_ns = index_ns;
 
     Ok((rendered_layers, layer_area_stats, perf))
@@ -3612,7 +3684,9 @@ fn accumulate_block_stats(total: &mut LayerAreaStatsV3, part: &LayerAreaStatsV3)
         *total = part.clone();
         return;
     }
-    total.total_solid_pixels = total.total_solid_pixels.saturating_add(part.total_solid_pixels);
+    total.total_solid_pixels = total
+        .total_solid_pixels
+        .saturating_add(part.total_solid_pixels);
     total.total_solid_area_mm2 += part.total_solid_area_mm2;
     total.largest_area_mm2 = total.largest_area_mm2.max(part.largest_area_mm2);
     total.smallest_area_mm2 = total.smallest_area_mm2.min(part.smallest_area_mm2);
@@ -3635,9 +3709,7 @@ pub fn slice_and_rasterize_rle_blocks_v3(
     compute_area_stats: bool,
     encode_block_fn: Option<
         Arc<
-            dyn Fn(u32, u32, &[crate::rle::RleRun]) -> Result<Vec<u8>, SlicerV3Error>
-                + Send
-                + Sync,
+            dyn Fn(u32, u32, &[crate::rle::RleRun]) -> Result<Vec<u8>, SlicerV3Error> + Send + Sync,
         >,
     >,
     on_block: impl FnMut(u32, u32, crate::pipeline::RleBlockPayload) -> Result<(), SlicerV3Error>,
@@ -3894,7 +3966,12 @@ pub fn slice_and_rasterize_rle_blocks_v3(
             };
 
             let final_runs = if halo_left > 0 || halo_right > 0 {
-                crop_rle_columns(&final_runs, wid_w as u32, halo_left as u32, halo_right as u32)
+                crop_rle_columns(
+                    &final_runs,
+                    wid_w as u32,
+                    halo_left as u32,
+                    halo_right as u32,
+                )
             } else {
                 final_runs
             };
@@ -3910,6 +3987,7 @@ pub fn slice_and_rasterize_rle_blocks_v3(
 
     let (layer_area_stats, mut perf) = crate::pipeline::render_layers_rle_blocks(
         job.total_layers,
+        crate::tolerance::has_slice_hollowing(job),
         produce_layer,
         on_block,
         on_progress,
@@ -3949,7 +4027,10 @@ fn diag_read_rss_mb() -> f64 {
     let Ok(pid) = sysinfo::get_current_pid() else {
         return 0.0;
     };
-    let Ok(mut sys) = SYS.get_or_init(|| Mutex::new(sysinfo::System::new())).lock() else {
+    let Ok(mut sys) = SYS
+        .get_or_init(|| Mutex::new(sysinfo::System::new()))
+        .lock()
+    else {
         return 0.0;
     };
     sys.refresh_processes_specifics(
@@ -4241,12 +4322,12 @@ pub fn slice_and_rasterize_perturb_3daa_rle_v3(
                         let rr = std::mem::size_of::<crate::rle::RleRun>();
                         let model_run_bytes = task.model.runs.len() * rr;
                         let task_bytes = model_run_bytes
-                            + task.history.iter().map(|l| l.runs.len() * rr).sum::<usize>()
                             + task
-                                .future
+                                .history
                                 .iter()
                                 .map(|l| l.runs.len() * rr)
                                 .sum::<usize>()
+                            + task.future.iter().map(|l| l.runs.len() * rr).sum::<usize>()
                             + task
                                 .support_runs
                                 .as_ref()
@@ -4655,6 +4736,11 @@ pub fn slice_and_rasterize_rle_encoded_v3(
     // downstream encoders (CTB threshold, 1-bit PNG) undo any multi-level
     // output, making the Floyd-Steinberg pass pure overhead.
     let output_is_binary = job.produces_binary_output();
+    let tolerance_enabled = crate::tolerance::has_tolerance_compensation(job);
+    let tolerance_settings = crate::tolerance::ToleranceSettings::from_job(job);
+    let tolerance_stats = Arc::new(Mutex::new(vec![None; job.total_layers as usize]));
+    let tolerance_lock = Arc::new(Mutex::new(()));
+    let tolerance_lock_for_encode = tolerance_enabled.then(|| Arc::clone(&tolerance_lock));
     let dither_palette = if let Some(bit_depth) = job
         .effective_dither_bit_depth()
         .filter(|_| !output_is_binary)
@@ -4687,7 +4773,7 @@ pub fn slice_and_rasterize_rle_encoded_v3(
             ) -> Result<Vec<u8>, SlicerV3Error>
             + Send
             + Sync,
-    > = if ssaa_factor > 1 || blur_radius > 0 || dither_palette.is_some() {
+    > = if ssaa_factor > 1 || blur_radius > 0 || dither_palette.is_some() || tolerance_enabled {
         let super_width = raster_job.effective_render_width_px() as usize;
         let super_height = raster_job.source_height_px as usize;
         let out_width = job.effective_render_width_px() as usize;
@@ -4695,10 +4781,16 @@ pub fn slice_and_rasterize_rle_encoded_v3(
         let inner = encode_fn.clone();
         let dither_palette = dither_palette.clone();
         let counters = stage_counters.clone();
+        let tolerance_lock = tolerance_lock_for_encode.clone();
+        let tolerance_settings = tolerance_settings;
+        let tolerance_stats_for_encode = Arc::clone(&tolerance_stats);
         Arc::new(
             move |layer_idx: u32,
                   super_runs: &[crate::rle::RleRun],
                   support_super_runs: Option<&[crate::rle::RleRun]>| {
+                let _tolerance_guard = tolerance_lock
+                    .as_ref()
+                    .map(|lock| lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner()));
                 let downsample_min_alpha_u8 = ssaa_downsample_min_alpha_u8(blur_radius, 0);
                 let gray_runs = if ssaa_factor > 1 {
                     let start = std::time::Instant::now();
@@ -4745,6 +4837,18 @@ pub fn slice_and_rasterize_rle_encoded_v3(
                     post_aa_runs
                 };
 
+                let final_runs = if tolerance_enabled {
+                    crate::tolerance::apply_to_rle_layer(
+                        &tolerance_settings,
+                        layer_idx,
+                        &final_runs,
+                        out_width,
+                        out_height,
+                    )
+                } else {
+                    final_runs
+                };
+
                 let final_runs = if let Some(support_super_runs) = support_super_runs {
                     let start = std::time::Instant::now();
                     let support_runs = if ssaa_factor > 1 {
@@ -4765,6 +4869,22 @@ pub fn slice_and_rasterize_rle_encoded_v3(
                     final_runs
                 };
 
+                if tolerance_enabled {
+                    let pixel_area_mm2 = (tolerance_settings.build_width_mm as f64
+                        / out_width.max(1) as f64)
+                        * (tolerance_settings.build_depth_mm as f64 / out_height.max(1) as f64);
+                    let stats = crate::raster::recompute_layer_stats_from_rle(
+                        &final_runs,
+                        out_width,
+                        out_height,
+                        pixel_area_mm2,
+                        compute_area_stats,
+                    );
+                    if let Ok(mut stored) = tolerance_stats_for_encode.lock() {
+                        stored[layer_idx as usize] = Some(stats);
+                    }
+                }
+
                 let start = std::time::Instant::now();
                 let encoded = inner(layer_idx, &final_runs);
                 add_elapsed(&counters.format_ns, start);
@@ -4782,7 +4902,7 @@ pub fn slice_and_rasterize_rle_encoded_v3(
         })
     };
 
-    let (rendered_layers, layer_area_stats, mut perf) = render_layers_rle_encoded(
+    let (rendered_layers, mut layer_area_stats, mut perf) = render_layers_rle_encoded(
         raster_job,
         &triangles,
         &layer_index,
@@ -4793,6 +4913,15 @@ pub fn slice_and_rasterize_rle_encoded_v3(
         on_progress,
         cancel_flag,
     )?;
+    if tolerance_enabled {
+        if let Ok(mut stored) = tolerance_stats.lock() {
+            for (layer, stats) in stored.iter_mut().enumerate() {
+                if let Some(stats) = stats.take() {
+                    layer_area_stats[layer] = stats;
+                }
+            }
+        }
+    }
     perf.index_build_ns = index_ns;
     stage_counters.apply_to(&mut perf);
 
@@ -5409,6 +5538,12 @@ mod tests {
             build_depth_mm: 64.0,
             layer_height_mm: 1.0,
             total_layers: 17,
+            bottom_layer_count: 0,
+            inner_diameter_tolerance_mm: 0.0,
+            outer_diameter_tolerance_mm: 0.0,
+            bottom_tolerance_enabled: false,
+            bottom_inner_diameter_tolerance_mm: 0.0,
+            bottom_outer_diameter_tolerance_mm: 0.0,
             export_thumbnail_png_base64: None,
             png_compression_strategy: "fastest".to_string(),
             container_compression_level: 0,
@@ -5423,6 +5558,7 @@ mod tests {
             z_blur_sigma: 0.5,
             aa_on_supports: false,
             model_triangle_count: 0,
+            model_slice_ranges: Vec::new(),
             minimum_aa_alpha_percent: 0.0,
             mirror_x: false,
             mirror_y: false,
@@ -5612,6 +5748,12 @@ mod tests {
             build_depth_mm: 80.0,
             layer_height_mm: 1.0,
             total_layers: 2,
+            bottom_layer_count: 0,
+            inner_diameter_tolerance_mm: 0.0,
+            outer_diameter_tolerance_mm: 0.0,
+            bottom_tolerance_enabled: false,
+            bottom_inner_diameter_tolerance_mm: 0.0,
+            bottom_outer_diameter_tolerance_mm: 0.0,
             export_thumbnail_png_base64: None,
             png_compression_strategy: "fastest".to_string(),
             container_compression_level: 0,
@@ -5626,6 +5768,7 @@ mod tests {
             z_blur_sigma: 0.5,
             aa_on_supports: false,
             model_triangle_count: 12,
+            model_slice_ranges: Vec::new(),
             minimum_aa_alpha_percent: 35.0,
             mirror_x: false,
             mirror_y: false,
@@ -5687,6 +5830,12 @@ mod tests {
             build_depth_mm: 80.0,
             layer_height_mm: 1.0,
             total_layers: 2,
+            bottom_layer_count: 0,
+            inner_diameter_tolerance_mm: 0.0,
+            outer_diameter_tolerance_mm: 0.0,
+            bottom_tolerance_enabled: false,
+            bottom_inner_diameter_tolerance_mm: 0.0,
+            bottom_outer_diameter_tolerance_mm: 0.0,
             export_thumbnail_png_base64: None,
             png_compression_strategy: "fastest".to_string(),
             container_compression_level: 0,
@@ -5701,6 +5850,7 @@ mod tests {
             z_blur_sigma: 0.5,
             aa_on_supports: false,
             model_triangle_count: 12,
+            model_slice_ranges: Vec::new(),
             minimum_aa_alpha_percent: 35.0,
             mirror_x: false,
             mirror_y: false,
@@ -5762,6 +5912,12 @@ mod tests {
             build_depth_mm: 80.0,
             layer_height_mm: 1.0,
             total_layers: 2,
+            bottom_layer_count: 0,
+            inner_diameter_tolerance_mm: 0.0,
+            outer_diameter_tolerance_mm: 0.0,
+            bottom_tolerance_enabled: false,
+            bottom_inner_diameter_tolerance_mm: 0.0,
+            bottom_outer_diameter_tolerance_mm: 0.0,
             export_thumbnail_png_base64: None,
             png_compression_strategy: "fastest".to_string(),
             container_compression_level: 0,
@@ -5776,6 +5932,7 @@ mod tests {
             z_blur_sigma: 0.5,
             aa_on_supports: true,
             model_triangle_count: 12,
+            model_slice_ranges: Vec::new(),
             minimum_aa_alpha_percent: 35.0,
             mirror_x: false,
             mirror_y: false,

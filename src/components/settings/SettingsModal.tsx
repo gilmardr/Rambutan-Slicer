@@ -15,13 +15,14 @@ import { PluginsSettingsTab } from '@/components/settings/PluginsSettingsTab';
 import { ExperimentsSettingsTab } from '@/components/settings/ExperimentsSettingsTab';
 import { getEnabledExperimentIds } from '@/features/experiments/experimentsRegistry';
 import { LocalBackupsSettingsTab } from '@/components/settings/LocalBackupsSettingsTab';
+import type { PreparedModelLibraryEntry } from '@/features/backups/modelLibraryTypes';
 import { SceneAutosaveSettingsTab } from '@/components/settings/SceneAutosaveSettingsTab';
 import { UvToolsSettingsTab } from '@/components/settings/UvToolsSettingsTab';
 import { LoggingSettingsTab, getSavedLogLevel, saveLogLevel, type LogLevelFilter } from '@/components/settings/LoggingSettingsTab';
 import { SpaceMouseSettingsTab } from '@/components/settings/SpaceMouseSettingsTab';
 import { UISettingsTab } from './UISettingsTab';
 import { UpdatesSettingsTab } from '@/features/updater/UpdatesSettingsTab';
-import { getUpdateChannel, type UpdateChannel } from '@/features/updater/updateBridge';
+import { getUpdateChannel, UPDATER_ENABLED, type UpdateChannel } from '@/features/updater/updateBridge';
 import { WorkspacesSettingsTab } from '@/components/settings/WorkspacesSettingsTab';
 import { MultiPlateSettingsTab } from '@/components/settings/MultiPlateSettingsTab';
 import { PerformanceSettingsTab, type SlicingThumbnailRenderSettings } from '@/components/settings/PerformanceSettingsTab';
@@ -135,7 +136,7 @@ import {
 } from '@/features/scene/importDefaultsPreferences';
 import { Button, ColorSwatchInput, IconButton } from '@/components/atoms';
 
-const DEFAULT_MESH_COLOR = '#a3a3a3';
+const DEFAULT_MESH_COLOR = '#f3f0e8';
 const DEFAULT_HEATMAP_MIN_ANGLE = 0;
 const DEFAULT_HEATMAP_MAX_ANGLE = 45;
 const DEFAULT_AMBIENT_INTENSITY = 0.28;
@@ -210,9 +211,16 @@ type SettingsModalProps = {
   activeOutputFormat?: string | null;
   /** Optional: open to a specific tab on mount */
   initialTab?: SettingsTabKey;
+  onOpenPreparedModel?: (entry: PreparedModelLibraryEntry) => Promise<boolean>;
 };
 
 export type SettingsTabKey = 'general' | 'camera' | 'workspaces' | 'multiPlate' | 'mesh' | 'performance' | 'spacemouse' | 'plugins' | 'experiments' | 'sceneAutosave' | 'backups' | 'uvtools' | 'ui' | 'hotkeys' | 'logging' | 'updates' | 'about';
+
+/** Never land on the hidden Updates tab (e.g. via a deep link from the top bar). */
+function visibleSettingsTab(tab: SettingsTabKey): SettingsTabKey {
+  return tab === 'updates' && !UPDATER_ENABLED ? 'general' : tab;
+}
+
 type SettingsTabTone = 'primary' | 'secondary';
 
 type SettingsTabMeta = {
@@ -379,8 +387,9 @@ export function SettingsModal({
   onSlicingThumbnailRenderSettingsChange,
   activeOutputFormat,
   initialTab,
+  onOpenPreparedModel,
 }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTabKey>(initialTab ?? 'general');
+  const [activeTab, setActiveTab] = useState<SettingsTabKey>(() => visibleSettingsTab(initialTab ?? 'general'));
   // The modal stays mounted while closed (isOpen toggles visibility), so activeTab
   // would otherwise persist across open/close. Reset it to the caller's requested
   // tab each time the modal opens — the normal open path passes 'general', so
@@ -392,7 +401,7 @@ export function SettingsModal({
   const [showReloadPrompt, setShowReloadPrompt] = useState(false);
   React.useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
-      setActiveTab(initialTab ?? 'general');
+      setActiveTab(visibleSettingsTab(initialTab ?? 'general'));
       setShowReloadPrompt(false);
       experimentsSnapshotRef.current = getEnabledExperimentIds().sort().join(',');
     }
@@ -424,7 +433,7 @@ export function SettingsModal({
   const [copied, setCopied] = useState(false);
   const handleCopyBuildInfo = React.useCallback(async () => {
     // Full build identity in one string — what a bug report needs.
-    const buildInfo = `DragonFruit ${DRAGONFRUIT_VERSION} (${DRAGONFRUIT_BUILD_CHANNEL})${DRAGONFRUIT_GIT_BUILD_LABEL ? ` — ${DRAGONFRUIT_GIT_BUILD_LABEL}` : ''}`;
+    const buildInfo = `3DRESIN ${DRAGONFRUIT_VERSION} (${DRAGONFRUIT_BUILD_CHANNEL})${DRAGONFRUIT_GIT_BUILD_LABEL ? ` — ${DRAGONFRUIT_GIT_BUILD_LABEL}` : ''}`;
     try {
       await navigator.clipboard.writeText(buildInfo);
       setCopied(true);
@@ -1312,7 +1321,11 @@ export function SettingsModal({
   };
 
   const sidebarTopTabs: SettingsTabKey[] = ['general', 'camera', 'workspaces', 'multiPlate', 'mesh', 'performance', 'spacemouse', 'ui', 'hotkeys'];
-  const sidebarBottomTabs: SettingsTabKey[] = ['plugins', 'experiments', 'sceneAutosave', 'backups', 'uvtools', 'logging', 'updates', 'about'];
+  // The Updates tab is hidden until Rambutan Slicer has its own update feed
+  // (NEXT_PUBLIC_UPDATER_ENABLED=true).
+  const sidebarBottomTabs: SettingsTabKey[] = (
+    ['plugins', 'experiments', 'sceneAutosave', 'backups', 'uvtools', 'logging', 'updates', 'about'] as SettingsTabKey[]
+  ).filter((tab) => tab !== 'updates' || UPDATER_ENABLED);
 
 
   const ActiveTabIcon = tabMeta[activeTab].icon;
@@ -1374,7 +1387,7 @@ export function SettingsModal({
             <div>
               <h2 className="text-base font-semibold" style={{ color: 'var(--text-strong)' }}>Settings</h2>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Customize DragonFruit behavior, visuals, and controls.
+                Customize 3DRESIN behavior, visuals, and controls.
               </p>
             </div>
           </div>
@@ -1561,7 +1574,15 @@ export function SettingsModal({
                 />
               )}
               {activeTab === 'sceneAutosave' && <SceneAutosaveSettingsTab />}
-              {activeTab === 'backups' && <LocalBackupsSettingsTab />}
+              {activeTab === 'backups' && (
+                <LocalBackupsSettingsTab
+                  onOpenPreparedModel={async (entry) => {
+                    const opened = await onOpenPreparedModel?.(entry) ?? false;
+                    if (opened) onClose();
+                    return opened;
+                  }}
+                />
+              )}
               {activeTab === 'uvtools' && (
                 <UvToolsSettingsTab
                   uvToolsSettings={draftUvToolsSettings}
@@ -1574,7 +1595,7 @@ export function SettingsModal({
                   onLogLevelChange={setDraftLogLevel}
                 />
               )}
-              {activeTab === 'updates' && (
+              {activeTab === 'updates' && UPDATER_ENABLED && (
                 <UpdatesSettingsTab
                   channel={updateChannel}
                   onChannelChange={setUpdateChannel}
@@ -1592,8 +1613,8 @@ export function SettingsModal({
                       >
                         <div className="relative flex items-center justify-center">
                           <img
-                            src="/dragonfruit_assets/branding/text_logo.svg"
-                            alt="DragonFruit"
+                            src="/rambutan-wordmark.svg"
+                            alt="Rambutan Slicer"
                             className="h-9 w-auto object-contain"
                             style={isLightTheme ? { filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.35))' } : undefined}
                           />
@@ -1648,6 +1669,10 @@ export function SettingsModal({
                         <h5 className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
                           Team & Credits
                         </h5>
+
+                        <p className="mt-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {_(msg`3DRESIN fork and modifications by Druciak Tech`)}
+                        </p>
 
                         <div className="mt-2.5 space-y-2">
                           {(() => {
@@ -1760,7 +1785,7 @@ export function SettingsModal({
                       </div>
 
                       <img
-                        src="/dragonfruit_assets/branding/simple_icon.svg"
+                        src="/rambutan-icon.svg"
                         alt=""
                         aria-hidden="true"
                         className="h-10 w-auto object-contain shrink-0"
@@ -1883,7 +1908,7 @@ export function SettingsModal({
         )}
       >
         <p className="text-xs leading-snug" style={{ color: 'var(--text-muted)' }}>
-          Reload DragonFruit now to apply your experiment changes? Any unsaved changes to the current scene will be lost.
+          Reload 3DRESIN now to apply your experiment changes? Any unsaved changes to the current scene will be lost.
         </p>
       </StructuredDialogModal>
 
@@ -1955,7 +1980,7 @@ export function SettingsModal({
         )}
       >
         <p className="text-xs leading-snug" style={{ color: 'var(--text-muted)' }}>
-          Delete <strong>{draftCustomThemeName.trim() || 'this custom theme'}</strong>? DragonFruit will switch back to a built-in preset.
+          Delete <strong>{draftCustomThemeName.trim() || 'this custom theme'}</strong>? 3DRESIN will switch back to a built-in preset.
         </p>
       </StructuredDialogModal>
 
@@ -2057,7 +2082,7 @@ export function SettingsModal({
                     value={draftThemeCreatePrimaryBrandColor}
                     onChange={(event) => setDraftThemeCreatePrimaryBrandColor(event.target.value)}
                     className="ui-input h-8 min-w-0 flex-1 text-xs"
-                    placeholder="#ec2a77"
+                    placeholder="#3bd2c6"
                   />
                 </div>
               </div>
@@ -2077,7 +2102,7 @@ export function SettingsModal({
                     value={draftThemeCreateSecondaryBrandColor}
                     onChange={(event) => setDraftThemeCreateSecondaryBrandColor(event.target.value)}
                     className="ui-input h-8 min-w-0 flex-1 text-xs"
-                    placeholder="#baf72e"
+                    placeholder="#ffb45d"
                   />
                 </div>
               </div>

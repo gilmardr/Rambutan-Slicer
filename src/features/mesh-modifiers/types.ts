@@ -1,6 +1,6 @@
 import type { MessageDescriptor } from '@lingui/core';
 export type MeshModifierHollowMode = 'cavity' | 'infill' | 'shell_open_face';
-export type MeshModifierInfillMode = 'lattice' | 'pillar';
+export type MeshModifierInfillMode = 'lattice' | 'double_lattice' | 'pillar';
 export type MeshModifierOpenFace = 'x_min' | 'x_max' | 'y_min' | 'y_max' | 'z_min' | 'z_max';
 
 export type ModelHollowingModifier = {
@@ -33,8 +33,15 @@ export type ModelHollowingModifier = {
   infillMode?: MeshModifierInfillMode;
   infillCellMm?: number;
   infillBeamRadiusMm?: number;
+  detectResinTraps?: boolean;
+  detectInteriorSuctionCups?: boolean;
   openFace: MeshModifierOpenFace;
   openFaceSelected?: boolean;
+};
+
+export type ModelHollowing2DModifier = {
+  enabled: boolean;
+  wallThicknessMm: number;
 };
 
 export type ModelHolePunchPlacement = {
@@ -49,6 +56,7 @@ export type ModelHolePunchPlacement = {
 
 export type ModelMeshModifiers = {
   hollowing?: ModelHollowingModifier | null;
+  hollowing2D?: ModelHollowing2DModifier;
   holePunches?: ModelHolePunchPlacement[];
   holePunchAppliedPlacements?: ModelHolePunchPlacement[];
   holePunchesBakedIntoGeometry?: boolean;

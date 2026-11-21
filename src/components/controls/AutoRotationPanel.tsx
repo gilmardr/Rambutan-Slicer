@@ -40,7 +40,7 @@ export function subscribeOrientationBusy(fn: () => void): () => void {
   _orientationBusyListeners.add(fn);
   return () => _orientationBusyListeners.delete(fn);
 }
-function setOrientationBusy(v: boolean): void {
+export function setOrientationBusy(v: boolean): void {
   if (_orientationBusy !== v) {
     _orientationBusy = v;
     for (const fn of _orientationBusyListeners) fn();
@@ -101,6 +101,52 @@ export interface AutoRotationPanelProps {
   /** Toggles support-blocker paint mode in the scene. */
   onToggleBlockers?: () => void;
 }
+
+export type AutomaticOrientationSuggestion =
+  | { status: 'unavailable' }
+  | { status: 'already-optimal' }
+  | { status: 'suggested'; rotation: THREE.Euler };
+
+/** Resolve the current model's best support-oriented rotation without mutating the scene. */
+export function getAutomaticOrientationSuggestion(
+  activeModelId: string,
+  currentRotation?: THREE.Euler,
+  objective: OrientationObjective = 'supports',
+): AutomaticOrientationSuggestion {
+  const mesh = getModelMesh(activeModelId);
+  const position = mesh?.geometry?.attributes?.position;
+  if (!mesh || !position) return { status: 'unavailable' };
+
+  const baked = new Float32Array(position.array as ArrayLike<number>);
+  if (currentRotation) {
+    const v = new THREE.Vector3();
+    for (let i = 0; i < baked.length; i += 3) {
+      v.set(baked[i], baked[i + 1], baked[i + 2]).applyEuler(currentRotation);
+      baked[i] = v.x;
+      baked[i + 1] = v.y;
+      baked[i + 2] = v.z;
+    }
+  }
+
+  const index = (mesh.geometry.index?.array as ArrayLike<number> | undefined) ?? null;
+  const blocked = getSupportBlockedTriangles(activeModelId);
+  const result = suggestOrientationForGeometry(
+    { attributes: { position: { array: baked } }, index },
+    { objective, ...(blocked.size > 0 ? { blockedTriangleIndices: blocked } : {}) },
+  );
+  if (!result) return { status: 'unavailable' };
+
+  const improved = objective === 'height'
+    ? result.suggested.heightMm < result.baseline.heightMm
+    : result.suggested.cost < result.baseline.cost;
+  if (!improved) return { status: 'already-optimal' };
+
+  return {
+    status: 'suggested',
+    rotation: composeOrientationDelta(currentRotation, result.rotXDeg, result.rotYDeg),
+  };
+}
+
 export function AutoRotationPanel({ activeModelId, activeModelName, currentRotation, onApplyRotation, onOrientationReport, onBeforeOrientApply, blockersActive, onToggleBlockers }: AutoRotationPanelProps) {
   const { _ } = useLingui();
   const fmt = useLocaleFormat();
@@ -135,41 +181,12 @@ export function AutoRotationPanel({ activeModelId, activeModelName, currentRotat
     requestAnimationFrame(() => {
       setTimeout(() => {
         try {
-          const mesh = getModelMesh(activeModelId);
-          const position = mesh?.geometry?.attributes?.position;
-          if (!mesh || !position) {
+          const suggestion = getAutomaticOrientationSuggestion(activeModelId, currentRotation, objective);
+          if (suggestion.status === 'unavailable') {
             setError(_(NO_GEOMETRY));
             return;
           }
-          // Orient in world frame: bake the model's live scene rotation into a
-          // throwaway copy (never mutate the live geometry).
-          const baked = new Float32Array(position.array as ArrayLike<number>);
-          if (currentRotation) {
-            const v = new THREE.Vector3();
-            for (let i = 0; i < baked.length; i += 3) {
-              v.set(baked[i], baked[i + 1], baked[i + 2]).applyEuler(currentRotation);
-              baked[i] = v.x;
-              baked[i + 1] = v.y;
-              baked[i + 2] = v.z;
-            }
-          }
-          const index = (mesh.geometry.index?.array as ArrayLike<number> | undefined) ?? null;
-          const blocked = getSupportBlockedTriangles(activeModelId);
-          const result = suggestOrientationForGeometry(
-            { attributes: { position: { array: baked } }, index },
-            { objective, ...(blocked.size > 0 ? { blockedTriangleIndices: blocked } : {}) },
-          );
-          if (!result) {
-            setError(_(NO_GEOMETRY));
-            return;
-          }
-          // The scene apply path records history unconditionally, so only
-          // apply a strict improvement — never a no-op rotation.
-          const improved =
-            objective === 'height'
-              ? result.suggested.heightMm < result.baseline.heightMm
-              : result.suggested.cost < result.baseline.cost;
-          if (!improved) {
+          if (suggestion.status === 'already-optimal') {
             onOrientationReport?.({
               status: 'already-optimal',
               modelName: activeModelName ?? activeModelId,
@@ -179,7 +196,7 @@ export function AutoRotationPanel({ activeModelId, activeModelName, currentRotat
           // Compose in the canonical frame (see composeOrientationDelta) so
           // the scene path moves supports along and records history.
           const doApply = () => {
-            onApplyRotation(activeModelId, composeOrientationDelta(currentRotation, result.rotXDeg, result.rotYDeg));
+            onApplyRotation(activeModelId, suggestion.rotation);
             onOrientationReport?.({
               status: 'applied',
               modelName: activeModelName ?? activeModelId,

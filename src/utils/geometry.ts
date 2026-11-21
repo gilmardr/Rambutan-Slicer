@@ -159,3 +159,69 @@ export function countTriangles(geometry: THREE.BufferGeometry): number {
     const position = geometry.getAttribute('position');
     return position ? Math.floor(position.count / 3) : 0;
 }
+
+/**
+ * Counts edge-connected mesh shells. Large meshes use the native repair report
+ * when available; this fallback is for small imports without one.
+ */
+export function countConnectedMeshComponents(geometry: THREE.BufferGeometry): number | null {
+    const triangleCount = countTriangles(geometry);
+    if (triangleCount === 0) return 0;
+    if (triangleCount > 100_000) return null;
+
+    const position = geometry.getAttribute('position');
+    if (!position) return 0;
+
+    const index = geometry.getIndex();
+    const weldedVertexIds = index ? null : new Uint32Array(position.count);
+    if (weldedVertexIds) {
+        const verticesByPosition = new Map<string, number>();
+        let nextVertexId = 0;
+        for (let vertex = 0; vertex < position.count; vertex += 1) {
+            const key = `${position.getX(vertex)},${position.getY(vertex)},${position.getZ(vertex)}`;
+            let vertexId = verticesByPosition.get(key);
+            if (vertexId === undefined) {
+                vertexId = nextVertexId++;
+                verticesByPosition.set(key, vertexId);
+            }
+            weldedVertexIds[vertex] = vertexId;
+        }
+    }
+
+    const parents = new Uint32Array(triangleCount);
+    for (let triangle = 0; triangle < triangleCount; triangle += 1) parents[triangle] = triangle;
+
+    const find = (triangle: number): number => {
+        let root = triangle;
+        while (parents[root] !== root) root = parents[root];
+        while (parents[triangle] !== triangle) {
+            const next = parents[triangle];
+            parents[triangle] = root;
+            triangle = next;
+        }
+        return root;
+    };
+    const union = (left: number, right: number) => {
+        const leftRoot = find(left);
+        const rightRoot = find(right);
+        if (leftRoot !== rightRoot) parents[rightRoot] = leftRoot;
+    };
+    const edgeOwners = new Map<string, number>();
+
+    for (let triangle = 0; triangle < triangleCount; triangle += 1) {
+        const offset = triangle * 3;
+        const a = index ? index.getX(offset) : weldedVertexIds![offset];
+        const b = index ? index.getX(offset + 1) : weldedVertexIds![offset + 1];
+        const c = index ? index.getX(offset + 2) : weldedVertexIds![offset + 2];
+        for (const [start, end] of [[a, b], [b, c], [c, a]]) {
+            const key = start < end ? `${start}:${end}` : `${end}:${start}`;
+            const owner = edgeOwners.get(key);
+            if (owner === undefined) edgeOwners.set(key, triangle);
+            else union(owner, triangle);
+        }
+    }
+
+    const roots = new Set<number>();
+    for (let triangle = 0; triangle < triangleCount; triangle += 1) roots.add(find(triangle));
+    return roots.size;
+}

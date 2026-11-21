@@ -1260,12 +1260,14 @@ export function getSnapshot() {
  * map it also copies already holds every entity those views hold, so the views
  * only have to be reinstalled over it. Re-deriving them through
  * `normaliseSupportState` walked the whole state twice more per snapshot, which
- * was most of the cost of a history push.
+ * was most of the cost of a history push. Drafts can carry newer collection
+ * values than their `supports` map, so normalise those before copying.
  */
 export function cloneSupportState(source: SupportState): SupportState {
+    const canonical = normaliseSupportState(source);
     return installCollectionViews(clonePlainData({
-        ...source,
-        supports: source.supports ?? {},
+        ...canonical,
+        supports: canonical.supports ?? {},
     } as SupportState));
 }
 

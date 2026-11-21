@@ -287,7 +287,7 @@ export function ZUpGizmoHelper({
   alignment = 'bottom-right',
   margin = [80, 80],
   renderPriority = 1,
-  accentColor = '#baf72e',
+  accentColor = '#ffb45d',
   chipColor = '#20242c',
   chipBorderColor = '#3a3f4b',
   onHome,

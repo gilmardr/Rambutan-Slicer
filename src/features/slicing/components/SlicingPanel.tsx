@@ -63,6 +63,12 @@ import {
 import { useKeyPressed } from '@/hotkeys/hotkeyStore';
 import { useLocaleFormat } from '@/hooks/useLocaleFormat';
 import type { LocaleFormat } from '@/utils/localeNumber';
+import { countConnectedMeshComponents } from '@/utils/geometry';
+import type { UseIslandsReturn } from '@/volumeAnalysis/Islands/useIslands';
+import { getSnapshot as getSupportSnapshot } from '@/supports/state';
+import { SUPPORT_COLLECTION_KEYS } from '@/supports/supportTypeRegistry';
+import { getSuctionCupSummary, subscribeSuctionCupSummary } from '@/features/suction-cups/suctionCupReportStore';
+import type { HolePunchVerificationResult } from '@/features/hole-punching/holePunchVerification';
 
 export type SliceIntent = 'file' | 'upload' | 'print' | 'preview' | 'uvtools';
 
@@ -80,9 +86,14 @@ interface SlicingPanelProps {
   activePlateSliceIndex?: number;
   excludedModelIds?: readonly string[];
   activeModel: LoadedModel | null;
+  readinessIslands: UseIslandsReturn;
+  drainHoleVerificationResults?: readonly HolePunchVerificationResult[];
   estimatedLayerCountOverride?: number | null;
   estimatedLayerHeightMmOverride?: number | null;
   estimatedVolumeLabelOverride?: string | null;
+  estimatedModelVolumeLabelOverride?: string | null;
+  estimatedSupportsVolumeLabelOverride?: string | null;
+  estimatedRaftVolumeLabelOverride?: string | null;
   /** The scene shot for a plate's file. The bed frames it: a batch writes one shot per bed. */
   captureSceneThumbnailPng?: (plateId?: string) => Promise<Uint8Array | null>;
   /** A run's first moment, with the bed it is slicing, so per-bed state is dropped for that bed. */
@@ -498,7 +509,7 @@ function SettingLabelWithHelp({
             style={{
               background: 'rgba(24, 24, 24, 0.98)',
               color: 'var(--text-strong, #e0e0e0)',
-              border: '1px solid var(--accent, #baf72e)',
+              border: '1px solid var(--accent-secondary, #ffb45d)',
               maxWidth: 260,
               whiteSpace: 'normal',
               textAlign: 'left',
@@ -784,9 +795,14 @@ export function SlicingPanel({
   activePlateSliceIndex = 0,
   excludedModelIds = [],
   activeModel,
+  readinessIslands,
+  drainHoleVerificationResults = [],
   estimatedLayerCountOverride,
   estimatedLayerHeightMmOverride,
   estimatedVolumeLabelOverride,
+  estimatedModelVolumeLabelOverride,
+  estimatedSupportsVolumeLabelOverride,
+  estimatedRaftVolumeLabelOverride,
   captureSceneThumbnailPng,
   onSliceRunStarted,
   onSlicingFinished,
@@ -950,6 +966,30 @@ export function SlicingPanel({
     getPrinterReachabilityServerSnapshot,
   );
   const activePrinterProfile = useMemo(() => getActivePrinterProfile(profileState), [profileState]);
+  const readinessShellCount = useMemo(
+    () => activeModel ? countConnectedMeshComponents(activeModel.geometry.geometry) : null,
+    [activeModel],
+  );
+  const readinessTriangleCount = activeModel?.geometry.sourceTriangleCount ?? activeModel?.polygonCount ?? 0;
+  const readinessOpenIslands = readinessIslands.filteredIslands.filter((island) => !island.supported && !island.grounded).length;
+  const hollowingModifier = activeModel?.meshModifiers?.hollowing;
+  const hollowingEnabled = Boolean(hollowingModifier?.enabled);
+  const drainHoleCount = activeModel
+    ? Math.max(
+      activeModel.meshModifiers?.holePunches?.length ?? 0,
+      activeModel.meshModifiers?.holePunchAppliedPlacements?.length ?? 0,
+    )
+    : 0;
+  const verifiedDrainHoleCount = drainHoleVerificationResults.filter((result) => result.status === 'confirmed').length;
+  const uncertainDrainHoleCount = drainHoleVerificationResults.filter((result) => result.status !== 'confirmed').length;
+  const readinessSupportSnapshot = getSupportSnapshot();
+  const suctionCupSummary = React.useSyncExternalStore(subscribeSuctionCupSummary, getSuctionCupSummary, getSuctionCupSummary);
+  const readinessSupportElements = activeModel
+    ? SUPPORT_COLLECTION_KEYS.reduce((count, key) => {
+      const collection = readinessSupportSnapshot[key] as unknown as Record<string, { modelId?: string }>;
+      return count + Object.values(collection ?? {}).filter((entry) => entry.modelId === activeModel.id).length;
+    }, 0)
+    : 0;
   const networkUiAdapter = useMemo(
     () => getProfileNetworkUiAdapter(activePrinterProfile?.networkSupport),
     [activePrinterProfile?.networkSupport],
@@ -2401,9 +2441,25 @@ export function SlicingPanel({
                 </div>
               </div>
               <div className="rounded border px-1.5 py-1" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
-                <div className="text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Est. Volume</Trans></div>
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Total resin</Trans></div>
                 <div className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>{estimatedVolumeLabel}</div>
               </div>
+              {estimatedModelVolumeLabelOverride != null && (
+                <>
+                  <div className="rounded border px-1.5 py-1" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Model resin</Trans></div>
+                    <div className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>{estimatedModelVolumeLabelOverride}</div>
+                  </div>
+                  <div className="rounded border px-1.5 py-1" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Supports resin</Trans></div>
+                    <div className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>{estimatedSupportsVolumeLabelOverride ?? '—'}</div>
+                  </div>
+                  <div className="rounded border px-1.5 py-1" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Raft resin</Trans></div>
+                    <div className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>{estimatedRaftVolumeLabelOverride ?? '—'}</div>
+                  </div>
+                </>
+              )}
               <div className="rounded border px-1.5 py-1" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
                 <div className="text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Est. Print Time</Trans></div>
                 <div className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>{estimatedPrintTimeLabel}</div>
@@ -2420,7 +2476,77 @@ export function SlicingPanel({
                   {slicerEngineVersion ? `v${slicerEngineVersion}` : 'Slicer V3' /* i18n-ignore: product name */}
                 </div>
               </div>
+              <div className="rounded border px-1.5 py-1" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Printer resolution</Trans></div>
+                <div className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>
+                  {activePrinterProfile
+                    ? `${fmt.fixed(activePrinterProfile.display.resolutionX, 0)} × ${fmt.fixed(activePrinterProfile.display.resolutionY, 0)} px`
+                    : '—'}
+                </div>
+              </div>
+              <div className="rounded border px-1.5 py-1" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}><Trans>Printer connection</Trans></div>
+                <div className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>
+                  {activePrinterProfile?.networkSupport ? <Trans>Profile supports network sending</Trans> : <Trans>Export file only</Trans>}
+                </div>
+              </div>
             </div>
+
+            {activeModel && (
+              <section className="mt-2 rounded-md border p-2 space-y-1.5" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }} aria-label={_(msg`Print readiness`)}>
+                <h4 className="text-xs font-semibold" style={{ color: 'var(--text-strong)' }}><Trans>Print readiness</Trans></h4>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                  <span style={{ color: 'var(--text-muted)' }}><Trans>Mesh triangles</Trans></span>
+                  <span className="text-right" style={{ color: 'var(--text-strong)' }}>{fmt.fixed(readinessTriangleCount, 0)}</span>
+                  <span style={{ color: 'var(--text-muted)' }}><Trans>Connected shells</Trans></span>
+                  <span className="text-right" style={{ color: 'var(--text-strong)' }}>{readinessShellCount == null ? <Trans>Not analyzed</Trans> : fmt.fixed(readinessShellCount, 0)}</span>
+                  <span style={{ color: 'var(--text-muted)' }}><Trans>Open islands</Trans></span>
+                  <span className="text-right" style={{ color: readinessOpenIslands > 0 ? 'var(--warning)' : 'var(--text-strong)' }}>{fmt.fixed(readinessOpenIslands, 0)}</span>
+                  <span style={{ color: 'var(--text-muted)' }}><Trans>Support elements</Trans></span>
+                  <span className="text-right" style={{ color: 'var(--text-strong)' }}>{fmt.fixed(readinessSupportElements, 0)}</span>
+                  <span style={{ color: 'var(--text-muted)' }}><Trans>Hollowing</Trans></span>
+                  <span className="text-right" style={{ color: 'var(--text-strong)' }}>{hollowingEnabled ? <Trans>Enabled</Trans> : <Trans>Off</Trans>}</span>
+                  <span style={{ color: 'var(--text-muted)' }}><Trans>Drain holes</Trans></span>
+                  <span className="text-right" style={{ color: hollowingEnabled && drainHoleCount === 0 ? 'var(--warning)' : 'var(--text-strong)' }}>{fmt.fixed(drainHoleCount, 0)}</span>
+                  <span style={{ color: 'var(--text-muted)' }}><Trans>Verified drain holes</Trans></span>
+                  <span className="text-right" style={{ color: uncertainDrainHoleCount > 0 ? 'var(--warning)' : 'var(--text-strong)' }}>
+                    {drainHoleVerificationResults.length === 0
+                      ? <Trans>Not analyzed</Trans>
+                      : `${fmt.fixed(verifiedDrainHoleCount, 0)} / ${fmt.fixed(drainHoleVerificationResults.length, 0)}`}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)' }}><Trans>Trap detection setting</Trans></span>
+                  <span className="text-right" style={{ color: 'var(--text-strong)' }}>{hollowingModifier?.detectResinTraps ? <Trans>Configured</Trans> : <Trans>Not verified</Trans>}</span>
+                  <span style={{ color: 'var(--text-muted)' }}><Trans>Possible suction pockets</Trans></span>
+                  <span className="text-right" style={{ color: 'var(--text-strong)' }}>
+                    {suctionCupSummary.modelId !== activeModel.id || suctionCupSummary.status === 'idle' || suctionCupSummary.status === 'stale'
+                      ? <Trans>Not analyzed</Trans>
+                      : suctionCupSummary.status === 'scanning'
+                        ? <Trans>Scanning</Trans>
+                        : suctionCupSummary.status === 'failed'
+                          ? <Trans>Scan failed</Trans>
+                          : fmt.fixed(suctionCupSummary.findingCount, 0)}
+                  </span>
+                </div>
+                {readinessOpenIslands > 0 ? (
+                  <p className="text-[11px] leading-snug" style={{ color: 'var(--warning)' }}><Trans>Some islands have no support. Review them in the Support workspace before slicing.</Trans></p>
+                ) : (
+                  <p className="text-[11px] leading-snug" style={{ color: 'var(--text-muted)' }}><Trans>Island scan results are shown here when available; run a scan before treating zero as a clean result.</Trans></p>
+                )}
+                <p className="text-[11px] leading-snug" style={{ color: 'var(--text-muted)' }}><Trans>Check hollowing, drain holes, and suction cups in their analysis tools before printing.</Trans></p>
+                {hollowingEnabled && drainHoleCount === 0 && (
+                  <p className="text-[11px] leading-snug" style={{ color: 'var(--warning)' }}><Trans>This hollow model has no recorded drain holes. Add and verify a drainage path before printing.</Trans></p>
+                )}
+                {uncertainDrainHoleCount > 0 && (
+                  <p className="text-[11px] leading-snug" style={{ color: 'var(--warning)' }}><Trans>Some drain holes are shallow or uncertain. Review their verification results before printing.</Trans></p>
+                )}
+                {suctionCupSummary.modelId === activeModel.id && suctionCupSummary.status === 'ready' && suctionCupSummary.findingCount > 0 && (
+                  <p className="text-[11px] leading-snug" style={{ color: 'var(--warning)' }}><Trans>Possible suction pockets were found. Review each region in the suction cup analysis before printing.</Trans></p>
+                )}
+                {suctionCupSummary.modelId === activeModel.id && suctionCupSummary.status === 'failed' && (
+                  <p className="text-[11px] leading-snug" style={{ color: 'var(--warning)' }}><Trans>The suction cup analysis failed. Run it again before treating the model as clear.</Trans></p>
+                )}
+              </section>
+            )}
 
             {showRemoteOfflineLayerHeightOverride && (
               <div className="mt-2 rounded-md border p-2 space-y-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>

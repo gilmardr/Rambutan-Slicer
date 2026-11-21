@@ -23,6 +23,7 @@ export const APPLY_ORIENTATION_SUGGESTION_LABEL = msg({
 });
 export const ORGANIC_CUT_LABEL = msg({ message: 'Organic cut', context: 'Undo history entry' });
 export const HOLLOWING_SETTINGS_LABEL = msg({ message: 'Hollowing settings', context: 'Undo history entry' });
+export const HOLLOWING_2D_SETTINGS_LABEL = msg({ message: '2D hollowing settings', context: 'Undo history entry' });
 
 export const PICK_OPEN_FACE_LABEL = msg({ message: 'Pick open face', context: 'Undo history entry' });
 export const ADD_HOLE_LABEL = msg({ message: 'Add hole', context: 'Undo history entry' });
@@ -246,4 +247,9 @@ export function ungroupModelsLabel(count: number): MessageDescriptor {
     message: plural(count, { one: 'Ungroup # model', other: 'Ungroup # models' }),
     context: 'Undo history entry',
   });
+}
+
+export function solidOperationLabel(operation: 'union' | 'difference' | 'intersection', modelName: string): MessageDescriptor {
+  const verb = operation === 'union' ? 'Union' : operation === 'difference' ? 'Difference from' : 'Intersection of';
+  return msg({ message: `${verb} ${modelName}`, context: 'Undo history entry' });
 }

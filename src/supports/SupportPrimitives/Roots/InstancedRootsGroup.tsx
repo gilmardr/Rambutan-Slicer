@@ -392,7 +392,7 @@ export function InstancedRootsGroup({
     roots,
     diskOnly = false,
     discColor,
-    color = '#ff8800',
+    color = '#78c63f',
     emissive = '#000000',
     emissiveIntensity = 0,
     transparent = false,

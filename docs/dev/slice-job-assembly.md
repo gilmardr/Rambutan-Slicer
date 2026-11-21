@@ -22,9 +22,10 @@ files with the wrong exposure or the wrong size.
 | `buildNativeSliceJob` | Turns an `AssembledSliceJob` into the native job's fields, short of the mesh, the thumbnail and the output path; the PNG and container compression rules live here. The app's export and `scene slice` both send its output. |
 | `describeSliceJobModel` | Turns a model (anything with `id`, `name`, `polygonCount` and a position/rotation/scale transform) into the plain `SliceJobManifestModel` the metadata lists. Use it instead of passing THREE objects, which serialize their internals. |
 | `buildSliceJobManifestNodes` | The `slicer`, `printer`, `material`, `effective` and `models` nodes of a manifest. Shared by the native manifest and the JS fallback's. |
-| `resolveSliceRasterSettings` | Raster grid, X-packing (only for formats whose definition declares `bitdepth-packed-x`), mirroring and layer height. |
+| `resolveSliceRasterSettings` | Raster grid, X-packing (only for formats whose definition declares `bitdepth-packed-x`), screen rotation, mirroring and layer height. |
 | `resolveSliceLayerCount` | Layer count and tallest object height for a scene, clipped to the printer's build height. |
-| `mergeMetadataOverridesIntoMetadata` | Writes the settings mode and the material's per-format settings (from the format plugin's local-settings adapter) into the metadata. |
+| `applySliceOnlyHollowing` | Applies one model cross-section's physical wall thickness to a browser fallback layer mask. |
+| `mergeMetadataOverridesIntoMetadata` | Writes the settings mode, the material's per-format settings (from the format plugin's local-settings adapter), and the printer's default transition thickness into the metadata. |
 | `SLICER_IDENTITY` | The `slicer` node: the app's name, and its version when `NEXT_PUBLIC_APP_VERSION` is set. |
 
 Dithering goes through `resolveEffectiveDitherPolicy` (in `resolveEffectiveDitherPolicy.ts`), which
@@ -33,6 +34,52 @@ Dithering goes through `resolveEffectiveDitherPolicy` (in `resolveEffectiveDithe
 Anti-aliasing goes through `resolveSliceJobAntiAliasing` (in `sliceAntiAliasing.ts`), which
 `assembleSliceJob` calls; pass the user's choice in `antiAliasing` (see below). Without it the job
 slices with anti-aliasing off.
+
+Material scale compensation is applied during mesh preparation in
+`rasterLayerZipExport.ts`, before the native slice job is assembled. The profile values are
+relative percentages: `0` preserves the original size, `1` expands that axis to `101%`, and
+`-1` reduces it to `99%`. X and Y scale around each model's world-space center; Z scales from
+the model's lowest world-space point so compensation does not lift the model off the plate.
+The same per-model transform is applied to its imported support mesh, generated supports and
+raft. The original scene geometry and transforms are not modified. The manifest records the
+three values under `material.scaleCompensationPct`; LUMEN metadata mirrors them under its
+format-specific scale fields.
+
+Material tolerance compensation travels separately from scale compensation. The material profile
+stores signed `innerDiameterMm` and `outerDiameterMm` adjustments, plus optional bottom-layer
+overrides. `assembleSliceJob` includes these values in the material manifest node and
+`buildNativeSliceJob` forwards them to the native slice contract with `bottomLayerCount`. Positive
+inner values narrow enclosed holes and positive outer values expand exterior contours; negative
+values reverse those effects. They are diameter adjustments in millimeters, converted to radial
+pixel offsets during layer raster post-processing. Bottom values apply only to the first configured
+bottom layers when their override is enabled. Both settings default to zero, so existing profiles
+and jobs keep the same slice output.
+
+## Per-model slice-only hollowing
+
+Scene mesh preparation may append `modelSliceRanges` to the native job. Each
+`ModelSliceRangeV1` identifies a contiguous range in the model-only triangle
+prefix and a wall thickness in millimeters. `buildSolidSliceMeshForWasm` creates
+these ranges from enabled per-model `hollowing2D` modifiers, and the export
+orchestrator forwards them through `buildNativeSliceJob`.
+
+The native rasterizer slices each enabled model range into its own mask, retains
+pixels within the configured wall distance from the cross-section boundary, then
+unions that shell with the remaining model geometry and supports. The web fallback
+uses the same per-model grouping and distance rule. Support and raft triangles are
+outside the ranges and stay solid. The range field is optional for older job
+payloads. This is a pixel-grid approximation; resolution and pixel aspect ratio
+affect its edge distance. It applies only during slicing and does not mutate the
+3D mesh or generate infill/dimming.
+
+The browser fallback's per-layer helper is
+`applySliceOnlyHollowing(imageData, wallThicknessMm, pitchXmm, pitchYmm)` in
+`src/features/slicing/sliceOnlyHollowing.ts`. It mutates one opaque black/white
+`ImageData` mask in place, using the X/Y pixel pitch separately so non-square
+pixels retain a physical wall thickness. Non-finite or non-positive thickness
+and pixel pitches leave the mask unchanged. Native and browser behavior are
+covered by the slicing-engine unit tests and
+`src/features/slicing/sliceOnlyHollowing.test.ts`.
 
 ## Anti-aliasing
 
@@ -96,6 +143,8 @@ const job = assembleSliceJob({
   Lumen), the merged metadata carries the material's stored per-format values, or the plugin's
   defaults when none are stored, in place of the material profile's own exposure fields. NanoDLP has
   no such adapter and keeps the profile's values.
+- **Screen rotation is a print transform.** `display.rotateScreen` rotates the collected mesh 90° clockwise before rasterization and swaps the resolved screen resolution and build X/Y dimensions. Mirroring is then applied on the rotated screen axes. The stored printer profile dimensions stay in their physical X/Y orientation.
+- **Default transitions are a printer fallback.** `defaultTransitionLayersMm`, when set, converts to the nearest whole layer count using the material layer height. It applies to an adapter's `transitionLayerCount` field when the material value is absent or still equals the adapter default; a changed material value wins. Older printer profiles that omit the optional field retain the adapter default.
 - **Not here:** mesh transport, thumbnails and plugin metadata payloads
   (`attachJobMetadataPayloads`). The caller adds those.
 

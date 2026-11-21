@@ -87,7 +87,7 @@ export function PerformanceSettingsTab({
               Slicing Engine
             </h3>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              Native Rust slicing via the DragonFruit engine.
+              Native Rust slicing via the 3DRESIN engine.
             </p>
           </div>
         </div>

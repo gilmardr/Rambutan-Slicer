@@ -16,6 +16,42 @@ Support type is determined by:
 3. Use braces/kickstands where lateral stability is needed.
 4. Validate support angles and warnings before finalizing.
 
+## Reuse support presets
+
+In **Support Studio**, choose **Import** to load a DragonFruit support preset
+file. The imported preset is added to the list and applied immediately. Choose
+**Export** to save the active preset as a JSON file for another DragonFruit
+desktop or web session.
+
+## Copy settings between supports
+
+Select one support and choose **Copy settings** in Support Studio. Select two
+or more supports and choose **Paste to selected** to apply that support's
+geometry settings to the selection. The batch is one undoable edit.
+
+## Check support proximity
+
+In **Analyze**, use **Support Proximity** to find shafts whose surface is within
+the selected clearance of a visible model. The scan ignores the contact area at
+the end of each support. Select a report row to activate its model and select
+the support. Current results highlight affected shafts red in the viewport;
+rerun the scan after editing the scene to refresh the highlight.
+
+## Place supports inline
+
+Choose **Inline** from the Support tool rail, then click the first point on the
+active model, move the pointer to preview evenly spaced intermediate contacts,
+and click the destination to place them. The tool settings remain in **Support
+Studio**. The pair uses the same interval, angle, and existing-contact filters
+as Support Painting and can be undone as a single action. The surface path
+follows the straight line between the two screen positions, so rotate the model
+first when a different visible surface path is needed.
+
+The rail also opens **Paint** for dragging support contacts across a surface and
+**Projection** for previewing contacts projected from a painted region. Each
+tool opens Support Studio with its settings; selecting another Support panel or
+canvas tool exits the current interaction mode.
+
 ## Supports below the build plate
 
 A trunk whose contact cone or socket joint extends below Z=0 is shown as an

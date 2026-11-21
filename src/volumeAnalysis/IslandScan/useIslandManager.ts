@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { runIslandScan, runScanlineScan, type ScanResults } from './ScanOrchestrator';
 import { runIslandScanNative } from './nativeIslandScan';
 import { computeIslandMarkers, type IslandMarker } from './islandOverlayLogic';
+import { createIslandScanFailure, type IslandScanFailure } from './islandScanFailure';
 import { buildIslandInstances, VOXEL_DISC_RADIUS_FACTOR } from '@/volumeAnalysis/Islands/islandInstances';
 import type { GeometryWithBounds } from '@/hooks/useStlGeometry';
 import { quaternionFromGlobalEuler } from '@/utils/rotation';
@@ -22,6 +23,7 @@ interface IslandManagerProps {
 export function useIslandManager({ geom, transform, layerHeightMm }: IslandManagerProps) {
   // Scanning State
   const [scanning, setScanning] = useState<boolean>(false);
+  const [scanFailure, setScanFailure] = useState<IslandScanFailure | null>(null);
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number; phase?: string; phaseNumber?: number; phaseCount?: number } | null>(null);
   const [scanData, setScanData] = useState<ScanResults | null>(null);
   const [scanBBox, setScanBBox] = useState<THREE.Box3 | null>(null);
@@ -98,8 +100,8 @@ export function useIslandManager({ geom, transform, layerHeightMm }: IslandManag
     if (!transformedGeom) return;
 
     setScanning(true);
+    setScanFailure(null);
     const transformedBBox = transformedGeom.boundingBox!;
-    setScanBBox(transformedBBox);
 
     setScanProgress({ done: 0, total: Math.max(0, Math.ceil((transformedBBox.max.z - transformedBBox.min.z) / layerHeightMm)) });
 
@@ -118,7 +120,11 @@ export function useIslandManager({ geom, transform, layerHeightMm }: IslandManag
         },
         (done, total, phase, phaseNumber, phaseCount) => setScanProgress({ done, total, phase, phaseNumber, phaseCount })
       );
+      setScanBBox(transformedBBox);
       setScanData(res);
+    } catch (error) {
+      console.error('[IslandScan] scan failed:', error);
+      setScanFailure(createIslandScanFailure('javascript', error));
     } finally {
       setScanning(false);
     }
@@ -130,8 +136,8 @@ export function useIslandManager({ geom, transform, layerHeightMm }: IslandManag
     if (!transformedGeom) return;
 
     setScanning(true);
+    setScanFailure(null);
     const transformedBBox = transformedGeom.boundingBox!;
-    setScanBBox(transformedBBox);
 
     setScanProgress({ done: 0, total: Math.max(0, Math.ceil((transformedBBox.max.z - transformedBBox.min.z) / layerHeightMm)) });
 
@@ -153,7 +159,11 @@ export function useIslandManager({ geom, transform, layerHeightMm }: IslandManag
       );
       const endTime = performance.now();
       console.log(`Scanline Scan took ${(endTime - startTime).toFixed(2)}ms`);
+      setScanBBox(transformedBBox);
       setScanData(res);
+    } catch (error) {
+      console.error('[IslandScan] scanline scan failed:', error);
+      setScanFailure(createIslandScanFailure('javascript', error));
     } finally {
       setScanning(false);
     }
@@ -165,8 +175,8 @@ export function useIslandManager({ geom, transform, layerHeightMm }: IslandManag
     if (!transformedGeom) return;
 
     setScanning(true);
+    setScanFailure(null);
     const transformedBBox = transformedGeom.boundingBox!;
-    setScanBBox(transformedBBox);
 
     const numLayers = Math.max(0, Math.ceil((transformedBBox.max.z - transformedBBox.min.z) / layerHeightMm));
     setScanProgress({ done: 0, total: numLayers });
@@ -188,7 +198,11 @@ export function useIslandManager({ geom, transform, layerHeightMm }: IslandManag
       );
       const endTime = performance.now();
       console.log(`Native Island Scan took ${(endTime - startTime).toFixed(2)}ms`);
+      setScanBBox(transformedBBox);
       setScanData(res);
+    } catch (error) {
+      console.error('[IslandScan] native scan failed:', error);
+      setScanFailure(createIslandScanFailure('native', error));
     } finally {
       setScanning(false);
     }
@@ -230,10 +244,12 @@ export function useIslandManager({ geom, transform, layerHeightMm }: IslandManag
     setOverlayEnabled(false);
     setVoxelEnabled(false);
     setSelectedIslandId(null);
+    setScanFailure(null);
   }, []);
 
   return {
     scanning,
+    scanFailure,
     scanProgress,
     scanData,
     setScanData,

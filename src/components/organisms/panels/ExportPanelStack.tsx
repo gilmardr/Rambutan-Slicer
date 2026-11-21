@@ -6,10 +6,14 @@ import type { SliceExportArtifact, SliceExportResult } from '@/features/slicing/
 import type { useSceneCollectionManager } from '@/features/scene/useSceneCollectionManager';
 import { modelsOnPlate, plateSliceScope } from '@/features/scene/plates/plateLayout';
 import type { useSlicingManager } from '@/features/slicing/useSlicingManager';
+import type { UseIslandsReturn } from '@/volumeAnalysis/Islands/useIslands';
+import type { HolePunchVerificationResult } from '@/features/hole-punching/holePunchVerification';
 
 export type ExportPanelStackProps = {
   scene: ReturnType<typeof useSceneCollectionManager>;
   slicing: ReturnType<typeof useSlicingManager>;
+  readinessIslands: UseIslandsReturn;
+  drainHoleVerificationResults: readonly HolePunchVerificationResult[];
 
   supportsRef: React.RefObject<THREE.Group | null>;
   captureExportThumbnailPng: React.ComponentProps<typeof SlicingPanel>['captureSceneThumbnailPng'];
@@ -21,6 +25,9 @@ export type ExportPanelStackProps = {
   excludedSliceModelIds: readonly string[];
   crossSectionLayerHeightMm: number;
   estimatedVolumeMlLabel: string;
+  estimatedModelVolumeMlLabel: string;
+  estimatedSupportsVolumeMlLabel: string;
+  estimatedRaftVolumeMlLabel: string;
   handleSliceRunStartedForPrinting: (context?: { plateId?: string }) => void;
   handleSlicingFinishedForPrinting: (payload: { totalLayers: number }) => void;
   /**
@@ -56,6 +63,8 @@ export type ExportPanelStackProps = {
 export function ExportPanelStack({
   scene,
   slicing,
+  readinessIslands,
+  drainHoleVerificationResults,
   supportsRef,
   captureExportThumbnailPng,
   handleExportSuccess,
@@ -65,6 +74,9 @@ export function ExportPanelStack({
   excludedSliceModelIds,
   crossSectionLayerHeightMm,
   estimatedVolumeMlLabel,
+  estimatedModelVolumeMlLabel,
+  estimatedSupportsVolumeMlLabel,
+  estimatedRaftVolumeMlLabel,
   handleSliceRunStartedForPrinting,
   handleSlicingFinishedForPrinting,
   handleSliceArtifactReady,
@@ -139,9 +151,14 @@ export function ExportPanelStack({
         activePlateSliceIndex={activePlateSliceIndex}
         excludedModelIds={excludedSliceModelIds}
         activeModel={scene.activeModel}
+        readinessIslands={readinessIslands}
+        drainHoleVerificationResults={drainHoleVerificationResults}
         estimatedLayerCountOverride={estimatedSlicerLayerCount}
         estimatedLayerHeightMmOverride={crossSectionLayerHeightMm}
         estimatedVolumeLabelOverride={estimatedVolumeMlLabel}
+        estimatedModelVolumeLabelOverride={estimatedModelVolumeMlLabel}
+        estimatedSupportsVolumeLabelOverride={estimatedSupportsVolumeMlLabel}
+        estimatedRaftVolumeLabelOverride={estimatedRaftVolumeMlLabel}
         captureSceneThumbnailPng={captureExportThumbnailPng}
         onSliceRunStarted={handleSliceRunStartedForPrinting}
         onSlicingFinished={handleSlicingFinishedForPrinting}

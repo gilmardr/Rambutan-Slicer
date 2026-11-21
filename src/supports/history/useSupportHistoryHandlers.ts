@@ -5,6 +5,8 @@ import {
   SUPPORT_AUTO_BRACE_REPLACE,
   SUPPORT_AUTO_PLACE,
   SUPPORT_BLOCKER_STROKE,
+  SUPPORT_PAINT_STROKE,
+  SUPPORT_PROJECTION,
   SupportReplaceStatePayload,
 } from './actionTypes';
 import { registerSupportHistoryHandler } from './supportHistory';
@@ -219,6 +221,16 @@ export function registerSupportHistoryHandlers(): () => void {
       return true;
     }),
     registerSupportHistoryHandler(SUPPORT_AUTO_PLACE, (payload, direction) => {
+      if (!payload?.before || !payload?.after) return false;
+      applySnapshotHistory(payload, direction);
+      return true;
+    }),
+    registerSupportHistoryHandler(SUPPORT_PAINT_STROKE, (payload, direction) => {
+      if (!payload?.before || !payload?.after) return false;
+      applySnapshotHistory(payload, direction);
+      return true;
+    }),
+    registerSupportHistoryHandler(SUPPORT_PROJECTION, (payload, direction) => {
       if (!payload?.before || !payload?.after) return false;
       applySnapshotHistory(payload, direction);
       return true;

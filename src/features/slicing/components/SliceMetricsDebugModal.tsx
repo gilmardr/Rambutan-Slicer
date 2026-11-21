@@ -138,7 +138,7 @@ export function SliceMetricsDebugModal({
       name: 'Render pipeline',
       ms: benchmark.nativePerf.renderWallMs,
       pct: hasNativeBreakdown ? Math.max(0, renderWallPct ?? 0) : 0,
-      color: 'color-mix(in srgb, var(--accent), #f472b6 28%)',
+      color: 'color-mix(in srgb, var(--accent), #3bd2c6 28%)',
     },
     {
       name: 'Archive encode',

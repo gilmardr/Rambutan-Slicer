@@ -7,11 +7,9 @@ import {
   CloudDownload,
   CloudOff,
   Download,
-  ExternalLink,
   Package,
   RotateCcw,
 } from 'lucide-react';
-import { FLATPAK_APP_ID, LINUX_RELEASES_URL } from '@/features/updater/updateBridge';
 import { StructuredDialogModal } from '@/components/ui/StructuredDialogModal';
 import { Button, Spinner } from '@/components/atoms';
 import { useUpdateChecker } from '@/features/updater/useUpdateChecker';
@@ -36,15 +34,6 @@ function formatBytes(bytes: number, fmt: UnitFormat): string {
   if (bytes < 1024) return fmt.quantity(bytes, 0, 'B');
   if (bytes < 1024 * 1024) return fmt.quantity(bytes / 1024, 1, 'KB');
   return fmt.quantity(bytes / (1024 * 1024), 1, 'MB');
-}
-
-async function openExternal(url: string): Promise<void> {
-  try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('open_external_url', { url });
-  } catch {
-    window.open(url, '_blank');
-  }
 }
 
 function ProgressBar({ pct }: { pct: number }) {
@@ -114,7 +103,7 @@ function CheckingState() {
             <Trans>Checking for Updates…</Trans>
           </span>
           <span className="block text-sm mt-1.5 font-medium" style={{ color: 'var(--text-muted)' }}>
-            <Trans>Querying GitHub releases</Trans>
+            <Trans>Checking the configured update channel</Trans>
           </span>
         </span>
       </div>
@@ -211,7 +200,7 @@ function AvailableState({
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <Button
           variant="secondary"
           size="md"
@@ -220,22 +209,6 @@ function AvailableState({
         >
           <RotateCcw className="h-3.5 w-3.5" />
           <Trans>Check for Updates</Trans>
-        </Button>
-        <Button
-          variant="secondary"
-          size="md"
-          className="inline-flex items-center justify-center gap-1.5"
-          onClick={() => {
-            void openExternal(`https://github.com/Open-Resin-Alliance/DragonFruit/releases/tag/v${info.version}`);
-          }}
-          style={{
-            borderColor: 'color-mix(in srgb, var(--accent-secondary), var(--border-subtle) 45%)',
-            background: 'color-mix(in srgb, var(--accent-secondary), var(--surface-1) 86%)',
-            color: 'var(--accent-secondary)',
-          }}
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-          <Trans>View on GitHub</Trans>
         </Button>
         <Button
           variant="tinted-accent"
@@ -265,7 +238,7 @@ function AvailableState({
       >
         <div className="space-y-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
           <p>
-            <Trans>DragonFruit will <span style={{ color: 'var(--text-strong)', fontWeight: 600 }}>download, verify and install</span> the update, then restart automatically.</Trans>
+            <Trans>The update package will <span style={{ color: 'var(--text-strong)', fontWeight: 600 }}>download, verify and install</span>, then restart automatically.</Trans>
           </p>
           <p>
             <Trans>Please <span style={{ color: 'var(--text-strong)', fontWeight: 600 }}>save your scene and any unsaved progress</span> before continuing.</Trans>
@@ -341,7 +314,7 @@ function InstallingState() {
             <Trans>Installing Update…</Trans>
           </span>
           <span className="block text-sm mt-1.5 font-medium" style={{ color: 'var(--text-muted)' }}>
-            <Trans>The update is being installed. DragonFruit will restart automatically.</Trans>
+            <Trans>The update is being installed. 3DRESIN will restart automatically.</Trans>
           </span>
         </span>
       </div>
@@ -371,7 +344,7 @@ function InstalledState() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>
-            <Trans>Update installed. DragonFruit will restart.</Trans>
+            <Trans>Update installed. 3DRESIN will restart.</Trans>
           </span>
         </span>
       </div>
@@ -400,36 +373,13 @@ function ExternalState() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>
-            <Trans>Managed by Flatpak</Trans>
+            <Trans>In-app updates are unavailable</Trans>
           </span>
           <span className="block text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            <Trans>DragonFruit for Linux ships as a Flatpak, so updates are installed outside the app.</Trans>
+            <Trans>This 3DRESIN build has no independent update channel configured yet.</Trans>
           </span>
         </span>
-        <button
-          type="button"
-          onClick={() => void openExternal(LINUX_RELEASES_URL)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-all duration-150"
-          style={{
-            color: 'var(--text-muted)',
-            borderColor: 'var(--border-subtle)',
-            background: 'var(--surface-2)',
-          }}
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-          <Trans>Releases</Trans>
-        </button>
       </div>
-      <code
-        className="mt-2 block rounded-md border px-2 py-1.5 text-[11px]"
-        style={{
-          borderColor: 'var(--border-subtle)',
-          background: 'var(--surface-1)',
-          color: 'var(--text-muted)',
-        }}
-      >
-        flatpak update {FLATPAK_APP_ID}
-      </code>
     </div>
   );
 }

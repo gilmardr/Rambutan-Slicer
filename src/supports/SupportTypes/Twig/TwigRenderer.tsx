@@ -45,7 +45,7 @@ export const TwigRenderer = React.memo(function TwigRenderer({
   isInteractable = true,
   deferStraightShaftsToSceneBatch = false,
   deferInteractionToSceneBatch = false,
-  baseColor = '#ff8800',
+  baseColor = '#78c63f',
   hoverColor,
   selectedColor = '#80fffd',
 }: TwigRendererProps) {

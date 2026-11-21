@@ -9,6 +9,7 @@ import dynamic from 'next/dynamic';
 import * as THREE from 'three';
 import { AlertTriangle } from 'lucide-react';
 import { OrbitControls } from '@react-three/drei';
+import { DistanceMeasurementOverlay } from '@/features/measurement/DistanceMeasurementOverlay';
 import { ZUpGizmoViewcube } from './ZUpGizmoViewcube';
 import { ZUpGizmoHelper } from './ZUpGizmoHelper';
 import {
@@ -23,6 +24,12 @@ import { IslandOverhangOverlay } from '@/components/scene/IslandOverhangOverlay'
 import { SupportBlockerOverlay } from '@/features/support-blockers/SupportBlockerOverlay';
 import { useSupportBlockerSceneBindings } from '@/features/support-blockers/useSupportBlockerSceneBindings';
 import { subscribeSupportBlockers, isSupportBlockerStrokeActive } from '@/supports/autoSupport/supportBlockers';
+import { useSupportPaintingSceneBindings } from '@/features/support-paint/useSupportPaintingSceneBindings';
+import { subscribeSupportPainting, isSupportPaintingStrokeActive } from '@/features/support-paint/supportPainting';
+import { SupportPaintingOverlay } from '@/features/support-paint/SupportPaintingOverlay';
+import { SupportProjectionOverlay } from '@/features/support-projection/SupportProjectionOverlay';
+import { useSupportProjectionSceneBindings } from '@/features/support-projection/useSupportProjectionSceneBindings';
+import { subscribeSupportProjection, isSupportProjectionStrokeActive } from '@/features/support-projection/supportProjection';
 import type { DetectedIsland } from '@/volumeAnalysis/Islands/types';
 import { IslandVoxelVisualization } from '@/components/scene/IslandVoxelVisualization';
 import { IslandIdLabels } from '@/components/scene/IslandIdLabels';
@@ -36,6 +43,7 @@ import type { IslandMarker } from '@/volumeAnalysis/IslandScan/islandOverlayLogi
 import type { ScanResults } from '@/volumeAnalysis/IslandScan/ScanOrchestrator';
 import type { TransformMode, ModelTransform } from '@/hooks/useModelTransform';
 import type { LimitationCode, SupportMode, WarningCode } from '@/supports/types';
+import type { SupportSettings } from '@/supports/Settings/types';
 import { contactEndpointsFor, getSupportTypeDescriptor, hostKnotFieldsFor, INLINE_ROOT_TYPES, previewTypesByPriority, SUPPORT_COLLECTION_KEYS, SUPPORT_TYPES, type SupportTypeId } from '@/supports/supportTypeRegistry';
 import { EMPTY_PLACEMENT_ACTIVE, EMPTY_PLACEMENT_PREVIEWS, type SupportPlacementActive, type SupportPlacementPreviews } from '@/supports/rendering';
 import { collectRaftBaseCirclesByModel, raftFootprintSourceRefs, RAFT_UNASSIGNED_MODEL_KEY } from '@/supports/Rafts/Crenelated/raftFootprintCircles';
@@ -346,6 +354,18 @@ function resolveTrackpadGestureAction(
 }
 
 const EMPTY_MODEL_ID_LIST: readonly string[] = Object.freeze([]);
+const PEARL_MODEL_COLOR = '#f3f0e8';
+const LOGO_RED_MODEL_COLOR = '#ed0921';
+// Scene files can retain an older app default in per-model colors.
+const LEGACY_DEFAULT_MODEL_COLORS = new Set(['#a3a3a3', LOGO_RED_MODEL_COLOR]);
+
+function getModelBaseColor(color: string | undefined, fallback: string): string {
+  return color && LEGACY_DEFAULT_MODEL_COLORS.has(color.toLowerCase()) ? fallback : color || fallback;
+}
+
+function usesLogoRedModelColor(mode: SupportMode | undefined, supportModelColorMapEnabled: boolean): boolean {
+  return mode === 'export' || (mode === 'support' && !supportModelColorMapEnabled);
+}
 
 const FLOATING_PANEL_RIGHT_INSET_PX = 12;
 // Drei GizmoHelper positions by gizmo center, not right edge.
@@ -501,6 +521,7 @@ export function SceneCanvas({
   overlayOpacity,
   overlaySelectedIslandId,
   showOverhangs = true,
+  showMillimeterRuler = false,
   materialRoughness,
   bakedAoIntensity,
   scanResults,
@@ -529,6 +550,7 @@ export function SceneCanvas({
   onTransformEnd,
   showIslandIdLabels,
   mode,
+  supportModelColorMapEnabled = false,
   onSupportClick,
   onHolePunchClick,
   onHolePunchHover,
@@ -537,6 +559,7 @@ export function SceneCanvas({
   organicCutKeyGizmo,
   onSupportHover,
   onActiveModelChange,
+  selectModelsForSupports = false,
   onMarqueeSelectionChange,
   placementPreviews = EMPTY_PLACEMENT_PREVIEWS,
   jointPlacementPreview,
@@ -580,11 +603,13 @@ export function SceneCanvas({
   deferCameraIntro = false,
   freezeViewportActive = false,
   cavityGeometryByModelId,
+  focusPointRequest,
   onClearSelection,
   onNewDeviceDetected,
 }: {
   models?: LoadedModel[];
   cavityGeometryByModelId?: Map<string, THREE.BufferGeometry>;
+  focusPointRequest?: { runId: number; center: [number, number, number]; radiusMm: number } | null;
   onClearSelection?: () => void;
   activeModelId?: string | null;
   visualActiveModelId?: string | null;
@@ -659,6 +684,7 @@ export function SceneCanvas({
   overlayOpacity?: number;
   overlaySelectedIslandId?: number | null;
   showOverhangs?: boolean;
+  showMillimeterRuler?: boolean;
   ambientIntensity?: number;
   directionalIntensity?: number;
   headlightIntensity?: number;
@@ -714,7 +740,8 @@ export function SceneCanvas({
   ) => void;
   showIslandIdLabels?: boolean;
   mode?: SupportMode;
-  onSupportClick?: (hit: THREE.Intersection) => void;
+  supportModelColorMapEnabled?: boolean;
+  onSupportClick?: (hit: THREE.Intersection, settingsOverride?: SupportSettings) => void;
   onHolePunchClick?: (hit: THREE.Intersection) => void;
   onHolePunchHover?: (hit: THREE.Intersection | null) => void;
   onOrganicCutClick?: (hit: THREE.Intersection) => void;
@@ -728,6 +755,7 @@ export function SceneCanvas({
   organicCutKeyGizmo?: React.ReactNode;
   onSupportHover?: (hit: THREE.Intersection | null) => void;
   onActiveModelChange?: (id: string | null, options?: { selectionMode?: 'single' | 'toggle' | 'add' }) => void;
+  selectModelsForSupports?: boolean;
   onMarqueeSelectionChange?: (ids: string[]) => void;
   /** Live placement previews, keyed by type. */
   placementPreviews?: SupportPlacementPreviews;
@@ -1003,7 +1031,7 @@ export function SceneCanvas({
     if (modelsProp.length > 0) return modelsProp;
 
     if (geom?.geometry) {
-      const fallbackColor = meshColor ?? '#a3a3a3';
+      const fallbackColor = meshColor ?? '#f3f0e8';
       const visible = meshVisible ?? true;
 
       return [
@@ -1103,8 +1131,8 @@ export function SceneCanvas({
   );
 
   const supportColorsByModelId = React.useMemo(() => {
-    const fallbackColor = meshColor ?? '#a3a3a3';
-    const entries = models.map((model) => [model.id, model.color || fallbackColor] as const);
+    const fallbackColor = meshColor ?? '#f3f0e8';
+    const entries = models.map((model) => [model.id, getModelBaseColor(model.color, fallbackColor)] as const);
     return Object.fromEntries(entries);
   }, [meshColor, models]);
 
@@ -1668,10 +1696,22 @@ export function SceneCanvas({
     containerRef,
   });
   useSupportBlockerSceneBindings({ mode, transformMode });
+  useSupportPaintingSceneBindings({ mode, transformMode, activeModelId });
+  useSupportProjectionSceneBindings({ mode, transformMode });
   const blockerStrokeActive = React.useSyncExternalStore(
     subscribeSupportBlockers,
     isSupportBlockerStrokeActive,
     isSupportBlockerStrokeActive,
+  );
+  const supportPaintingStrokeActive = React.useSyncExternalStore(
+    subscribeSupportPainting,
+    isSupportPaintingStrokeActive,
+    isSupportPaintingStrokeActive,
+  );
+  const supportProjectionStrokeActive = React.useSyncExternalStore(
+    subscribeSupportProjection,
+    isSupportProjectionStrokeActive,
+    isSupportProjectionStrokeActive,
   );
 
   const [isCameraBelowBuildPlate, setIsCameraBelowBuildPlate] = React.useState(false);
@@ -1680,7 +1720,7 @@ export function SceneCanvas({
   const [gizmoColors, setGizmoColors] = React.useState({
     face: '#1f2937',
     text: '#f8fafc',
-    accent: '#baf72e',
+    accent: '#ffb45d',
     chip: '#20242c',
     chipBorder: '#3a3f4b',
   });
@@ -1719,14 +1759,16 @@ export function SceneCanvas({
       states.set(model.id, scope === 'other'
         ? {
             scope,
-            dimmedColor: new THREE.Color(model.color || meshColor || '#c8c8ce')
+            dimmedColor: new THREE.Color(usesLogoRedModelColor(mode, supportModelColorMapEnabled)
+              ? LOGO_RED_MODEL_COLOR
+              : getModelBaseColor(model.color, meshColor || PEARL_MODEL_COLOR))
               .multiplyScalar(SCENERY_DIM)
               .getStyle(),
           }
         : { scope });
     }
     return states;
-  }, [models, meshColor, plateFrames, activePlateId, plates]);
+  }, [models, meshColor, plateFrames, activePlateId, plates, mode, supportModelColorMapEnabled]);
 
   /** A model on another bed is not what F should frame while you work on this one. */
   const isModelFocusable = React.useCallback(
@@ -1799,9 +1841,9 @@ export function SceneCanvas({
     _(msg({ message: 'Top', comment: 'View cube face (seen from above), rendered uppercase inside a small 3D cube. Keep it as short as possible.' })),
     _(msg({ message: 'Bottom', comment: 'View cube face (seen from below), rendered uppercase inside a small 3D cube. Keep it as short as possible.' })),
   ]), [_, frontFaceLabel]);
-  const hoverTintColor = hoverColor ?? '#ec2a77';
-  const selectedTintColor = selectionColor ?? '#ec2a77';
-  const likelySupportGeometryTintColor = '#c8752a';
+  const hoverTintColor = hoverColor ?? '#3bd2c6';
+  const selectedTintColor = selectionColor ?? '#f3f0e8';
+  const likelySupportGeometryTintColor = '#78c63f';
 
   // One walk per state change, keyed by model, so the per-model bounds callback
   // below does not re-walk every collection for every model.
@@ -2209,19 +2251,15 @@ export function SceneCanvas({
   }, [outOfBoundsModels]);
 
   const activeModelVisualColor = React.useMemo(() => {
-    const fallbackColor = meshColor ?? '#a3a3a3';
+    const fallbackColor = meshColor ?? '#f3f0e8';
     if (!colorActiveModelId) return fallbackColor;
     const model = models.find((m) => m.id === colorActiveModelId);
     const isCommittedActive = !!committedActiveModelId && colorActiveModelId === committedActiveModelId;
     if (isCommittedActive) return '#3b82f6';
-    return model?.color || fallbackColor;
+    return getModelBaseColor(model?.color, fallbackColor);
   }, [colorActiveModelId, committedActiveModelId, meshColor, models]);
 
-  const supportHoverTintColor = React.useMemo(() => {
-    if (activeModelId) return '#c8752a';
-    if (hoveredModelId) return '#c8752a';
-    return '#a3a3a3';
-  }, [activeModelId, hoveredModelId]);
+  const supportHoverTintColor = '#78c63f';
   const supportHoverModelId = modelPickerEnabled ? hoveredModelId : null;
 
   const suppressSupportSelectionAndHover = !modelPickerEnabled || (mode === 'prepare' && transformMode === 'transform');
@@ -2426,7 +2464,7 @@ export function SceneCanvas({
         }
       };
 
-      const accent = tryColor('--accent-secondary', '#baf72e');
+      const accent = tryColor('--accent-secondary', '#ffb45d');
       // Derive face/text colors from theme surface/text tokens.
       // --surface-1 is the panel background; --text-strong is primary text.
       const face = tryColor('--surface-1', '#1f2937');
@@ -3286,20 +3324,23 @@ export function SceneCanvas({
 
     const selectedSupportIds: string[] = [];
 
-    // Support mode only draws the active model's supports (SupportRenderer's
-    // `restrictToActiveModel`), so the marquee must not reach the rest.
-    const restrictedToModelId = activeModelId || null;
+    // Support mode draws supports for every selected model and falls back to
+    // the active model when the selection is empty.
+    const restrictedModelIds = selectedModelIds?.length
+      ? new Set(selectedModelIds)
+      : activeModelId ? new Set([activeModelId]) : null;
 
     for (const shape of supportMarqueeShapes) {
-      if (restrictedToModelId && shape.modelId !== restrictedToModelId) continue;
+      if (restrictedModelIds && (!shape.modelId || !restrictedModelIds.has(shape.modelId))) continue;
       if (shapeHitsMarquee(marqueeRect, projectSupportPoints(shape.points), shape.struts, marqueeMode)) {
         selectedSupportIds.push(shape.id);
       }
     }
 
     return selectedSupportIds;
-  }, [activeModelId, supportMarqueeShapes]);
+  }, [activeModelId, selectedModelIds, supportMarqueeShapes]);
 
+  const marqueeWorkspace = selectModelsForSupports ? 'prepare' : mode;
   const {
     marqueeSelection,
     isMarqueeSelecting,
@@ -3309,11 +3350,11 @@ export function SceneCanvas({
   } = useMarqueeSelectionHandlers({
     containerRef,
     interactionResetToken: interactionResetNonce,
-    mode,
-    prepareMarqueeEnabled: Boolean(mode === 'prepare' && (onMarqueeSelectionChange || customPrepareMarqueeSelection?.enabled)),
+    mode: marqueeWorkspace,
+    prepareMarqueeEnabled: Boolean(marqueeWorkspace === 'prepare' && (onMarqueeSelectionChange || customPrepareMarqueeSelection?.enabled)),
     allowPrepareMarqueeFromHover: Boolean(customPrepareMarqueeSelection?.enabled),
     prepareMarqueePublishesModelSelectionEvents: !customPrepareMarqueeSelection?.enabled,
-    prepareMarqueeRequiresShift: !customPrepareMarqueeSelection?.enabled,
+    prepareMarqueeRequiresShift: !selectModelsForSupports && !customPrepareMarqueeSelection?.enabled,
     isGizmoDragging,
     isPostGizmoInteractionGuardActive,
     hoveredModelId,
@@ -3349,7 +3390,7 @@ export function SceneCanvas({
     }));
 
   const marqueeCandidateIdSet = React.useMemo(() => {
-    if (!marqueeSelection || mode !== 'prepare') return new Set<string>();
+    if (!marqueeSelection || marqueeWorkspace !== 'prepare') return new Set<string>();
 
     const dragDx = marqueeSelection.current.x - marqueeSelection.start.x;
     const dragDy = marqueeSelection.current.y - marqueeSelection.start.y;
@@ -3357,7 +3398,7 @@ export function SceneCanvas({
     if (dragDistanceSq < 16) return new Set<string>();
 
     return new Set(resolveMarqueeSelectedIds(marqueeSelection));
-  }, [marqueeSelection, mode, resolveMarqueeSelectedIds]);
+  }, [marqueeSelection, marqueeWorkspace, resolveMarqueeSelectedIds]);
 
   // Models the marquee would take if the drag ended now, so their supports can
   // tint along with them.
@@ -3367,7 +3408,7 @@ export function SceneCanvas({
   );
 
   const supportMarqueeCandidateIdSet = React.useMemo(() => {
-    if (!marqueeSelection || mode !== 'support') return new Set<string>();
+    if (!marqueeSelection || marqueeWorkspace !== 'support') return new Set<string>();
 
     const dragDx = marqueeSelection.current.x - marqueeSelection.start.x;
     const dragDy = marqueeSelection.current.y - marqueeSelection.start.y;
@@ -3375,7 +3416,7 @@ export function SceneCanvas({
     if (dragDistanceSq < 16) return new Set<string>();
 
     return new Set(resolveMarqueeSelectedSupportIds(marqueeSelection));
-  }, [marqueeSelection, mode, resolveMarqueeSelectedSupportIds]);
+  }, [marqueeSelection, marqueeWorkspace, resolveMarqueeSelectedSupportIds]);
 
   const lassoPointerIdRef = React.useRef<number | null>(null);
   const lassoPointerStartRef = React.useRef<{ x: number; y: number } | null>(null);
@@ -4375,6 +4416,8 @@ export function SceneCanvas({
    */
   const cameraInteractionEnabled = cameraInteractionCycleEnabled
     && !((mode === 'prepare' || mode === 'support') && transformMode === 'supportBlockers' && blockerStrokeActive)
+    && !(mode === 'support' && (transformMode === 'supportPainting' || transformMode === 'supportInline') && supportPaintingStrokeActive)
+    && !(mode === 'support' && transformMode === 'supportProjection' && supportProjectionStrokeActive)
     && !isGizmoDragging
     && !isMarqueeSelecting
     && !isPlacementActive
@@ -6399,6 +6442,7 @@ export function SceneCanvas({
           directionalIntensity={directionalIntensity ?? 0.3}
           headlightIntensity={headlightIntensity ?? 1.0}
         />
+        {mode === 'analysis' && <DistanceMeasurementOverlay />}
         <Helpers
           gridWidthMm={activeBuildVolumeSettings.widthMm}
           gridDepthMm={activeBuildVolumeSettings.depthMm}
@@ -6407,6 +6451,7 @@ export function SceneCanvas({
           buildPlateOpacity={(!thumbnailCaptureActive || includeBuildPlateDuringCapture) ? buildPlateOpacity : 0}
           showGrid={(!thumbnailCaptureActive || includeHelpersGridDuringCapture) && !hideGridHelpers}
           showBuildPlate={!thumbnailCaptureActive || includeBuildPlateDuringCapture}
+          showMillimeterRuler={showMillimeterRuler && !thumbnailCaptureActive}
           safetyMarginMm={activeBuildVolumeSettings.safetyMarginMm}
           frontLabel={frontFaceLabel}
           plateName={plateName}
@@ -6499,7 +6544,7 @@ export function SceneCanvas({
                 const answersPointer = modelAnswersPointer(modelPlateState?.scope ?? 'active', isSelectedModel);
                 const suppressModelInteraction = !answersPointer || !modelPickerEnabled || !cameraInteractionCycleEnabled || isGizmoDragging || isPostGizmoInteractionGuardActive || supportGizmoInteractionActive || isOrbitInteracting || isWheelZoomInteracting;
                 const interactionLodEnabled = (isOrbitInteracting || isWheelZoomInteracting || spaceMouseNavigationActive) && !isActive;
-                const supportNonSelectedOpacity = mode === 'support' && !!activeModelId && !isActive ? 0.5 : undefined;
+                const supportNonSelectedOpacity = mode === 'support' && !!activeModelId && !isActive && !isSelectedModel && !isMarqueeCandidate ? 0.5 : undefined;
                 const shouldHideDuplicateSourceModel = Boolean(
                   hideDuplicateSourceDuringApply
                   && duplicatePreviewModel
@@ -6508,8 +6553,13 @@ export function SceneCanvas({
                 const likelySupportGeometry = model.isSupportGeometry !== undefined
                   ? model.isSupportGeometry
                   : !!model.geometry.meshDefects?.nativeRepairReport?.likely_support_geometry;
-                const modelHoverTintColor = likelySupportGeometry ? likelySupportGeometryTintColor : hoverTintColor;
-                const modelSelectedTintColor = likelySupportGeometry ? likelySupportGeometryTintColor : selectedTintColor;
+                const logoRedModelColor = usesLogoRedModelColor(mode, supportModelColorMapEnabled);
+                const modelHoverTintColor = likelySupportGeometry
+                  ? likelySupportGeometryTintColor
+                  : logoRedModelColor ? LOGO_RED_MODEL_COLOR : hoverTintColor;
+                const modelSelectedTintColor = likelySupportGeometry
+                  ? likelySupportGeometryTintColor
+                  : logoRedModelColor ? LOGO_RED_MODEL_COLOR : selectedTintColor;
                 const isModelSelected = isCaptureTintModel
                   || (
                     isSelectedModel
@@ -6522,8 +6572,10 @@ export function SceneCanvas({
                 // workspace, where everything on every bed reads as selected, dimming it is the
                 // whole difference between the two beds.
                 const modelMeshColor = modelPlateState?.dimmedColor && !isModelSelected
-                  ? modelPlateState.dimmedColor
-                  : (model.color || meshColor);
+                    ? modelPlateState.dimmedColor
+                    : logoRedModelColor
+                      ? LOGO_RED_MODEL_COLOR
+                      : getModelBaseColor(model.color, meshColor || PEARL_MODEL_COLOR);
                 // Use live drag transform only during active/guarded gizmo interaction.
                 // Otherwise stale refs can mask immediate panel-driven updates (e.g. reset scale).
                 const liveDragTransformForRender = (
@@ -6603,6 +6655,7 @@ export function SceneCanvas({
                       blockerEditMode={blockerEditMode}
                       transform={animatedTransform}
                       mode={mode}
+                      supportModelColorMapEnabled={supportModelColorMapEnabled}
                       transformMode={transformMode}
                       isActiveModel={isActive}
                       onSmoothingGeometryActivate={onSmoothingGeometryActivate}
@@ -6628,7 +6681,7 @@ export function SceneCanvas({
                       outOfBoundsMax={shaderOutOfBoundsBounds?.max ?? null}
                       outOfBoundsStripeColor={outOfBoundsStripeColor}
                       supportPlacementGuideEnabled={!thumbnailCaptureActive && isActive && supportPlacementGuideEnabled}
-                      supportPlacementGuideColor="#baf72e"
+                      supportPlacementGuideColor="#f3f0e8"
                       supportPlacementGuideLineWidthMm={supportPlacementGuideLineWidthMm}
                       supportPlacementGuideOpacity={0.62}
                       suppressModelInteraction={suppressModelInteraction}
@@ -6700,6 +6753,22 @@ export function SceneCanvas({
                         geometry={model.geometry.geometry}
                         modelId={model.id}
                       />
+                      <SupportProjectionOverlay
+                        geometry={interiorView
+                          ? (cavityGeometryByModelId?.get(model.id) ?? model.geometry.geometry)
+                          : model.geometry.geometry}
+                        modelId={model.id}
+                        centerOffset={model.geometry.center}
+                      />
+                      {isActive && mode === 'support' && (transformMode === 'supportPainting' || transformMode === 'supportInline') && (
+                        <SupportPaintingOverlay
+                          geometry={interiorView
+                            ? (cavityGeometryByModelId?.get(model.id) ?? model.geometry.geometry)
+                            : model.geometry.geometry}
+                          modelId={model.id}
+                          centerOffset={model.geometry.center}
+                        />
+                      )}
                     </StlMesh>
                   </React.Fragment>
                 );
@@ -6711,7 +6780,7 @@ export function SceneCanvas({
                   <GhostPreviewInstances
                     geometry={duplicatePreviewModel.geometry.geometry}
                     center={duplicatePreviewModel.geometry.center}
-                    color={isLightTheme ? '#3a3a3a' : (duplicatePreviewModel.color ?? '#a3a3a3')}
+                    color={isLightTheme ? '#3a3a3a' : getModelBaseColor(duplicatePreviewModel.color, '#f3f0e8')}
                     transforms={effectiveDuplicatePreviewTransforms}
                     opacity={isLightTheme ? 0.45 : 0.22}
                     renderOrder={2}
@@ -6778,7 +6847,7 @@ export function SceneCanvas({
                       renderOrder={2}
                     >
                       <meshBasicMaterial
-                        color={duplicatePreviewModel.color ?? '#a3a3a3'}
+                        color={getModelBaseColor(duplicatePreviewModel.color, '#f3f0e8')}
                         transparent
                         opacity={0.22}
                         depthWrite={false}
@@ -6795,7 +6864,7 @@ export function SceneCanvas({
                     key={`arrange-array-preview-${group.model.id}`}
                     geometry={group.model.geometry.geometry}
                     center={group.model.geometry.center}
-                    color={isLightTheme ? '#3a3a3a' : (group.model.color ?? '#a3a3a3')}
+                    color={isLightTheme ? '#3a3a3a' : getModelBaseColor(group.model.color, '#f3f0e8')}
                     transforms={group.transforms}
                     opacity={isLightTheme ? 0.45 : 0.22}
                     renderOrder={2}
@@ -6918,7 +6987,7 @@ export function SceneCanvas({
                         />
                       </bufferGeometry>
                       <lineBasicMaterial
-                        color={modelId === activeModelId ? '#baf72e' : '#8be63d'}
+                        color={modelId === activeModelId ? '#fffdf8' : '#d7d0c2'}
                         transparent
                         opacity={0.86}
                         blending={THREE.AdditiveBlending}
@@ -6976,7 +7045,7 @@ export function SceneCanvas({
                   excludeModelId={duplicateSourceSupportPreviewModelId}
                   excludeModelIds={supportBaseExcludeModelIds}
                   hideRaftPrimitives={hideRaftPrimitives}
-                  hideRaftPrimitivesForInactiveModels={mode === 'support' && !!activeModelId}
+                  hideRaftPrimitivesForInactiveModels={false}
                   hidePlateContactPrimitives={hidePlateContactPrimitives}
                   clipLower={clipLower}
                   clipUpper={clipUpper}
@@ -7025,7 +7094,7 @@ export function SceneCanvas({
                   skipSourceZBounds={clipUpper == null || isLayerScrubbing}
                   y={(clipUpper ?? indicatorPlaneZ)!}
                   otherClipY={clipLower}
-                  color={clipUpper != null ? '#FFFFFF' : (indicatorPlaneColor ?? '#ec2a77')}
+                  color={clipUpper != null ? '#FFFFFF' : (indicatorPlaneColor ?? '#3bd2c6')}
                   planeWidthMm={crossSectionPlaneWidthMm}
                   planeHeightMm={crossSectionPlaneHeightMm}
                   planeOffsetMm={crossSectionPlaneOffsetMm}
@@ -7033,7 +7102,7 @@ export function SceneCanvas({
                   capDepthTest={clipUpper != null}
                   glowThicknessMm={clipUpper != null ? 0 : 0.11}
                   glowOpacity={clipUpper != null ? 0 : 0.44}
-                  glowColor={clipUpper != null ? undefined : (indicatorPlaneColor ?? '#ec2a77')}
+                  glowColor={clipUpper != null ? undefined : (indicatorPlaneColor ?? '#3bd2c6')}
                   visible={!hideCrossSectionCap && (clipUpper != null || indicatorPlaneZ != null)}
                   debugOverrides={topCapDebugOverrides}
                 />
@@ -7937,6 +8006,7 @@ export function SceneCanvas({
             orbitControlsRef={orbitControlsRef as React.MutableRefObject<{ target: THREE.Vector3; update: () => void } | null>}
             perspectiveFov={perspectiveFov}
             plateFocus={plateFocus}
+            focusPointRequest={focusPointRequest}
           />
         )}
         <CameraIntroController

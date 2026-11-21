@@ -58,7 +58,13 @@ type Translate = (descriptor: MessageDescriptor) => string;
 // Interpolating messages stay at module scope: React Compiler renames the locals they
 // read inside a component, which desyncs the ids from the compiled catalog.
 function formatTenonFilletTitle(translate: Translate, maxMm: number): string {
-  return translate(msg`Rounds the tenon's corners and tip. On this tenon the geometry accepts up to ${maxMm}mm — a wider or deeper tenon raises that ceiling.`);
+  return translate(msg`Rounds the tenon's corners and tip. On this tenon the geometry accepts up to ${maxMm}mm — a wider, deeper, or less tapered tenon raises that ceiling.`);
+}
+
+function formatPlugTitle(translate: Translate, index: number, active: boolean): string {
+  return active
+    ? translate(msg`Plug ${index} — editing`)
+    : translate(msg`Plug ${index} — click to edit`);
 }
 
 function formatLoopTitle(translate: Translate, loop: number, points: number, incomplete: boolean, active: boolean): string {
@@ -72,8 +78,18 @@ function formatLoopTitle(translate: Translate, loop: number, points: number, inc
     : translate(msg`Loop ${loop} — ${plural(points, { one: '# point', other: '# points' })} — click to edit`);
 }
 
-function maxTenonFilletMm(widthMm: number, depthMm: number): number {
-  const topHalfWidth = widthMm * TENON_TOP_SCALE * 0.5;
+function legacyTaperAngleDeg(widthMm: number, depthMm: number): number {
+  return Math.atan(widthMm / (4 * Math.max(depthMm, 0.01))) * (180 / Math.PI);
+}
+
+function topWidthScale(widthMm: number, depthMm: number, angleDeg: number | null): number {
+  if (angleDeg === null) return TENON_TOP_SCALE;
+  const insetMm = depthMm * Math.tan((Math.max(0, Math.min(45, angleDeg)) * Math.PI) / 180);
+  return Math.max(0.05, Math.min(1, (widthMm - 2 * insetMm) / widthMm));
+}
+
+function maxTenonFilletMm(widthMm: number, depthMm: number, taperAngleDeg: number | null = null): number {
+  const topHalfWidth = widthMm * topWidthScale(widthMm, depthMm, taperAngleDeg) * 0.5;
   const height = depthMm + TENON_BASE_OVERLAP_MM;
   const limit = Math.min(topHalfWidth * 0.999, height / 3);
   // Down to the field's step, so every reachable value is a value that renders.
@@ -101,10 +117,16 @@ export interface OrganicCutPanelState {
   tenonWidthMm: number;
   /** Tenon depth in mm — how far the tenon pokes into the body. */
   tenonDepthMm: number;
-  /** Tenon shape: 'frustum' (tapered box, rotation-locking) or 'dome' (half-sphere). */
-  tenonShape: 'frustum' | 'dome';
+  /** Shape of the registration tenon. */
+  tenonShape: 'frustum' | 'rectangular' | 'cylinder' | 'dome';
   /** Edge fillet radius (mm) — rounds the frustum's corners + tip. 0 = sharp. */
   tenonFilletMm: number;
+  /** Frustum side angle from vertical in degrees; null keeps the legacy 50% tip. */
+  tenonTaperAngleDeg: number | null;
+  /** Mortise mouth chamfer size in mm. 0 disables the chamfer. */
+  tenonChamferSizeMm: number;
+  /** Mortise mouth chamfer depth in mm. */
+  tenonChamferDepthMm: number;
   /**
    * Fit tolerance (mm): how much larger than the tenon the mortise is carved, on
    * every face. This is the print-fit knob — 0 is a press fit that needs force
@@ -130,6 +152,8 @@ export interface OrganicCutPanelState {
    * +normal side. True: swap them. Lets the user choose which part keeps the tenon.
    */
   tenonSwapSides: boolean;
+  /** When true, creates matching keys in both cut directions at the same anchor. */
+  tenonBothSides: boolean;
   /**
    * Tenon tilt (radians): how far the tenon leans off the cut normal, up to 45°.
    * Driven by the in-viewport aim gizmo (the green ring). The body is rigid — it
@@ -213,6 +237,14 @@ interface OrganicCutPanelProps {
   onRemoveLoop?: (index: number) => void;
   /** True when there's more than one loop, so removing is allowed. */
   canRemoveLoop?: boolean;
+  plugCount?: number;
+  activePlugIndex?: number;
+  onSelectPlug?: (index: number) => void;
+  onAddPlug?: () => void;
+  onAddOppositeSidePlug?: () => void;
+  canAddPlug?: boolean;
+  onRemovePlug?: () => void;
+  canRemovePlug?: boolean;
   onApply: () => void;
   isApplying?: boolean;
   canApply?: boolean;
@@ -258,6 +290,14 @@ export function OrganicCutPanel({
   canAddLoop = false,
   onRemoveLoop,
   canRemoveLoop = false,
+  plugCount = 1,
+  activePlugIndex = 0,
+  onSelectPlug,
+  onAddPlug,
+  onAddOppositeSidePlug,
+  canAddPlug = false,
+  onRemovePlug,
+  canRemovePlug = false,
   onApply,
   isApplying = false,
   canApply = false,
@@ -283,14 +323,18 @@ export function OrganicCutPanel({
   // one slider scales the OTHER by the same factor so the current width:depth
   // proportion is preserved (resize as a unit). Unlocked → set just that axis.
   const tenonDimMinMm = state.tenonShape === 'dome' ? DOME_MIN_WIDTH_MM : FRUSTUM_MIN_WIDTH_MM;
-  const tenonFilletMaxMm = maxTenonFilletMm(state.tenonWidthMm, state.tenonDepthMm);
+  const tenonFilletMaxMm = maxTenonFilletMm(
+    state.tenonWidthMm,
+    state.tenonDepthMm,
+    state.tenonShape === 'frustum' ? state.tenonTaperAngleDeg : null,
+  );
 
   // Is there anything for each card's reset to undo? Derived from the defaults
   // rather than listed by hand, so a setting added later is covered on its own.
   // A tenon that doesn't fit blocks the cut. Rust refuses to place it anyway, so
   // cutting anyway would hand back two halves that don't locate, with the reason
   // buried in a report — better to stop at the button, next to the red tenon.
-  const tenonBlocksCut = state.generateTenon && !tenonFits;
+  const tenonBlocksCut = !tenonFits;
   const tenonSettingsDirty = (Object.keys(DEFAULT_TENON_SETTINGS) as (keyof typeof DEFAULT_TENON_SETTINGS)[])
     .some((k) => k !== 'generateTenon' && state[k] !== DEFAULT_TENON_SETTINGS[k]);
   const cutSettingsDirty = (Object.keys(DEFAULT_CUT_SETTINGS) as (keyof typeof DEFAULT_CUT_SETTINGS)[])
@@ -306,9 +350,16 @@ export function OrganicCutPanel({
     setState({
       tenonWidthMm: widthMm,
       tenonDepthMm: depthMm,
-      tenonFilletMm: Math.min(state.tenonFilletMm, maxTenonFilletMm(widthMm, depthMm)),
+      tenonFilletMm: Math.min(
+        state.tenonFilletMm,
+        maxTenonFilletMm(
+          widthMm,
+          depthMm,
+          state.tenonShape === 'frustum' ? state.tenonTaperAngleDeg : null,
+        ),
+      ),
     });
-  }, [clampFloat, tenonDimMinMm, setState, state.tenonDepthMm, state.tenonFilletMm, state.tenonWidthMm]);
+  }, [clampFloat, tenonDimMinMm, setState, state.tenonDepthMm, state.tenonFilletMm, state.tenonShape, state.tenonTaperAngleDeg, state.tenonWidthMm]);
 
   const setDomeDim = React.useCallback((axis: 'width' | 'depth', next: number) => {
     const clamped = clampFloat(next, tenonDimMinMm, TENON_DIM_MAX_MM, 1);
@@ -541,14 +592,70 @@ export function OrganicCutPanel({
               Both cut modes: the contour cut frames it on the membrane, the flat
               cut on the plane's own cross-section. */}
           <div className="rounded-md border p-2 space-y-1.5" style={cardStyle}>
-              {/* No Tenon vs shape in one control — the same segmented selector as
-                  Cut Mode. No Tenon cuts the halves without a tenon; Frustum/Dome
-                  turns the tenon on with that shape. */}
-              <div className="grid grid-cols-3 gap-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="ui-meta" style={{ color: 'var(--text-muted)' }}>
+                  <Trans>Registration plugs</Trans>{plugCount > 1 ? ` (${plugCount})` : ''}
+                </span>
+                <button
+                  type="button"
+                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-[var(--surface-2)] disabled:opacity-40"
+                  onClick={onRemovePlug}
+                  disabled={disabled || isApplying || !canRemovePlug}
+                  title={canRemovePlug ? _(msg`Remove the selected plug.`) : _(msg`Keep at least one plug slot; choose No Tenon to cut without registration.`)}
+                  aria-label={_(msg`Remove selected plug`)}
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+                {[...Array(plugCount).keys()].map((index) => {
+                  const active = index === activePlugIndex;
+                  return (
+                    <Button
+                      key={index}
+                      variant="secondary"
+                      size="auto"
+                      className="!h-7 !min-w-7 whitespace-nowrap px-1.5 text-[10px] disabled:opacity-60"
+                      onClick={() => onSelectPlug?.(index)}
+                      disabled={disabled || isApplying}
+                      style={active ? activeModeStyle : undefined}
+                      title={formatPlugTitle(_, index + 1, active)}
+                    >
+                      {index + 1}
+                    </Button>
+                  );
+                })}
                 <Button
                   variant="secondary"
                   size="auto"
-                  className="!h-8 whitespace-nowrap px-1.5 text-[10px] sm:text-[11px]"
+                  className="!h-7 !min-w-7 whitespace-nowrap px-1.5 text-[11px] disabled:opacity-60"
+                  onClick={onAddPlug}
+                  disabled={disabled || isApplying || !canAddPlug}
+                  title={_(msg`Add an independently positioned plug to this cut.`)}
+                  aria-label={_(msg`Add registration plug`)}
+                >
+                  +
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="auto"
+                  className="!h-7 whitespace-nowrap px-1.5 text-[10px] disabled:opacity-60"
+                  onClick={onAddOppositeSidePlug}
+                  disabled={disabled || isApplying || !canAddPlug || !state.generateTenon}
+                  title={_(msg`Add a matching plug beside this one on the opposite cut half.`)}
+                  aria-label={_(msg`Add opposite-side registration plug`)}
+                >
+                  <Trans>Opposite side</Trans>
+                </Button>
+              </div>
+              {/* No Tenon cuts without registration; the other buttons choose the
+                  shape and turn the tenon on. */}
+              <div className="grid grid-cols-2 gap-1">
+                <Button
+                  variant="secondary"
+                  size="auto"
+                  className="col-span-2 !h-8 whitespace-nowrap px-1.5 text-[10px] sm:text-[11px]"
                   onClick={() => setState({ generateTenon: false })}
                   disabled={disabled || isApplying}
                   style={!state.generateTenon ? activeModeStyle : undefined}
@@ -572,7 +679,7 @@ export function OrganicCutPanel({
                       showPreview: true,
                       tenonFilletMm: Math.min(
                         state.tenonFilletMm,
-                        maxTenonFilletMm(state.tenonWidthMm, state.tenonDepthMm),
+                        maxTenonFilletMm(state.tenonWidthMm, state.tenonDepthMm, state.tenonTaperAngleDeg),
                       ),
                     })
                   }
@@ -604,6 +711,40 @@ export function OrganicCutPanel({
                   title={_(msg`Half-sphere tenon — locates the parts but allows rotation.`)}
                 >
                   <Trans>Dome</Trans>
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="auto"
+                  className="!h-8 whitespace-nowrap px-1.5 text-[10px] sm:text-[11px]"
+                  onClick={() => setState({
+                    generateTenon: true,
+                    tenonShape: 'rectangular',
+                    showPreview: true,
+                    tenonFilletMm: Math.min(
+                      state.tenonFilletMm,
+                      maxTenonFilletMm(
+                        state.tenonWidthMm,
+                        state.tenonDepthMm,
+                        state.tenonShape === 'frustum' ? state.tenonTaperAngleDeg : null,
+                      ),
+                    ),
+                  })}
+                  disabled={disabled || isApplying || !canApply}
+                  style={state.generateTenon && state.tenonShape === 'rectangular' ? activeModeStyle : undefined}
+                  title={_(msg`Rectangular tenon with straight walls.`)}
+                >
+                  <Trans>Rectangular</Trans>
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="auto"
+                  className="!h-8 whitespace-nowrap px-1.5 text-[10px] sm:text-[11px]"
+                  onClick={() => setState({ generateTenon: true, tenonShape: 'cylinder', showPreview: true })}
+                  disabled={disabled || isApplying || !canApply}
+                  style={state.generateTenon && state.tenonShape === 'cylinder' ? activeModeStyle : undefined}
+                  title={_(msg`Cylindrical tenon for round, rotation-free alignment.`)}
+                >
+                  <Trans>Cylinder</Trans>
                 </Button>
               </div>
               {state.generateTenon && (
@@ -639,7 +780,7 @@ export function OrganicCutPanel({
                   <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
                     <div className={`col-span-2 grid items-start gap-x-2 ${state.tenonShape === 'dome' ? 'grid-cols-[1fr_auto_1fr]' : 'grid-cols-2'}`}>
                       <CompactNumberField
-                        label={_(msg`Tenon Width`)}
+                        label={state.tenonShape === 'cylinder' ? _(msg`Tenon Diameter`) : _(msg`Tenon Width`)}
                         value={state.tenonWidthMm}
                         onChange={(value) =>
                           state.tenonShape === 'dome'
@@ -651,7 +792,7 @@ export function OrganicCutPanel({
                         step={0.5}
                         unit="mm"
                         disabled={disabled || isApplying}
-                        ariaLabel={_(msg`Tenon width in millimeters`)}
+                        ariaLabel={state.tenonShape === 'cylinder' ? _(msg`Tenon diameter in millimeters`) : _(msg`Tenon width in millimeters`)}
                       />
                       {/* Dome only: link width:depth so the dome resizes as a
                           unit (keeps its shape); unlink for free oblong control.
@@ -697,6 +838,29 @@ export function OrganicCutPanel({
                     </div>
                     {state.tenonShape === 'frustum' && (
                       <CompactNumberField
+                        label={_(msg`Taper Angle`)}
+                        value={state.tenonTaperAngleDeg ?? Number(legacyTaperAngleDeg(state.tenonWidthMm, state.tenonDepthMm).toFixed(1))}
+                        onChange={(value) => {
+                          const angle = clampFloat(value, 0, 45, 1);
+                          setState({
+                            tenonTaperAngleDeg: angle,
+                            tenonFilletMm: Math.min(
+                              state.tenonFilletMm,
+                              maxTenonFilletMm(state.tenonWidthMm, state.tenonDepthMm, angle),
+                            ),
+                          });
+                        }}
+                        min={0}
+                        max={45}
+                        step={0.5}
+                        unit="°"
+                        disabled={disabled || isApplying}
+                        ariaLabel={_(msg`Frustum side taper angle from vertical in degrees`)}
+                        title={_(msg`Set the frustum side angle from vertical. Higher angles narrow the tip faster; 0 degrees keeps vertical sides. The untouched legacy shape keeps its existing half-width tip.`)}
+                      />
+                    )}
+                    {(state.tenonShape === 'frustum' || state.tenonShape === 'rectangular') && (
+                      <CompactNumberField
                         label={_(msg`Edge Fillet`)}
                         value={state.tenonFilletMm}
                         onChange={(value) => setState({ tenonFilletMm: clampFloat(value, 0, tenonFilletMaxMm, 2) })}
@@ -722,26 +886,72 @@ export function OrganicCutPanel({
                       disabled={disabled || isApplying}
                       ariaLabel={_(msg`Tenon to mortise fit tolerance in millimeters (0 = press fit)`)}
                       title={_(msg`Slack between tenon and mortise, on every face. 0 = press fit (needs force). 0.1mm is a slide fit on a well-calibrated printer; raise it if the halves won't go together.`)}
-                      className={state.tenonShape === 'frustum' ? undefined : 'col-span-2'}
+                      className={state.tenonShape === 'frustum' || state.tenonShape === 'rectangular' ? undefined : 'col-span-2'}
                     />
                   </div>
-                  {/* Flip + reset actions: which half gets the tenon, and back to
-                      defaults. The reset leaves the No Tenon/on choice alone. */}
+                  {state.tenonShape !== 'dome' && (
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <CompactNumberField
+                        label={_(msg`Mortise Chamfer`)}
+                        value={state.tenonChamferSizeMm}
+                        onChange={(value) => setState({ tenonChamferSizeMm: clampFloat(value, 0, 5, 2) })}
+                        min={0}
+                        max={5}
+                        step={0.1}
+                        unit="mm"
+                        disabled={disabled || isApplying}
+                        ariaLabel={_(msg`Mortise entrance chamfer size in millimeters; zero disables the chamfer`)}
+                        title={_(msg`Widens the mortise opening to guide the tenon into place. Set to 0 for a square opening.`)}
+                      />
+                      <CompactNumberField
+                        label={_(msg`Chamfer Depth`)}
+                        value={state.tenonChamferDepthMm}
+                        onChange={(value) => setState({ tenonChamferDepthMm: clampFloat(value, 0, 5, 2) })}
+                        min={0}
+                        max={5}
+                        step={0.1}
+                        unit="mm"
+                        disabled={disabled || isApplying || state.tenonChamferSizeMm <= 0}
+                        ariaLabel={_(msg`Mortise entrance chamfer depth in millimeters`)}
+                        title={_(msg`Depth of the angled lead-in at the mortise opening.`)}
+                      />
+                    </div>
+                  )}
+                  {/* Direction persists with this plug and is inherited by new plugs. */}
                   <div className="flex gap-1 pt-1">
                     <Button
                       variant="secondary"
                       size="auto"
                       className="flex-1 !min-h-8 whitespace-nowrap px-1.5 text-[10px] sm:text-[11px] disabled:opacity-60"
-                      onClick={() => setState({ tenonSwapSides: !state.tenonSwapSides })}
+                      onClick={() => setState({ tenonSwapSides: false, tenonBothSides: false })}
                       disabled={disabled || isApplying}
-                      title={_(msg`Swap which cut half receives the tenon and which receives the mortise.`)}
-                      style={disabled || isApplying ? undefined : {
-                        borderColor: 'color-mix(in srgb, var(--accent-secondary), var(--border-subtle) 62%)',
-                        color: 'color-mix(in srgb, var(--accent-secondary), var(--text-strong) 55%)',
-                        background: 'color-mix(in srgb, var(--accent-secondary), var(--surface-1) 95%)',
-                      }}
+                      title={_(msg`Place the key on the positive-normal half of the cut.`)}
+                      style={!state.tenonSwapSides && !state.tenonBothSides ? activeModeStyle : undefined}
                     >
-                      <Trans>Flip Tenon</Trans>
+                      <Trans>Above</Trans>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="auto"
+                      className="flex-1 !min-h-8 whitespace-nowrap px-1.5 text-[10px] sm:text-[11px] disabled:opacity-60"
+                      onClick={() => setState({ tenonSwapSides: true, tenonBothSides: false })}
+                      disabled={disabled || isApplying}
+                      title={_(msg`Place the key on the opposite half of the cut.`)}
+                      style={state.tenonSwapSides && !state.tenonBothSides ? activeModeStyle : undefined}
+                    >
+                      <Trans>Below</Trans>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="auto"
+                      className="flex-1 !min-h-8 whitespace-nowrap px-1.5 text-[10px] sm:text-[11px] disabled:opacity-60"
+                      onClick={() => setState({ tenonBothSides: true })}
+                      disabled={disabled || isApplying}
+                      title={_(msg`Place a matching key on both halves at the same anchor. New plugs inherit this setting.`)}
+                      aria-pressed={state.tenonBothSides}
+                      style={state.tenonBothSides ? activeModeStyle : undefined}
+                    >
+                      <Trans>Both</Trans>
                     </Button>
                     <Button
                       variant="secondary"
@@ -749,7 +959,7 @@ export function OrganicCutPanel({
                       className="flex-1 !min-h-8 whitespace-nowrap px-1.5 text-[10px] sm:text-[11px] disabled:opacity-60"
                       onClick={() => setState({ ...DEFAULT_TENON_SETTINGS, generateTenon: state.generateTenon })}
                       disabled={disabled || isApplying || !tenonSettingsDirty}
-                      title={_(msg`Put every tenon setting back to its default: shape, width, depth, fillet, fit tolerance, uniform scale, side and aim.`)}
+                      title={_(msg`Put every tenon setting back to its default: shape, width, depth, fillet, chamfer, fit tolerance, uniform scale, side and aim.`)}
                       style={disabled || isApplying || !tenonSettingsDirty ? undefined : {
                         borderColor: 'color-mix(in srgb, #f87171, var(--border-subtle) 45%)',
                         color: 'color-mix(in srgb, #f87171, var(--text-strong) 30%)',
@@ -767,7 +977,7 @@ export function OrganicCutPanel({
                   and by how much. (It used to have three, because the cut used to
                   shrink the tenon or swap it for a half-sphere behind the user's
                   back and had to confess to it afterwards.) */}
-              {state.generateTenon && !tenonFits && tenonDetail && (
+              {!tenonFits && tenonDetail && (
                 <div
                   className="rounded border px-2 py-1.5 text-[10px] leading-snug"
                   style={{

@@ -6,9 +6,11 @@ import {
   classificationForPayload,
   evaluateNativeRepairQualityGate,
   loadMeshGeometry,
+  loadStlGeometryFromBuffer,
   processGeometry,
 } from '../useStlGeometry';
 import type { MeshHealthReport } from '@/utils/meshRepair';
+import { countTriangles } from '@/utils/geometry';
 
 function ensureProgressEventPolyfill() {
   if (typeof globalThis.ProgressEvent !== 'undefined') return;
@@ -38,6 +40,18 @@ function buildTriangleObjDataUrl(): string {
   ].join('\n');
 
   return `data:text/plain;base64,${Buffer.from(obj, 'utf8').toString('base64')}`;
+}
+
+function buildFourTriangleAsciiStl(): Uint8Array {
+  const faces = [0, 3, 6, 9].map((offset) => `
+facet normal 0 0 1
+outer loop
+vertex ${offset} 0 0
+vertex ${offset + 1} 0 0
+vertex ${offset} 1 0
+endloop
+endfacet`);
+  return new TextEncoder().encode(`solid four-faces${faces.join('')}\nendsolid four-faces`);
 }
 
 function buildTriangleGeometryWithVertexColors(): THREE.BufferGeometry {
@@ -149,6 +163,17 @@ describe('loadMeshGeometry OBJ support', () => {
 
     assert.ok(position, 'expected OBJ position attribute to exist for uppercase extension');
     assert.equal(position.count, 3, 'expected one triangle (3 vertices) for uppercase extension');
+  });
+});
+
+describe('STL source statistics', () => {
+  it('retains the source triangle count for a four-face STL', async () => {
+    const result = await loadStlGeometryFromBuffer(buildFourTriangleAsciiStl(), {
+      _isTauriRuntime: () => false,
+    });
+
+    assert.equal(result.sourceTriangleCount, 4);
+    assert.equal(countTriangles(result.geometry), 4);
   });
 });
 

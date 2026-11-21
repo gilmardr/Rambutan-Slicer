@@ -3,5 +3,7 @@ preserve_hierarchy: true
 files:
   - source: /src/locales/en.po
     translation: /src/locales/%two_letters_code%.po
+    translation_replace:
+      pt.po: pt-BR.po
 bundles:
   - 2

@@ -34,6 +34,25 @@ export interface OrganicCutLoopPoint {
  */
 export type OrganicCutMode = 'plane' | 'contour';
 
+/** One independently positioned registration plug and its matching mortise. */
+export interface OrganicCutPlugSpec {
+  tenonWidthMm: number;
+  tenonDepthMm: number;
+  tenonShape: 'frustum' | 'rectangular' | 'cylinder' | 'dome';
+  tenonFilletMm: number;
+  tenonToleranceMm: number;
+  tenonAnchor: [number, number, number] | null;
+  tenonSwapSides: boolean;
+  tenonTiltRad: number;
+  tenonRollRad: number;
+  /** Mortise-mouth chamfer size in mm. Zero disables the entry chamfer. */
+  tenonChamferSizeMm?: number;
+  /** Mortise-mouth chamfer depth in mm. */
+  tenonChamferDepthMm?: number;
+  /** Frustum side angle from vertical, in degrees; absent preserves the legacy tip. */
+  tenonTaperAngleDeg?: number | null;
+}
+
 /** One organic cut: a closed loop plus the parameters that drive the wafer. */
 export interface OrganicCutSpec {
   /**
@@ -65,14 +84,21 @@ export interface OrganicCutSpec {
     generateTenon: boolean;
     tenonWidthMm: number;
     tenonDepthMm: number;
-    tenonShape: 'frustum' | 'dome';
+    tenonShape: 'frustum' | 'rectangular' | 'cylinder' | 'dome';
     tenonFilletMm: number;
     tenonToleranceMm: number;
     tenonAnchor: [number, number, number] | null;
     tenonSwapSides: boolean;
     tenonTiltRad: number;
     tenonRollRad: number;
+    tenonChamferSizeMm?: number;
+    tenonChamferDepthMm?: number;
+    tenonTaperAngleDeg?: number | null;
+    /** When present, these independently placed plugs replace the legacy single tenon. */
+    plugs?: OrganicCutPlugSpec[];
   }[];
+  /** Independently placed plugs for a flat cut. Omitted keeps the legacy single-tenon behavior. */
+  tenonPlugs?: OrganicCutPlugSpec[];
   /** Seam-line smoothing 0..1 (how much the cut line rounds through waypoints). */
   smoothing: number;
   /** Membrane smoothing 0..1 (how smooth/taut the curved cutter surface is). */
@@ -117,8 +143,8 @@ export interface OrganicCutSpec {
   tenonWidthMm?: number;
   /** Tenon depth in mm (how far the tenon pokes in). Serde field: `tenonDepthMm`. */
   tenonDepthMm?: number;
-  /** Tenon shape: 'frustum' (default) or 'dome'. Serde field: `tenonShape`. */
-  tenonShape?: 'frustum' | 'dome';
+  /** Registration shape: frustum, rectangular prism, cylinder or dome. Serde: `tenonShape`. */
+  tenonShape?: 'frustum' | 'rectangular' | 'cylinder' | 'dome';
   /** Edge fillet radius in mm (rounds frustum corners + tip). Serde: `tenonFilletMm`. */
   tenonFilletMm?: number;
   /**
@@ -141,6 +167,12 @@ export interface OrganicCutSpec {
   tenonTiltRad?: number;
   /** Tenon roll (radians): spin about the tenon's own axis. Serde: `tenonRollRad`. */
   tenonRollRad?: number;
+  /** Mortise-mouth chamfer size in mm. Zero keeps the existing sharp mouth. */
+  tenonChamferSizeMm?: number;
+  /** Mortise-mouth chamfer depth in mm. */
+  tenonChamferDepthMm?: number;
+  /** Frustum side angle from vertical, in degrees; absent preserves the legacy tip. */
+  tenonTaperAngleDeg?: number | null;
 }
 
 /**
@@ -190,11 +222,9 @@ export interface OrganicCutReport {
   /** Why we fell back to no-op, if we did (diagnostics). Empty on success. */
   detail?: string;
   /**
-   * Which registration tenon the cut placed: 'frustum', 'dome' (thin-part
-   * fallback), or 'none' (not requested / too thin). Always present on a
-   * contour cut.
+   * Which registration tenon the cut placed. Always present on a contour cut.
    */
-  tenonKind?: 'frustum' | 'dome' | 'none';
+  tenonKind?: 'frustum' | 'rectangular' | 'cylinder' | 'dome' | 'none';
   /** Reason the tenon shrank / fell back / was skipped (for an after-cut alert). */
   tenonDetail?: string;
   /**

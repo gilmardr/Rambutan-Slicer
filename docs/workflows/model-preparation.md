@@ -11,6 +11,25 @@ Model preparation sets up reliable geometry and orientation before supports.
 5. [Optional] Hollow the model and add hole punches for drainage.
 6. Verify bounding behavior and placement.
 
+The Prepare tool rail also has **Engraving** and **Solid Operations** icons
+after **Smooth**. Select one to open its panel and activate that workflow.
+These tools are available in Prepare only.
+
+## Read the build-plate dimensions
+
+In the top bar, click the ruler button labeled **Millimeter ruler: Off** to
+show both millimeter scales on the active plate. Click it again to hide them.
+The X scale is cyan and the Y scale is amber; their numbered marks advance in
+10 mm steps, and the final label on each edge gives that axis's total usable
+build dimension in millimeters. Shorter tick marks between the labels aid
+positioning.
+
+The scale tracks sit on the plate's outer rear and right borders. Their
+measurements follow the printer's usable X and Y build dimensions, even though
+the drawn plate rim extends slightly beyond that printable area. Only the
+active plate shows the scales. The toggle starts off each time the workspace is
+opened.
+
 ## Practical checks
 
 - Overhang-heavy regions are accessible for support contact.

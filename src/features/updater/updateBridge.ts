@@ -7,7 +7,6 @@
 
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { detectPlatform } from '@/hooks/usePlatform';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,22 +38,15 @@ function isTauriAvailable(): boolean {
 // Platform delivery
 // ---------------------------------------------------------------------------
 
-/** Where the latest DragonFruit release is published for Linux users. */
-export const LINUX_RELEASES_URL =
-  'https://github.com/Open-Resin-Alliance/DragonFruit/releases';
-
-/** Flatpak application id, for the `flatpak update` hint shown on Linux. */
-export const FLATPAK_APP_ID = 'org.openresinalliance.dragonfruit';
-
 /**
- * True when updates are installed outside the app.
- *
- * Linux ships only as a Flatpak bundle: the updater feed has no Linux entry,
- * and the sandbox cannot write over a running install anyway. Those users
- * update through Flatpak instead.
+ * Rambutan Slicer has no independent signed update feed yet. In-app updates
+ * (background check, Updates settings tab) stay off unless the build sets
+ * NEXT_PUBLIC_UPDATER_ENABLED=true. Next.js inlines this at build time.
  */
+export const UPDATER_ENABLED = process.env.NEXT_PUBLIC_UPDATER_ENABLED === 'true';
+
 export function updatesAreExternal(): boolean {
-  return detectPlatform() === 'linux';
+  return !UPDATER_ENABLED;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,13 +83,8 @@ export async function setUpdateChannel(channel: UpdateChannel): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * Check for updates using the given release channel.
- * Returns null if no update is available or the check fails.
- *
- * Internally calls the Rust `check_updates` command which:
- *  1. Picks the right GitHub Releases endpoint based on channel
- *  2. Uses the plugin's `UpdaterExt` API for the check
- *  3. Caches the `Update` object for subsequent download+install
+ * Check for updates using the configured release channel.
+ * Returns null until this build has an independent update feed.
  */
 export async function fetchUpdateInfo(
   channel?: UpdateChannel,
@@ -107,7 +94,7 @@ export async function fetchUpdateInfo(
     return null;
   }
   if (updatesAreExternal()) {
-    console.log('[updater] Linux ships as a Flatpak — skipping the update check');
+    console.log('[updater] No independent Rambutan Slicer update feed is configured');
     return null;
   }
   console.log('[updater] fetchUpdateInfo called, channel:', channel ?? 'null (Rust default)', 'allowSameVersion:', allowSameVersion);
@@ -157,6 +144,9 @@ export async function downloadAndInstall(
 ): Promise<void> {
   if (!isTauriAvailable()) {
     throw new Error('Updates are only available in the desktop app.');
+  }
+  if (updatesAreExternal()) {
+    throw new Error('In-app updates are not configured for this Rambutan Slicer build.');
   }
 
   // `perform_update` takes a Channel. Invoking without it fails argument

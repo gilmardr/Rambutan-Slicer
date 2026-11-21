@@ -4,6 +4,24 @@
 
 The `dragonfruit-islands` crate identifies **unsupported regions** (islands) in 3D printed models. An island is a contiguous group of solid pixels on a layer that has no support from the layer below — these regions will fail to print correctly on resin printers without added supports.
 
+Island records use 0-based scan-local layer indices, where scan layer 0 starts at
+the transformed model's minimum Z. Analysis list and hierarchy views convert
+those indices to the corresponding 0-based printer layer using that minimum Z
+and the active layer height. This keeps risk locations aligned with slices when
+the model is lifted above the build plate or starts between layer planes.
+`getSlicerLayerIndex(scanLayerIndex, scanMinZMm, layerHeightMm)` returns the
+zero-based result-layer index; `getSlicePreviewLayerNumber(...)` converts the
+same location to the preview's one-based layer number. The Analysis island list
+uses that number to open a fresh slice at the finding's first layer.
+
+`useIslandManager` exposes `scanFailure` when a scan does not complete. The
+failure records whether the native or JavaScript scanner failed and retains its
+technical message for the Analysis card's expandable details. A failed scan
+does not replace the previous result or its bounding box; clearing scan data
+also clears the failure. `createIslandScanFailure(engine, error)` in
+`src/volumeAnalysis/IslandScan/islandScanFailure.ts` normalizes this small
+result shape for both scanner paths.
+
 Ported from the TypeScript implementation in `src/volumeAnalysis/IslandScan/` to native Rust for performance. Achieves **7-8x faster island scanning** and **28x faster end-to-end** (including rasterization) compared to single-threaded TypeScript.
 
 ## Crate Structure
@@ -91,6 +109,11 @@ The RLE representation makes algorithm complexity proportional to **object perim
 
 ## Key Algorithms
 
+The frontend's island grouping in `src/volumeAnalysis/Islands/` shares
+`DisjointSet` for connectivity and index grouping. The walk-order and voxel
+consolidation paths supply different neighbor rules; the shared module only
+owns the union-find mechanics.
+
 ### RLE Operations (`rle.rs`)
 
 All operations work directly on sorted run lists, never decoding to dense grids:
@@ -131,7 +154,11 @@ Run with: `cargo nextest run -p dragonfruit-islands`
 
 ### Golden File Parity Tests
 
-Validates Rust output against TypeScript golden data across 5 synthetic meshes. Fixtures are **generated** (not checked in):
+Validates Rust output against TypeScript golden data across 5 synthetic meshes. The
+exporter imports the production `rle.ts` and `island.ts` modules so encoding,
+mask algebra, component labeling, and per-layer scanning have one implementation.
+Its cross-layer `IslandTracker` remains a compact local reference; it is not the
+production tracker. Fixtures are **generated** (not checked in):
 
 ```bash
 # Step 1: Generate golden fixtures from TypeScript (run from repo root)
@@ -222,6 +249,40 @@ run_island_scan_native() ──►  { paramsJson }   ──────►  spaw
 | `src-tauri/src/main.rs` | `run_island_scan_native` IPC command (uses `dragonfruit_islands::*` directly) |
 | `src/volumeAnalysis/IslandScan/nativeIslandScan.ts` | TS bridge (`runIslandScanNative()`) |
 | `src/volumeAnalysis/IslandScan/useIslandManager.ts` | React hook with `useNativeScan` toggle |
+
+## Inspect a finding in the sliced output
+
+The Support workspace's `IslandsPanel` can jump from its selected finding to
+the corresponding layer in the current plate's **actual sliced preview**. The
+page enables this action only when the active plate has a non-stale slice
+artifact. The target layer is derived from the finding's world-space contact
+height as `floor(baseZ / layerHeightMm) + 1`, then clamped to the artifact's
+layer count. The printing preview and the 3D cross-section move together.
+
+Voxel findings identify a rasterized layer estimate and show the scan's
+`pxMm` resolution. Minima and overhang findings are mesh-based estimates; the
+UI says to confirm them against the sliced layer. This is a visual comparison,
+not a claim that the mesh scan and final anti-aliased exposure mask are pixel
+identical. The action is unavailable when the plate has not been sliced or its
+slice is stale; those conditions must be resolved by slicing again.
+
+`IslandsPanel` accepts `canInspectSliceLayer` and
+`onInspectSliceLayer(layerIndex)`. The page owns the active slice artifact,
+clamps the requested layer, changes to the printing workspace, and updates its
+layer preview through `handlePrintingLayerChange`:
+
+```tsx
+<IslandsPanel
+  islands={islands}
+  hasGeometry={hasGeometry}
+  canInspectSliceLayer={hasCurrentPlateSlice}
+  onInspectSliceLayer={handleInspectSliceLayer}
+/>
+```
+
+Keep this navigation tied to the current, non-stale plate artifact. Do not
+derive a layer from a support-mode cross-section alone and call it a sliced
+result.
 
 ## Design Notes
 

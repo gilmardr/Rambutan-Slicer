@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useIsLinux } from '@/hooks/usePlatform';
 import { isAllowSameVersionEnabled } from '@/features/updater/debugForceSession';
 import {
   fetchUpdateInfo,
   downloadAndInstall,
   getUpdateChannel,
+  updatesAreExternal,
   type UpdateInfo,
   type DownloadProgress,
   type UpdateChannel,
@@ -32,15 +32,15 @@ export type UpdateState =
 // ---------------------------------------------------------------------------
 
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // once per day
-const STORAGE_KEY_LAST_CHECK = 'dragonfruit-updater-last-check';
+const STORAGE_KEY_LAST_CHECK = '3dresin-updater-last-check';
 
 const EXTERNAL_STATE: UpdateState = { status: 'external' };
 
 export function useUpdateChecker() {
   const [internalState, setState] = useState<UpdateState>({ status: 'idle' });
   const [autoCheckEnabled, setAutoCheckEnabled] = useState(true);
-  // Linux updates through Flatpak, not through the app.
-  const isExternal = useIsLinux();
+  // This fork has no independent signed update feed configured yet.
+  const isExternal = updatesAreExternal();
   const [channel, setChannel] = useState<UpdateChannel>('stable');
   const [channelLoaded, setChannelLoaded] = useState(false);
 
@@ -55,7 +55,7 @@ export function useUpdateChecker() {
   const state = isExternal ? EXTERNAL_STATE : internalState;
 
   const handleCheck = useCallback(async () => {
-    // Nothing to check: Flatpak installs the update, not the app.
+    // No independent update feed is configured for this build.
     if (isExternal) return;
 
     setState({ status: 'checking' });
@@ -75,17 +75,6 @@ export function useUpdateChecker() {
       }
 
       // If we got info back, the plugin found a newer version.
-      // Enrich body if missing (same-version reinstall has no notes in feed)
-      if (info && !info.body) {
-        try {
-          const ghRes = await fetch(`https://api.github.com/repos/Open-Resin-Alliance/DragonFruit/releases/tags/v${info.version}`);
-          if (ghRes.ok) {
-            const gh = await ghRes.json() as { body?: string; published_at?: string };
-            if (gh.body) info.body = gh.body as string;
-            if (gh.published_at && !info.date) info.date = gh.published_at as string;
-          }
-        } catch {}
-      }
       setState({ status: 'available', info });
 
       // Persist the last check timestamp.

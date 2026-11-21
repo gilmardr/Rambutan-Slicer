@@ -34,7 +34,7 @@ export const StumpRenderer = React.memo(function StumpRenderer({
     isHovered: propHovered,
     suppressHover,
     isInteractable = true,
-    baseColor = '#ff8800',
+    baseColor = '#78c63f',
     deferContactConesToSceneBatch = false,
     onContactDiskHudHoverChange,
 }: StumpRendererProps) {

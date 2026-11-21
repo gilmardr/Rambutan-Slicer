@@ -251,6 +251,12 @@ controller fires a `camera-fit-request` window event;
 the model properly instead of trusting navlib's fit distance. Interactive dollies
 still integrate navlib's axial delta as a real dolly.
 
+Analysis panels can pass `focusPointRequest` to `SceneCanvas` to focus a
+world-space point. Each request has a monotonically increasing `runId`, a
+`center` tuple and a `radiusMm`; `CameraFocusHotkeyController` uses the same
+projection-aware framing path as the focus hotkey. Keep the request optional so
+other scene callers do not need analysis state.
+
 Because hover keeps updating, the **support trunk router must not run per
 frame** — it would pathfind continuously as the camera moves. `SceneCanvas` sets
 `setSupportNavigationActive` (see

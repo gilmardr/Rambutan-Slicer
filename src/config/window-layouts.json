@@ -53,6 +53,96 @@
       }
     },
     {
+      "id": "prepare-engraving",
+      "matchPanelIds": ["prepare-models", "prepare-text-label"],
+      "order": [
+        "prepare-models",
+        "visual-settings",
+        "prepare-text-label"
+      ],
+      "anchors": {
+        "prepare-text-label": {
+          "to": "visual-settings",
+          "side": "left"
+        },
+        "visual-settings": {
+          "to": "prepare-models",
+          "side": "right-edge"
+        }
+      }
+    },
+    {
+      "id": "prepare-engraving-debug",
+      "matchPanelIds": [
+        "prepare-models",
+        "prepare-debug-primitives",
+        "prepare-text-label"
+      ],
+      "order": [
+        "prepare-models",
+        "prepare-debug-primitives",
+        "visual-settings",
+        "prepare-text-label"
+      ],
+      "anchors": {
+        "prepare-debug-primitives": {
+          "to": "prepare-models",
+          "side": "below"
+        },
+        "prepare-text-label": {
+          "to": "visual-settings",
+          "side": "left"
+        },
+        "visual-settings": {
+          "to": "prepare-models",
+          "side": "right-edge"
+        }
+      }
+    },
+    {
+      "id": "prepare-solid-operations",
+      "matchPanelIds": ["prepare-models", "prepare-solid-operations"],
+      "order": ["prepare-models", "visual-settings", "prepare-solid-operations"],
+      "anchors": {
+        "visual-settings": {
+          "to": "prepare-models",
+          "side": "right-edge"
+        },
+        "prepare-solid-operations": {
+          "to": "visual-settings",
+          "side": "left"
+        }
+      }
+    },
+    {
+      "id": "prepare-solid-operations-debug",
+      "matchPanelIds": [
+        "prepare-models",
+        "prepare-debug-primitives",
+        "prepare-solid-operations"
+      ],
+      "order": [
+        "prepare-models",
+        "prepare-debug-primitives",
+        "visual-settings",
+        "prepare-solid-operations"
+      ],
+      "anchors": {
+        "prepare-debug-primitives": {
+          "to": "prepare-models",
+          "side": "below"
+        },
+        "visual-settings": {
+          "to": "prepare-models",
+          "side": "right-edge"
+        },
+        "prepare-solid-operations": {
+          "to": "visual-settings",
+          "side": "left"
+        }
+      }
+    },
+    {
       "id": "prepare-smoothing",
       "matchPanelIds": [
         "prepare-models",
@@ -294,7 +384,7 @@
     {
       "id": "support",
       "matchPanelIds": ["support-settings", "support-islands"],
-      "order": ["visual-settings", "support-islands", "support-settings", "support-hollowing", "support-hole-punch"],
+      "order": ["visual-settings", "support-islands", "support-settings", "support-auto", "support-proximity", "support-hollowing", "support-hole-punch"],
       "anchors": {
         "visual-settings": {
           "to": "support-settings",
@@ -313,6 +403,10 @@
           "side": "left"
         },
         "support-auto": {
+          "to": "visual-settings",
+          "side": "left"
+        },
+        "support-proximity": {
           "to": "visual-settings",
           "side": "left"
         },

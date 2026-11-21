@@ -147,7 +147,7 @@ export function OrganicCutOverlay({
           style={{
             background: 'rgba(24, 24, 24, 0.98)',
             color: 'var(--text-strong, #e0e0e0)',
-            border: '1px solid var(--accent, #baf72e)',
+            border: '1px solid var(--accent-secondary, #ffb45d)',
             boxShadow: '0 6px 32px 0 rgba(0,0,0,0.44), 0 1.5px 8px 0 rgba(0,0,0,0.28)',
           }}
         >

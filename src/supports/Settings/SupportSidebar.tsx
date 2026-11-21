@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
 import ReactDOM from 'react-dom';
-import { Check, Save, RotateCcw, Sparkles, Wrench, WandSparkles, Sailboat, Grid3X3, Pickaxe } from 'lucide-react';
+import { Check, Save, RotateCcw, Sparkles, Wrench, WandSparkles, Sailboat, Grid3X3, Pickaxe, Eye, EyeOff, Copy, ClipboardPaste } from 'lucide-react';
 import { usePresetHotkeys } from '@/hotkeys/usePresetHotkeys';
 import { useLingui } from '@lingui/react';
 import { formatAutoBraceStatus, formatBracesCleared } from '../autoBracing/autoBraceMessages';
@@ -29,12 +29,22 @@ import {
     getSupportSettingsForTarget,
     type EditableSupportTarget,
 } from '../state';
-import { checkPresetDrift, findMatchingPresetIdForSettings, getPresetById } from './presets';
+import { checkPresetDrift, findMatchingPresetIdForSettings, getPresetById, getPresetList, subscribeToPresets } from './presets';
 import { createDefaultSettings, type SupportSettings } from './types';
 import { SUPPORT_PROFILE_LIMITS } from './defaults';
-import { applySettingsToSelectedSupports } from './applySettingsToSelectedSupports';
+import {
+    applyRelativeSupportScaleToSelectedSupports,
+    applySettingsToSelectedSupports,
+    type RelativeSupportScaleGroup,
+} from './applySettingsToSelectedSupports';
 import { areSupportGeometrySettingsEqual } from './supportSettingsCodec';
 import { captureSupportEditSnapshot, pushSupportEditHistory, type SupportEditHistorySnapshot } from '../history/supportEditHistory';
+import { selectSupportIds } from '../interaction/shared/selection/selectionController';
+import {
+    getEmptySelectedSupportIdsSnapshot,
+    getSelectedSupportIds,
+    subscribeSupportMultiSelection,
+} from '../interaction/supportMultiSelection';
 import {
     PresetSelector,
     RaftSettingsCard,
@@ -77,6 +87,35 @@ import { resetSupportSettingsScrollForTabChange } from './supportSidebarScroll';
 import { Trans } from '@lingui/react/macro';
 import { adjustSupportSettingsLabel } from '@/supports/history/supportHistoryLabels';
 import { useEscapeToClose } from '@/hotkeys/useEscapeToClose';
+import {
+    getSupportPaintingSettings,
+    loadSupportPaintingSettings,
+    setSupportPaintingSettings,
+    subscribeSupportPainting,
+} from '@/features/support-paint/supportPainting';
+import {
+    applySupportProjectionPreset,
+  applySupportProjectionPreview,
+  cancelSupportProjectionPreview,
+    createSupportProjectionTag,
+    deleteSupportProjectionPreset,
+  isSupportProjectionPreviewReady,
+    getSupportProjectionSettings,
+    getSupportProjectionPresets,
+    loadSupportProjectionSettings,
+    saveSupportProjectionPreset,
+    setSupportProjectionSettings,
+    subscribeSupportProjection,
+    type SupportProjectionPattern,
+    type SupportProjectionSymmetryAxis,
+} from '@/features/support-projection/supportProjection';
+import {
+    getHiddenSupportTagsSnapshot,
+    getHiddenSupportTagsServerSnapshot,
+    retainVisibleSupportTags,
+    setSupportTagVisible,
+    subscribeToSupportTagVisibility,
+} from '../supportTagVisibility';
 
 const INPUT_CLASS = 'ui-input h-8 w-full px-2.5 text-xs sm:text-sm text-center no-spinners !bg-[var(--surface-0)]';
 const SECTION_CARD_STYLE: React.CSSProperties = {
@@ -87,6 +126,12 @@ const ACCENT_CARD_STYLE: React.CSSProperties = {
     borderColor: 'color-mix(in srgb, var(--accent), var(--border-subtle) 76%)',
     background: 'color-mix(in srgb, var(--accent), var(--surface-1) 95%)',
 };
+const RELATIVE_SCALE_GROUPS = [
+    { id: 'tip', label: msg`Tip` },
+    { id: 'shaft', label: msg`Shaft` },
+    { id: 'base', label: msg`Base` },
+    { id: 'all', label: msg`All` },
+] as const satisfies ReadonlyArray<{ id: RelativeSupportScaleGroup; label: ReturnType<typeof msg> }>;
 
 /**
  * The panels that swap to the compact layout when their content overflows.
@@ -172,12 +217,59 @@ function fieldFocusProps(
  * Main settings panel for support mode.
  * Displays presets and editable settings for tip, shaft, roots, base flare, and grid.
  */
-export function SupportSidebar({ activeModelId = null }: { activeModelId?: string | null }) {
+export function SupportSidebar({
+    activeModelId = null,
+    supportPaintingActive = false,
+    onSupportPaintingChange,
+    supportInlineActive = false,
+    onSupportInlineChange,
+    supportProjectionActive = false,
+    onSupportProjectionChange,
+    showSupportModelColorMap = false,
+    onSupportModelColorMapChange,
+}: {
+    activeModelId?: string | null;
+    supportPaintingActive?: boolean;
+    onSupportPaintingChange?: (active: boolean) => void;
+    supportInlineActive?: boolean;
+    onSupportInlineChange?: (active: boolean) => void;
+    supportProjectionActive?: boolean;
+    onSupportProjectionChange?: (active: boolean) => void;
+    showSupportModelColorMap?: boolean;
+    onSupportModelColorMapChange?: (enabled: boolean) => void;
+}) {
     const { _ } = useLingui();
     usePresetHotkeys();
     const autoBracingHotkeyActive = useActionActive('SUPPORTS', 'AUTO_BRACING');
     const settings = useSyncExternalStore(subscribeToSettings, getSettings, getSettings);
+    const [supportPresets, setSupportPresets] = useState(() => getPresetList());
+    useEffect(() => subscribeToPresets(() => setSupportPresets(getPresetList())), []);
+    const paintSettings = useSyncExternalStore(
+        subscribeSupportPainting,
+        getSupportPaintingSettings,
+        getSupportPaintingSettings,
+    );
+    const projectionSettings = useSyncExternalStore(
+        subscribeSupportProjection,
+        getSupportProjectionSettings,
+        getSupportProjectionSettings,
+    );
+    const projectionPresets = useSyncExternalStore(
+        subscribeSupportProjection,
+        getSupportProjectionPresets,
+        getSupportProjectionPresets,
+    );
+    const supportProjectionPreviewReady = useSyncExternalStore(
+        subscribeSupportProjection,
+        isSupportProjectionPreviewReady,
+        isSupportProjectionPreviewReady,
+    );
+    const [selectedProjectionPresetId, setSelectedProjectionPresetId] = useState('');
+    const [projectionPresetName, setProjectionPresetName] = useState('');
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+    const [copiedSupportSettings, setCopiedSupportSettings] = useState<SupportSettings | null>(null);
+    const [relativeScaleGroup, setRelativeScaleGroup] = useState<RelativeSupportScaleGroup>('all');
+    const [relativeScalePercent, setRelativeScalePercent] = useState(100);
     const [presetSaveTrigger, setPresetSaveTrigger] = useState(0);
     const [autoBraceStatus, setAutoBraceStatus] = useState<{ kind: 'success' | 'warning' | 'error'; message: string } | null>(null);
     const [clearingBraces, setClearingBraces] = useState(false);
@@ -195,6 +287,34 @@ export function SupportSidebar({ activeModelId = null }: { activeModelId?: strin
     const tabKind = tabPanelFor(activePanel);
     const raftSettings = React.useSyncExternalStore(subscribeToRaftStore, getRaftSettings, getRaftSettings);
     const supportState = React.useSyncExternalStore(subscribeToSupportState, getSupportSnapshot, getSupportSnapshot);
+    const selectedSupportIds = useSyncExternalStore(
+        subscribeSupportMultiSelection,
+        getSelectedSupportIds,
+        getEmptySelectedSupportIdsSnapshot,
+    );
+    const supportTagGroups = React.useMemo(() => {
+        const byTag = new Map<string, string[]>();
+        for (const entity of Object.values(supportState.supports ?? {})) {
+            for (const tag of entity.supportTags ?? []) {
+                const ids = byTag.get(tag) ?? [];
+                ids.push(entity.id);
+                byTag.set(tag, ids);
+            }
+        }
+        return Array.from(byTag, ([name, ids]) => ({ name, ids })).sort((a, b) => a.name.localeCompare(b.name));
+    }, [supportState]);
+    const hiddenSupportTags = useSyncExternalStore(
+        subscribeToSupportTagVisibility,
+        getHiddenSupportTagsSnapshot,
+        getHiddenSupportTagsServerSnapshot,
+    );
+    const activeSupportTags = React.useMemo(
+        () => new Set(supportTagGroups.map(({ name }) => name)),
+        [supportTagGroups],
+    );
+    useEffect(() => {
+        retainVisibleSupportTags(activeSupportTags);
+    }, [activeSupportTags]);
     const previewState = React.useSyncExternalStore(subscribeToAnatomyPreviewState, getAnatomyPreviewState, getAnatomyPreviewState);
     const activeKey = previewState.activeSettingKey;
     const curveSelection = getCurveSettingsSelection(supportState);
@@ -217,6 +337,27 @@ export function SupportSidebar({ activeModelId = null }: { activeModelId?: strin
         if (!editableTarget) return null;
         return getSupportSettingsForTarget(editableTarget);
     }, [editableTarget, supportState]);
+
+    const pasteCopiedSupportSettings = React.useCallback(() => {
+        if (!copiedSupportSettings || selectedSupportIds.length < 2) return;
+        const before = captureSupportEditSnapshot();
+        applySettingsToSelectedSupports(copiedSupportSettings);
+        const after = captureSupportEditSnapshot();
+        if (hasMeaningfulSupportEditChange(before, after)) {
+            pushSupportEditHistory(msg`Apply copied support settings`, before, after);
+        }
+    }, [copiedSupportSettings, selectedSupportIds.length]);
+    const hasSelectedSupport = selectedSupportIds.length > 0 || Boolean(supportState.selectedId);
+    const applyRelativeSupportScale = React.useCallback(() => {
+        if (relativeScalePercent === 100) return;
+        const before = captureSupportEditSnapshot();
+        const updated = applyRelativeSupportScaleToSelectedSupports(relativeScalePercent / 100, relativeScaleGroup);
+        if (updated === 0) return;
+        const after = captureSupportEditSnapshot();
+        if (hasMeaningfulSupportEditChange(before, after)) {
+            pushSupportEditHistory(msg`Scale selected supports`, before, after);
+        }
+    }, [relativeScaleGroup, relativeScalePercent]);
     const selectedPresetIdOverride = React.useMemo(() => {
         if (!editableTarget || !selectedSupportSettings) return undefined;
         return findMatchingPresetIdForSettings(selectedSupportSettings);
@@ -344,6 +485,8 @@ export function SupportSidebar({ activeModelId = null }: { activeModelId?: strin
     }, []);
 
     useEffect(() => {
+        loadSupportPaintingSettings();
+        loadSupportProjectionSettings();
         const RAFT_STORAGE_KEY = 'raft-settings';
 
         loadSettingsFromLocalStorage();
@@ -1216,6 +1359,18 @@ export function SupportSidebar({ activeModelId = null }: { activeModelId?: strin
             />
 
             {expanded && (
+                <label className="mx-2 mb-2 flex cursor-pointer items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <input
+                        type="checkbox"
+                        checked={showSupportModelColorMap}
+                        onChange={(event) => onSupportModelColorMapChange?.(event.target.checked)}
+                        aria-label={_(msg`Show vertex colors and heatmap`)}
+                    />
+                    <span><Trans>Show vertex colors and heatmap</Trans></span>
+                </label>
+            )}
+
+            {expanded && (
                 <div className="px-2 pb-2 space-y-2 sm:px-2.5 sm:pb-2.5 flex flex-col flex-1 min-h-0">
                     <div ref={scrollViewportRef} className={sectionScrollClass}>
                         <div ref={scrollContentRef} className="space-y-2">
@@ -1227,6 +1382,474 @@ export function SupportSidebar({ activeModelId = null }: { activeModelId?: strin
                                 </>
                             ) : (
                                 <>
+                                    <Section title={_(msg`Paint supports`)} accent>
+                                        <button
+                                            type="button"
+                                            aria-pressed={supportPaintingActive}
+                                            onClick={() => onSupportPaintingChange?.(!supportPaintingActive)}
+                                            className="ui-input w-full px-2.5 py-2 text-xs font-semibold transition-colors"
+                                            style={supportPaintingActive
+                                                ? {
+                                                    borderColor: 'color-mix(in srgb, var(--accent), var(--border-subtle) 36%)',
+                                                    background: 'color-mix(in srgb, var(--accent), var(--surface-1) 88%)',
+                                                    color: 'var(--text-strong)',
+                                                }
+                                                : { background: 'var(--surface-1)', color: 'var(--text-muted)' }}
+                                        >
+                                            {supportPaintingActive ? _(msg`Stop painting`) : _(msg`Start painting`)}
+                                        </button>
+                                        <div className="mt-2 grid grid-cols-2 gap-2">
+                                            <label className="min-w-0 text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                <span className="mb-1 block">{_(msg`Interval (mm)`)}</span>
+                                                <NumberInput
+                                                    value={paintSettings.intervalMm}
+                                                    min={0.5}
+                                                    max={10}
+                                                    step={0.5}
+                                                    showStepper={false}
+                                                    onChange={(intervalMm) => setSupportPaintingSettings({ ...paintSettings, intervalMm })}
+                                                    className={INPUT_CLASS}
+                                                />
+                                            </label>
+                                            <label className="min-w-0 text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                <span className="mb-1 block">{_(msg`Maximum angle (°)`)}</span>
+                                                <NumberInput
+                                                    value={paintSettings.maxAngleDeg}
+                                                    min={0}
+                                                    max={90}
+                                                    step={5}
+                                                    showStepper={false}
+                                                    onChange={(maxAngleDeg) => setSupportPaintingSettings({ ...paintSettings, maxAngleDeg })}
+                                                    className={INPUT_CLASS}
+                                                />
+                                            </label>
+                                        </div>
+                                        <label className="mt-2 inline-flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                            <input
+                                                type="checkbox"
+                                                className="ui-checkbox !w-3.5 !h-3.5"
+                                                checked={paintSettings.avoidExistingEnabled}
+                                                onChange={(event) => setSupportPaintingSettings({
+                                                    ...paintSettings,
+                                                    avoidExistingEnabled: event.currentTarget.checked,
+                                                })}
+                                            />
+                                            <span><Trans>Avoid existing support contacts</Trans></span>
+                                        </label>
+                                        <p className="mt-2 text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                                            <Trans>Preview points as you paint. Supports are placed when you release.</Trans>
+                                        </p>
+                                    </Section>
+                                    <Section title={_(msg`Inline supports`)} accent>
+                                        <button
+                                            type="button"
+                                            aria-pressed={supportInlineActive}
+                                            onClick={() => onSupportInlineChange?.(!supportInlineActive)}
+                                            className="ui-input w-full px-2.5 py-2 text-xs font-semibold transition-colors"
+                                            style={supportInlineActive
+                                                ? {
+                                                    borderColor: 'color-mix(in srgb, var(--accent), var(--border-subtle) 36%)',
+                                                    background: 'color-mix(in srgb, var(--accent), var(--surface-1) 88%)',
+                                                    color: 'var(--text-strong)',
+                                                }
+                                                : { background: 'var(--surface-1)', color: 'var(--text-muted)' }}
+                                        >
+                                            {supportInlineActive ? _(msg`Stop inline supports`) : _(msg`Start inline supports`)}
+                                        </button>
+                                        <p className="mt-2 text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                                            <Trans>Click a start point, move to preview evenly spaced contacts, then click a second point to place them. Spacing and surface filters use the settings above.</Trans>
+                                        </p>
+                                    </Section>
+                                    <Section title={_(msg`Projection supports (experimental)`)} accent>
+                                        <button
+                                            type="button"
+                                            aria-pressed={supportProjectionActive}
+                                            disabled={supportProjectionPreviewReady}
+                                            onClick={() => onSupportProjectionChange?.(!supportProjectionActive)}
+                                            className="ui-input w-full px-2.5 py-2 text-xs font-semibold transition-colors disabled:opacity-45"
+                                            style={supportProjectionActive
+                                                ? {
+                                                    borderColor: 'color-mix(in srgb, var(--accent), var(--border-subtle) 36%)',
+                                                    background: 'color-mix(in srgb, var(--accent), var(--surface-1) 88%)',
+                                                    color: 'var(--text-strong)',
+                                                }
+                                                : { background: 'var(--surface-1)', color: 'var(--text-muted)' }}
+                                        >
+                                            {supportProjectionActive ? _(msg`Stop projection`) : _(msg`Start projection`)}
+                                        </button>
+                                        <p className="mt-2 text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                                            <Trans>Paint a surface on the active model, then review the projected contacts before adding supports.</Trans>
+                                        </p>
+                                        {supportProjectionPreviewReady && (
+                                            <div className="mt-2 rounded-md border p-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+                                                <p className="text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                                                    <Trans>Review the highlighted contacts. Apply to add supports or cancel to discard this projection.</Trans>
+                                                </p>
+                                                <div className="mt-2 grid grid-cols-2 gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={applySupportProjectionPreview}
+                                                        className="ui-input h-8 px-2.5 text-xs font-semibold"
+                                                        style={{ color: 'var(--text-strong)', borderColor: 'var(--accent)' }}
+                                                    >
+                                                        <Trans>Add supports</Trans>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={cancelSupportProjectionPreview}
+                                                        className="ui-input h-8 px-2.5 text-xs"
+                                                    >
+                                                        <Trans>Cancel preview</Trans>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <fieldset disabled={supportProjectionPreviewReady} className="mt-2 disabled:opacity-45">
+                                        <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                                            <select
+                                                aria-label={_(msg`Saved projection preset`)}
+                                                value={selectedProjectionPresetId}
+                                                onChange={(event) => setSelectedProjectionPresetId(event.currentTarget.value)}
+                                                className={INPUT_CLASS}
+                                            >
+                                                <option value="">{_(msg`Select a preset`)}</option>
+                                                {projectionPresets.map((preset) => (
+                                                    <option key={preset.id} value={preset.id}>{preset.name}</option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                type="button"
+                                                disabled={!selectedProjectionPresetId}
+                                                onClick={() => applySupportProjectionPreset(selectedProjectionPresetId)}
+                                                className="ui-input h-8 px-2.5 text-xs disabled:opacity-45"
+                                            >
+                                                <Trans>Apply</Trans>
+                                            </button>
+                                        </div>
+                                        <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto_auto] gap-1.5">
+                                            <input
+                                                type="text"
+                                                value={projectionPresetName}
+                                                onChange={(event) => setProjectionPresetName(event.currentTarget.value)}
+                                                aria-label={_(msg`Projection preset name`)}
+                                                placeholder={_(msg`Preset name`)}
+                                                className={INPUT_CLASS}
+                                            />
+                                            <button
+                                                type="button"
+                                                disabled={!projectionPresetName.trim()}
+                                                onClick={() => {
+                                                    const savedId = saveSupportProjectionPreset(projectionPresetName);
+                                                    if (savedId) {
+                                                        setSelectedProjectionPresetId(savedId);
+                                                        setProjectionPresetName('');
+                                                    }
+                                                }}
+                                                className="ui-input h-8 px-2 text-xs disabled:opacity-45"
+                                            >
+                                                <Trans>Save preset</Trans>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={!selectedProjectionPresetId}
+                                                onClick={() => {
+                                                    deleteSupportProjectionPreset(selectedProjectionPresetId);
+                                                    setSelectedProjectionPresetId('');
+                                                }}
+                                                className="ui-input h-8 px-2 text-xs disabled:opacity-45"
+                                            >
+                                                <Trans>Delete</Trans>
+                                            </button>
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-2 gap-2">
+                                            <label className="min-w-0 text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                <span className="mb-1 block">{_(msg`Border support preset`)}</span>
+                                                <select
+                                                    aria-label={_(msg`Border support preset`)}
+                                                    value={projectionSettings.borderSupportPresetId ?? ''}
+                                                    onChange={(event) => setSupportProjectionSettings({
+                                                        ...projectionSettings,
+                                                        borderSupportPresetId: event.currentTarget.value || null,
+                                                    })}
+                                                    className={INPUT_CLASS}
+                                                >
+                                                    <option value="">{_(msg`Use active support preset`)}</option>
+                                                    {supportPresets.map((preset) => (
+                                                        <option key={preset.id} value={preset.id}>{preset.name}</option>
+                                                    ))}
+                                                </select>
+                                            </label>
+                                            <label className="min-w-0 text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                <span className="mb-1 block">{_(msg`Infill support preset`)}</span>
+                                                <select
+                                                    aria-label={_(msg`Infill support preset`)}
+                                                    value={projectionSettings.infillSupportPresetId ?? ''}
+                                                    onChange={(event) => setSupportProjectionSettings({
+                                                        ...projectionSettings,
+                                                        infillSupportPresetId: event.currentTarget.value || null,
+                                                    })}
+                                                    className={INPUT_CLASS}
+                                                >
+                                                    <option value="">{_(msg`Use active support preset`)}</option>
+                                                    {supportPresets.map((preset) => (
+                                                        <option key={preset.id} value={preset.id}>{preset.name}</option>
+                                                    ))}
+                                                </select>
+                                            </label>
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-2 gap-2">
+                                            <label className="min-w-0 text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                <span className="mb-1 block">{_(msg`Border tag`)}</span>
+                                                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+                                                    <select
+                                                        aria-label={_(msg`Border tag`)}
+                                                        value={projectionSettings.borderTag ?? ''}
+                                                        onChange={(event) => setSupportProjectionSettings({
+                                                            ...projectionSettings,
+                                                            borderTag: event.currentTarget.value || null,
+                                                        })}
+                                                        className={INPUT_CLASS}
+                                                    >
+                                                        <option value="">{_(msg`No tag`)}</option>
+                                                        {supportTagGroups.map(({ name }) => <option key={name} value={name}>{name}</option>)}
+                                                        {projectionSettings.borderTag && !supportTagGroups.some(({ name }) => name === projectionSettings.borderTag) && (
+                                                            <option value={projectionSettings.borderTag}>{projectionSettings.borderTag}</option>
+                                                        )}
+                                                    </select>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSupportProjectionSettings({
+                                                            ...projectionSettings,
+                                                            borderTag: createSupportProjectionTag('border'),
+                                                        })}
+                                                        className="ui-input h-8 px-2 text-[10px]"
+                                                    >
+                                                        <Trans>New</Trans>
+                                                    </button>
+                                                </div>
+                                            </label>
+                                            <label className="min-w-0 text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                <span className="mb-1 block">{_(msg`Infill tag`)}</span>
+                                                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+                                                    <select
+                                                        aria-label={_(msg`Infill tag`)}
+                                                        value={projectionSettings.infillTag ?? ''}
+                                                        onChange={(event) => setSupportProjectionSettings({
+                                                            ...projectionSettings,
+                                                            infillTag: event.currentTarget.value || null,
+                                                        })}
+                                                        className={INPUT_CLASS}
+                                                    >
+                                                        <option value="">{_(msg`No tag`)}</option>
+                                                        {supportTagGroups.map(({ name }) => <option key={name} value={name}>{name}</option>)}
+                                                        {projectionSettings.infillTag && !supportTagGroups.some(({ name }) => name === projectionSettings.infillTag) && (
+                                                            <option value={projectionSettings.infillTag}>{projectionSettings.infillTag}</option>
+                                                        )}
+                                                    </select>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSupportProjectionSettings({
+                                                            ...projectionSettings,
+                                                            infillTag: createSupportProjectionTag('infill'),
+                                                        })}
+                                                        className="ui-input h-8 px-2 text-[10px]"
+                                                    >
+                                                        <Trans>New</Trans>
+                                                    </button>
+                                                </div>
+                                            </label>
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-2 gap-2">
+                                            <label className="min-w-0 text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                <span className="mb-1 block">{_(msg`Brush (mm)`)}</span>
+                                                <NumberInput
+                                                    value={projectionSettings.brushRadiusMm}
+                                                    min={1}
+                                                    max={20}
+                                                    step={1}
+                                                    showStepper={false}
+                                                    onChange={(brushRadiusMm) => setSupportProjectionSettings({ ...projectionSettings, brushRadiusMm })}
+                                                    className={INPUT_CLASS}
+                                                />
+                                            </label>
+                                            <label className="min-w-0 text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                <span className="mb-1 block">{_(msg`Max angle (°)`)}</span>
+                                                <NumberInput
+                                                    value={projectionSettings.maxAngleDeg}
+                                                    min={0}
+                                                    max={90}
+                                                    step={5}
+                                                    showStepper={false}
+                                                    onChange={(maxAngleDeg) => setSupportProjectionSettings({ ...projectionSettings, maxAngleDeg })}
+                                                    className={INPUT_CLASS}
+                                                />
+                                            </label>
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-2 gap-2">
+                                            <label className="min-w-0 text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                <span className="mb-1 block">{_(msg`Border interval (mm)`)}</span>
+                                                <NumberInput
+                                                    value={projectionSettings.borderIntervalMm}
+                                                    min={1}
+                                                    max={20}
+                                                    step={1}
+                                                    showStepper={false}
+                                                    onChange={(borderIntervalMm) => setSupportProjectionSettings({ ...projectionSettings, borderIntervalMm })}
+                                                    className={INPUT_CLASS}
+                                                />
+                                            </label>
+                                            <label className="min-w-0 text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                <span className="mb-1 block">{_(msg`Infill interval (mm)`)}</span>
+                                                <NumberInput
+                                                    value={projectionSettings.infillIntervalMm}
+                                                    min={1}
+                                                    max={20}
+                                                    step={1}
+                                                    showStepper={false}
+                                                    onChange={(infillIntervalMm) => setSupportProjectionSettings({ ...projectionSettings, infillIntervalMm })}
+                                                    className={INPUT_CLASS}
+                                                />
+                                            </label>
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-3 items-center gap-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                            <label className="inline-flex items-center gap-1.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={projectionSettings.borderEnabled}
+                                                    onChange={(event) => setSupportProjectionSettings({ ...projectionSettings, borderEnabled: event.currentTarget.checked })}
+                                                />
+                                                <Trans>Border</Trans>
+                                            </label>
+                                            <label className="inline-flex items-center gap-1.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={projectionSettings.infillEnabled}
+                                                    onChange={(event) => setSupportProjectionSettings({ ...projectionSettings, infillEnabled: event.currentTarget.checked })}
+                                                />
+                                                <Trans>Infill</Trans>
+                                            </label>
+                                            <label className="min-w-0">
+                                                <span className="mb-1 block">{_(msg`Pattern`)}</span>
+                                                <select
+                                                    value={projectionSettings.pattern}
+                                                    onChange={(event) => setSupportProjectionSettings({
+                                                        ...projectionSettings,
+                                                        pattern: event.currentTarget.value as SupportProjectionPattern,
+                                                    })}
+                                                    className={INPUT_CLASS}
+                                                >
+                                                    <option value="grid">{_(msg`Grid`)}</option>
+                                                    <option value="concentric">{_(msg`Concentric`)}</option>
+                                                    <option value="random">{_(msg`Random`)}</option>
+                                                    <option value="contour">{_(msg`Contour`)}</option>
+                                                </select>
+                                            </label>
+                                        </div>
+                                        <label className="mt-2 block max-w-[calc(50%-4px)] text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                            <span className="mb-1 block">{_(msg`Symmetry`)}</span>
+                                            <select
+                                                aria-label={_(msg`Symmetry`)}
+                                                value={projectionSettings.symmetryAxis}
+                                                onChange={(event) => setSupportProjectionSettings({
+                                                    ...projectionSettings,
+                                                    symmetryAxis: event.currentTarget.value as SupportProjectionSymmetryAxis,
+                                                })}
+                                                className={INPUT_CLASS}
+                                            >
+                                                <option value="none">{_(msg`Off`)}</option>
+                                                <option value="x">{_(msg`Mirror across X`)}</option>
+                                                <option value="y">{_(msg`Mirror across Y`)}</option>
+                                            </select>
+                                        </label>
+                                        <div className="mt-2 grid grid-cols-2 items-end gap-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                            <label className="inline-flex items-center gap-1.5" title={_(msg`Add a second support row just inside the outer border.`)}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={projectionSettings.doubleBorderEnabled}
+                                                    onChange={(event) => setSupportProjectionSettings({ ...projectionSettings, doubleBorderEnabled: event.currentTarget.checked })}
+                                                />
+                                                <Trans>Double border</Trans>
+                                            </label>
+                                            {projectionSettings.doubleBorderEnabled && (
+                                                <label className="min-w-0 text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                    <span className="mb-1 block">{_(msg`Border row offset (mm)`)}</span>
+                                                    <NumberInput
+                                                        value={projectionSettings.doubleBorderOffsetMm}
+                                                        min={1}
+                                                        max={20}
+                                                        step={1}
+                                                        showStepper={false}
+                                                        onChange={(doubleBorderOffsetMm) => setSupportProjectionSettings({ ...projectionSettings, doubleBorderOffsetMm })}
+                                                        className={INPUT_CLASS}
+                                                    />
+                                                </label>
+                                            )}
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-2 items-center gap-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                            <label className="inline-flex items-center gap-1.5" title={_(msg`Move a nearby projected contact onto a detected island.`)}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={projectionSettings.islandInfluenceEnabled}
+                                                    onChange={(event) => setSupportProjectionSettings({
+                                                        ...projectionSettings,
+                                                        islandInfluenceEnabled: event.currentTarget.checked,
+                                                    })}
+                                                />
+                                                <Trans>Snap to islands</Trans>
+                                            </label>
+                                            {projectionSettings.islandInfluenceEnabled && (
+                                                <label className="min-w-0 text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                    <span className="mb-1 block">{_(msg`Island influence (mm)`)}</span>
+                                                    <NumberInput
+                                                        value={projectionSettings.islandInfluenceMm}
+                                                        min={1}
+                                                        max={20}
+                                                        step={1}
+                                                        showStepper={false}
+                                                        onChange={(islandInfluenceMm) => setSupportProjectionSettings({ ...projectionSettings, islandInfluenceMm })}
+                                                        className={INPUT_CLASS}
+                                                    />
+                                                </label>
+                                            )}
+                                        </div>
+                                        </fieldset>
+                                        {supportTagGroups.length > 0 && (
+                                            <div className="mt-2 rounded-md border p-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+                                                <p className="mb-1 text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                                                    <Trans>Tagged supports</Trans>
+                                                </p>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {supportTagGroups.map(({ name, ids }) => {
+                                                        const isHidden = hiddenSupportTags.has(name);
+                                                        return (
+                                                            <div key={name} className="inline-flex items-center rounded-md border" style={{ borderColor: 'var(--border-subtle)' }}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => selectSupportIds(ids)}
+                                                                    className="ui-input h-7 rounded-r-none border-0 px-2 text-[10px]"
+                                                                    title={_(msg`Select all supports in this tag`)}
+                                                                    style={{ opacity: isHidden ? 0.55 : 1 }}
+                                                                >
+                                                                    {name} · {ids.length}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setSupportTagVisible(name, isHidden)}
+                                                                    aria-label={isHidden ? _(msg`Show tag`) : _(msg`Hide tag`)}
+                                                                    aria-pressed={!isHidden}
+                                                                    title={isHidden ? _(msg`Show tag`) : _(msg`Hide tag`)}
+                                                                    className="grid h-7 w-7 place-items-center border-l"
+                                                                    style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-muted)' }}
+                                                                >
+                                                                    {isHidden ? <EyeOff size={12} aria-hidden="true" /> : <Eye size={12} aria-hidden="true" />}
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </Section>
                                     <SidebarPanelTabs
                                         value={tabKind}
                                         onChange={(tab) => {
@@ -1337,6 +1960,81 @@ export function SupportSidebar({ activeModelId = null }: { activeModelId?: strin
                                                     }}
                                                 />
                                             </div>
+                                            {editableTarget && (
+                                                <div className="rounded-md border p-2" style={SECTION_CARD_STYLE}>
+                                                    <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+                                                        <Trans>Support settings</Trans>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCopiedSupportSettings(structuredClone(settings))}
+                                                            className="ui-input inline-flex min-h-8 items-center justify-center gap-1.5 px-2 text-[10px]"
+                                                            title={_(msg`Copy settings from this support`)}
+                                                        >
+                                                            <Copy size={12} aria-hidden="true" />
+                                                            <Trans>Copy settings</Trans>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={pasteCopiedSupportSettings}
+                                                            disabled={!copiedSupportSettings || selectedSupportIds.length < 2}
+                                                            className="ui-input inline-flex min-h-8 items-center justify-center gap-1.5 px-2 text-[10px] disabled:cursor-not-allowed disabled:opacity-50"
+                                                            title={_(msg`Apply copied settings to the selected supports`)}
+                                                        >
+                                                            <ClipboardPaste size={12} aria-hidden="true" />
+                                                            <Trans>Paste to selected</Trans>
+                                                        </button>
+                                                    </div>
+                                                    <div className="mt-2 border-t pt-2" style={{ borderColor: 'var(--border-subtle)' }}>
+                                                        <div className="mb-1.5 text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                                                            <Trans>Relative scaling</Trans>
+                                                        </div>
+                                                        <div className="grid grid-cols-4 gap-1" role="group" aria-label={_(msg`Support parameters to scale`)}>
+                                                            {RELATIVE_SCALE_GROUPS.map((group) => (
+                                                                <button
+                                                                    key={group.id}
+                                                                    type="button"
+                                                                    onClick={() => setRelativeScaleGroup(group.id)}
+                                                                    aria-pressed={relativeScaleGroup === group.id}
+                                                                    className="ui-input min-h-7 px-1 text-[10px]"
+                                                                    style={relativeScaleGroup === group.id ? {
+                                                                        borderColor: 'var(--accent)',
+                                                                        color: 'var(--text-primary)',
+                                                                    } : undefined}
+                                                                >
+                                                                    {_(group.label)}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                        <div className="mt-1.5 grid grid-cols-[1fr_auto] gap-2">
+                                                            <label className="flex min-w-0 items-center gap-1.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                                                <span><Trans>Scale</Trans></span>
+                                                                <NumberInput
+                                                                    value={relativeScalePercent}
+                                                                    onChange={setRelativeScalePercent}
+                                                                    min={10}
+                                                                    max={300}
+                                                                    step={5}
+                                                                    showStepper={false}
+                                                                    aria-label={_(msg`Scale percentage`)}
+                                                                    className={`${INPUT_CLASS} max-w-20`}
+                                                                />
+                                                                <span aria-hidden="true">%</span>
+                                                            </label>
+                                                            <button
+                                                                type="button"
+                                                                onClick={applyRelativeSupportScale}
+                                                                disabled={!hasSelectedSupport || relativeScalePercent === 100}
+                                                                title={_(msg`Scale the selected support geometry by this percentage`)}
+                                                                className="ui-input min-h-8 px-2 text-[10px] disabled:cursor-not-allowed disabled:opacity-50"
+                                                            >
+                                                                <Trans>Apply scale</Trans>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </>
                                     ) : (
                                         <>

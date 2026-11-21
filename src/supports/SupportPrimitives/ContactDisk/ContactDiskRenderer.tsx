@@ -45,7 +45,7 @@ export function ContactDiskRenderer({
     contactDiameterMm,
     overrideThickness,
     penetrationMm = 0,
-    color = '#ff8800',
+    color = '#78c63f',
     transparent = false,
     opacity = 1,
     radialSegments = 24,
@@ -108,7 +108,7 @@ export function ContactDiskRenderer({
 
     const effectivePenetration = Math.max(0, effectivePenetrationMm);
     const hoverVisible = isHovered && isInteractable && isParentSelected;
-    const displayColor = isContactDiskSelected ? '#c11f61' : color;
+    const displayColor = isContactDiskSelected ? '#13a99e' : color;
     const displayEmissive = hoverVisible ? '#efd8c2' : '#000000';
     const displayEmissiveIntensity = hoverVisible ? 0.16 : 0;
 

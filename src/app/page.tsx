@@ -68,6 +68,8 @@ import { VisualSettingsPanel } from '@/components/controls/VisualSettingsPanel';
 import { contactEndpointsFor, countSupportCollections, knotHostId, spanKnotHostType, getSupportTypeDescriptor, MODEL_ID_COLLECTION_KEYS, SUPPORT_COLLECTION_KEYS, SUPPORT_TYPES, updateSupportEntity, type SupportCollectionKey, type SupportTypeId } from '@/supports/supportTypeRegistry';
 import { LayerSlider } from '@/components/controls/LayerSlider';
 import { PrintingLayerGpuPreview } from '@/components/controls/PrintingLayerGpuPreview';
+import { SupportProximityPanel } from '@/components/controls/SupportProximityPanel';
+import { SuctionCupDetectorPanel } from '@/components/organisms/panels/SuctionCupDetectorPanel';
 import { SupportSidebar } from '@/supports/Settings/SupportSidebar';
 import { getSettings as getSupportDisplaySettings, subscribeToSettings as subscribeToSupportSettings, updateNavigationDiscsOnly } from '@/supports/Settings/state';
 import { useLeafPlacementState } from '@/supports/SupportTypes/Leaf/leafPlacementState';
@@ -142,6 +144,7 @@ import {
 
 import { initializeBVH } from '@/utils/bvh';
 import { useLocaleFormat } from '@/hooks/useLocaleFormat';
+import { splitDurationSeconds } from '@/utils/durationParts';
 import {
   computeApproxModelWorldBounds,
   computePreciseModelWorldBounds,
@@ -260,12 +263,13 @@ import { useIslandManager } from '@/volumeAnalysis/IslandScan/useIslandManager';
 // Islands PoC (Support-tab unified islands panel). Tab-agnostic + modular — see
 // agents/Claude/20260613-1404-Implementation-dev-islands-islands-panel-...md.
 import { useIslands } from '@/volumeAnalysis/Islands/useIslands';
+import { setSupportProjectionIslandContacts } from '@/features/support-projection/supportProjection';
 import { IslandsPanel } from '@/components/controls/IslandsPanel';
 import { AutoSupportPanel, getAutoSupportBusy, subscribeAutoSupportBusy, autoSupportDrivingScan, getAutoSupportProgress, subscribeAutoSupportProgress } from '@/components/controls/AutoSupportPanel';
 import { installPerfConsoleAPI } from '@/supports/PlacementLogic/Pathfinding/pathfindingPerf';
 import { getUnappliedModifiers } from '@/features/mesh-modifiers/unappliedModifiers';
 import type { UnappliedModifierAction } from '@/components/organisms/modals/ModifierModals';
-import { getOrientationBusy, subscribeOrientationBusy, OrientElapsed } from '@/components/controls/AutoRotationPanel';
+import { getAutomaticOrientationSuggestion, getOrientationBusy, setOrientationBusy, subscribeOrientationBusy, OrientElapsed } from '@/components/controls/AutoRotationPanel';
 import { IslandOverlay } from '@/components/scene/IslandOverlay';
 import { useSupportInteractionManager } from '@/features/supports/useSupportInteractionManager';
 import { useUndoRedoHotkeys } from '@/hotkeys/useUndoRedoHotkeys';
@@ -499,17 +503,14 @@ function isKeyboardTargetEditable(target: EventTarget | null): boolean {
 // `{minutes_2}` placeholders. Plain module-scope functions are left untouched by
 // React Compiler, keeping the placeholder names — and thus the ids — stable.
 function formatApproxPrintTimeLabel(translate: (descriptor: MessageDescriptor) => string, totalSec: number): string {
-  const minutes = Math.floor(totalSec / 60);
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
+  const { hours, minutes: mins } = splitDurationSeconds(totalSec);
   if (hours > 0) return translate(msg({ message: `~${hours} h ${mins} min`, comment: 'Approximate estimated print time (the "~" marks it as a rough estimate). {hours}/{mins} are whole-number quantities.' }));
   return translate(msg({ message: `~${mins} min`, comment: 'Approximate estimated print time under an hour (the "~" marks it as a rough estimate).' }));
 }
 
 function formatProcessingElapsedLabel(translate: (descriptor: MessageDescriptor) => string, elapsedSec: number): string {
   const total = Math.max(0, elapsedSec);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
+  const { totalMinutes: minutes, seconds } = splitDurationSeconds(total);
   return translate(msg`${minutes} min ${seconds} s`);
 }
 
@@ -568,9 +569,7 @@ function formatPrintStartFailed(translate: Translate, reason: string): string {
 
 function formatEstimatedPrintTimeLabel(translate: (descriptor: MessageDescriptor) => string, totalSec: number): string {
   const wholeSeconds = Math.max(0, Math.floor(totalSec));
-  const hours = Math.floor(wholeSeconds / 3600);
-  const minutes = Math.floor((wholeSeconds % 3600) / 60);
-  const seconds = wholeSeconds % 60;
+  const { hours, minutes, seconds } = splitDurationSeconds(wholeSeconds);
   if (hours > 0) return translate(msg`${hours} h ${minutes} min`);
   return translate(msg`${minutes} min ${seconds} s`);
 }
@@ -726,8 +725,8 @@ function createModelTransformKey(modelId: string, transform: ModelTransform): st
  */
 const HISTORY_APP_MODES: readonly SupportMode[] = ['prepare', 'analysis', 'support', 'export', 'printing'];
 const HISTORY_TRANSFORM_MODES: readonly TransformMode[] = [
-  'select', 'transform', 'smoothing', 'arrange', 'duplicate', 'placeOnFace', 'mirror', 'hollowing', 'organicCut',
-  'supportBlockers',
+  'select', 'transform', 'smoothing', 'engraving', 'solidOperations', 'arrange', 'duplicate', 'placeOnFace', 'mirror', 'hollowing', 'organicCut',
+  'supportBlockers', 'supportPainting', 'supportInline', 'supportProjection',
 ];
 
 /**
@@ -735,7 +734,7 @@ const HISTORY_TRANSFORM_MODES: readonly TransformMode[] = [
  * absent: it is a Support tool now, and Prepare must never restore it.
  */
 const PREPARE_TOOL_MODES: readonly TransformMode[] = [
-  'select', 'transform', 'placeOnFace', 'mirror', 'duplicate', 'arrange', 'organicCut', 'smoothing',
+  'select', 'transform', 'placeOnFace', 'mirror', 'duplicate', 'arrange', 'organicCut', 'smoothing', 'engraving', 'solidOperations',
 ];
 
 function isAppMode(value: string): value is SupportMode {
@@ -793,6 +792,7 @@ export default function Home() {
   // What the plate bin is about to do: take the bed you are standing at, or — on
   // the scene's first plate, which has to stay — only empty it.
   const [plateTrashIntent, setPlateTrashIntent] = React.useState<'delete' | 'clear' | null>(null);
+  const [millimeterRulerVisible, setMillimeterRulerVisible] = React.useState(false);
   const plateLockedNoticeTimerRef = React.useRef<number | null>(null);
   const notifyPlateLockedRef = React.useRef<(plateId?: string) => void>(() => {});
   const scene = useSceneCollectionManager({ onBlockedByLock: (plateId) => notifyPlateLockedRef.current(plateId) });
@@ -1028,6 +1028,7 @@ export default function Home() {
   const supportDragResetSecondRafRef = React.useRef<number | null>(null);
   const [holdSupportDragDeltaUntilSupportSync, setHoldSupportDragDeltaUntilSupportSync] = React.useState(false);
   const [supportDragTransactionId, setSupportDragTransactionId] = React.useState(0);
+  const [showSupportModelColorMap, setShowSupportModelColorMap] = React.useState(false);
   const supportDragTransactionIdRef = React.useRef(0);
   const pendingSupportDragSyncRef = React.useRef<PendingSupportDragSyncTransaction | null>(null);
   const supportStoreVersionRef = React.useRef(0);
@@ -1391,11 +1392,21 @@ export default function Home() {
     };
   }, []);
   const [editorContextMenuPos, setEditorContextMenuPos] = React.useState<{ x: number; y: number } | null>(null);
-  // Support mode's rail selects one of three tools, like Prepare's selects a
+  // Support mode's rail selects a panel or interaction tool, like Prepare's selects a
   // transform mode: the selected tool's panel is the one shown and the others are
   // hidden with `display: none`, because the window layout profiles resolve against
   // the set of mounted panels.
   const [supportRailMode, setSupportRailMode] = React.useState<SupportRailMode>('manual');
+  const [suctionCupFocusRequest, setSuctionCupFocusRequest] = React.useState<{
+    runId: number;
+    center: [number, number, number];
+    radiusMm: number;
+  } | null>(null);
+  const suctionCupFocusRunIdRef = React.useRef(0);
+  const handleSuctionCupFocusFinding = React.useCallback((request: { center: [number, number, number]; radiusMm: number }) => {
+    suctionCupFocusRunIdRef.current += 1;
+    setSuctionCupFocusRequest({ ...request, runId: suctionCupFocusRunIdRef.current });
+  }, []);
   const [editorContextMenuSupportTarget, setEditorContextMenuSupportTarget] = React.useState<{
     segmentId: string;
     point: { x: number; y: number; z: number };
@@ -1537,6 +1548,9 @@ export default function Home() {
   const [printingEstimatedResinMl, setPrintingEstimatedResinMl] = React.useState<number | null>(null);
   /** The same estimate over every plate, shown beside the per-plate one. */
   const [printingEstimatedResinTotalMl, setPrintingEstimatedResinTotalMl] = React.useState<number | null>(null);
+  const [printingEstimatedModelMl, setPrintingEstimatedModelMl] = React.useState<number | null>(null);
+  const [printingEstimatedSupportsMl, setPrintingEstimatedSupportsMl] = React.useState<number | null>(null);
+  const [printingEstimatedRaftMl, setPrintingEstimatedRaftMl] = React.useState<number | null>(null);
   const printingEstimatedResinMlRef = React.useRef<number | null>(null);
   const [isPrintingEstimatedResinBusy, setIsPrintingEstimatedResinBusy] = React.useState(false);
   const [resinEstimateRefreshTick, setResinEstimateRefreshTick] = React.useState(0);
@@ -1850,6 +1864,7 @@ export default function Home() {
     handleLoadMeshChangeWithZip,
     handleImportSceneChangeWithZip,
     handleReopenRecentFile,
+    handleOpenPreparedModel,
     handleOpenMeshDialog,
     handleOpenSceneDialog,
     importSceneFilesWithPluginWarning,
@@ -2479,6 +2494,54 @@ export default function Home() {
     scene.commitModelTransformHistory(modelId, before, after, APPLY_ORIENTATION_SUGGESTION_LABEL);
   }, [scene, transformMgr.liftDistance]);
 
+  const handleMagicOrientation = React.useCallback((continueWithSupportRun: (orientationChanged: boolean) => void) => {
+    const activeModel = scene.activeModel;
+    const modelId = scene.activeModelId;
+    if (!activeModel || !modelId) {
+      continueWithSupportRun(false);
+      return;
+    }
+
+    setOrientationBusy(true);
+    requestAnimationFrame(() => setTimeout(() => {
+      let suggestion: ReturnType<typeof getAutomaticOrientationSuggestion>;
+      try {
+        suggestion = getAutomaticOrientationSuggestion(modelId, activeModel.transform.rotation, 'supports');
+      } catch (error) {
+        console.error('[MagicPrepare] orientation suggestion failed:', error);
+        setOrientationBusy(false);
+        continueWithSupportRun(false);
+        return;
+      }
+      setOrientationBusy(false);
+
+      if (suggestion.status === 'unavailable') {
+        continueWithSupportRun(false);
+        return;
+      }
+      if (suggestion.status === 'already-optimal') {
+        showOrientationToast({
+          status: 'already-optimal',
+          modelName: (activeModel.name ?? modelId).trim(),
+        });
+        continueWithSupportRun(false);
+        return;
+      }
+
+      const applyOrientation = () => {
+        handleApplyOrientation(modelId, suggestion.rotation);
+        showOrientationToast({
+          status: 'applied',
+          modelName: (activeModel.name ?? modelId).trim(),
+        });
+        requestAnimationFrame(() => requestAnimationFrame(() => continueWithSupportRun(true)));
+      };
+
+      if (!requestOrientSupportDeletionWithContinuation(applyOrientation)) return;
+      applyOrientation();
+    }, 0));
+  }, [handleApplyOrientation, requestOrientSupportDeletionWithContinuation, scene.activeModel, scene.activeModelId, showOrientationToast]);
+
   const handleConfirmDestructiveTransform = React.useCallback(() => {
     const pending = pendingDestructiveTransform;
     if (!pending) return;
@@ -3069,10 +3132,8 @@ export default function Home() {
     return promise;
   }, [computeBaseResinMlChunked]);
 
-  // Support/raft aggregation is comparatively heavy, so keep it scoped to
-  // pre-artifact printing only. Base model volume estimation runs in the
-  // background across active editing modes (for warm, up-to-date estimates).
-  const shouldCalculateSupportAndRaftVolumes = scene.mode === 'printing' && !printingArtifact;
+  // Keep the estimate current while editing and before a print artifact exists.
+  const shouldCalculateSupportAndRaftVolumes = !printingArtifact || scene.mode !== 'printing';
   const resinBuildVolumeBounds = React.useMemo(() => {
     if (!scene.view3dSettings.enabled) return null;
 
@@ -3197,12 +3258,23 @@ export default function Home() {
     return parts.join('|');
   }, [visibleResinModels]);
 
-  const supportAndRaftResinMl = React.useMemo(() => {
-    if (!shouldCalculateSupportAndRaftVolumes) return 0;
+  const supportAndRaftVolumes = React.useMemo(() => {
+    const empty = {
+      active: 0,
+      total: 0,
+      activeSupports: 0,
+      activeRaft: 0,
+    };
+    if (!shouldCalculateSupportAndRaftVolumes) return empty;
+    // The support workspace intentionally gives the Home tree an empty
+    // collection snapshot to avoid rerendering it for every support edit.
+    // Resin accounting still needs the real store values in that workspace.
+    const supportVolumeSnapshot = scene.mode === 'support'
+      ? getSupportSnapshot()
+      : supportStateSnapshot;
 
-    // Expensive calculation ONLY runs in pre-artifact printing mode.
-    const visibleModelIds = resinInBoundsModelIdSet;
-    if (visibleModelIds.size === 0) return 0;
+    const calculate = (visibleModelIds: Set<string>) => {
+    if (visibleModelIds.size === 0) return { supports: 0, raft: 0 };
 
     const mm3ToMl = (mm3: number) => Math.max(0, mm3) / 1000;
     const circleArea = (radiusMm: number) => Math.PI * radiusMm * radiusMm;
@@ -3332,13 +3404,13 @@ export default function Home() {
     };
 
     const topDiameterByRootId = new Map<string, number>();
-    for (const trunk of Object.values(supportStateSnapshot.trunks)) {
+    for (const trunk of Object.values(supportVolumeSnapshot.trunks)) {
       const firstDiameter = trunk.baseDiameterMm ?? trunk.segments[0]?.diameter;
       if (firstDiameter && firstDiameter > 0) {
         topDiameterByRootId.set(trunk.rootId, firstDiameter);
       }
     }
-    for (const kickstand of Object.values(supportStateSnapshot.kickstands)) {
+    for (const kickstand of Object.values(supportVolumeSnapshot.kickstands)) {
       const firstDiameter = kickstand.profile.terminalStartDiameterMm
         || kickstand.segments[0]?.diameter
         || kickstand.profile.bodyDiameterMm;
@@ -3367,7 +3439,7 @@ export default function Home() {
 
     // One pass: kickstand roots are a view of state.roots, so walking both
     // counted every kickstand root twice.
-    for (const root of Object.values(supportStateSnapshot.roots)) {
+    for (const root of Object.values(supportVolumeSnapshot.roots)) {
       addRootVolume(root);
     }
 
@@ -3377,7 +3449,7 @@ export default function Home() {
     for (const descriptor of SUPPORT_TYPES) {
       if (!descriptor.hasSegments && descriptor.contactFields.length === 0) continue;
 
-      const collection = supportStateSnapshot[descriptor.location.key as SupportCollectionKey] as unknown as Record<string, {
+      const collection = supportVolumeSnapshot[descriptor.location.key as SupportCollectionKey] as unknown as Record<string, {
         id: string; typeId?: SupportTypeId; modelId: string; segments?: Segment[]; rootId?: string; parentKnotId?: string; hostKnotId?: string;
       }>;
 
@@ -3385,8 +3457,8 @@ export default function Home() {
         if (!visibleModelIds.has(entity.modelId)) continue;
 
         const hosts = {
-          root: descriptor.ownsRoot ? supportStateSnapshot.roots[entity.rootId ?? ''] : undefined,
-          hostKnot: supportStateSnapshot.knots[entity.parentKnotId ?? entity.hostKnotId ?? ''],
+          root: descriptor.ownsRoot ? supportVolumeSnapshot.roots[entity.rootId ?? ''] : undefined,
+          hostKnot: supportVolumeSnapshot.knots[entity.parentKnotId ?? entity.hostKnotId ?? ''],
         };
 
         const segments = entity.segments ?? [];
@@ -3406,10 +3478,10 @@ export default function Home() {
       }
     }
 
-    for (const brace of Object.values(supportStateSnapshot.braces)) {
+    for (const brace of Object.values(supportVolumeSnapshot.braces)) {
       if (!visibleModelIds.has(brace.modelId)) continue;
-      const startKnot = supportStateSnapshot.knots[brace.startKnotId];
-      const endKnot = supportStateSnapshot.knots[brace.endKnotId];
+      const startKnot = supportVolumeSnapshot.knots[brace.startKnotId];
+      const endKnot = supportVolumeSnapshot.knots[brace.endKnotId];
       if (!startKnot || !endKnot) continue;
 
       const length = brace.curve?.type === 'bezier'
@@ -3421,7 +3493,7 @@ export default function Home() {
     let raftMl = 0;
     if (raftSettingsSnapshot.bottomMode !== 'off') {
       const rootsByModel = new Map<string, SupportBaseCircle[]>();
-      for (const root of Object.values(supportStateSnapshot.roots)) {
+      for (const root of Object.values(supportVolumeSnapshot.roots)) {
         if (!visibleModelIds.has(root.modelId)) continue;
         if (!rootsByModel.has(root.modelId)) rootsByModel.set(root.modelId, []);
         rootsByModel.get(root.modelId)!.push({
@@ -3474,9 +3546,22 @@ export default function Home() {
       }
     }
 
-    return supportMl + raftMl;
+    return { supports: supportMl, raft: raftMl };
+    };
+    const activeIds = new Set([...resinInBoundsModelIdSet].filter((id) => activePlateModelIds.has(id)));
+    const active = calculate(activeIds);
+    const total = calculate(resinInBoundsModelIdSet);
+    return {
+      active: active.supports + active.raft,
+      total: total.supports + total.raft,
+      activeSupports: active.supports,
+      activeRaft: active.raft,
+    };
   }, [
+    activePlateModelIds,
     resinInBoundsModelIdSet,
+    resinEstimateRefreshTick,
+    scene.mode,
     shouldCalculateSupportAndRaftVolumes,
     computeRaftFootprintPolygons,
     computeRaftOuterBoundary,
@@ -3485,6 +3570,7 @@ export default function Home() {
     scene.models,
     supportStateSnapshot,
   ]);
+  const supportAndRaftResinMl = supportAndRaftVolumes.active;
 
   React.useEffect(() => {
     if (!shouldEstimateResinInBackground) return;
@@ -3507,6 +3593,9 @@ export default function Home() {
         printingEstimatedResinMlRef.current = null;
         setPrintingEstimatedResinMl(null);
         setPrintingEstimatedResinTotalMl(null);
+        setPrintingEstimatedModelMl(null);
+        setPrintingEstimatedSupportsMl(null);
+        setPrintingEstimatedRaftMl(null);
       }
       setIsPrintingEstimatedResinBusy(false);
       return () => {
@@ -3515,7 +3604,7 @@ export default function Home() {
     }
 
     const visibleModels = visibleResinModels;
-    const compositeSignature = `${resinEstimateComputationSignature}::supports:${supportAndRaftResinMl.toFixed(6)}`;
+    const compositeSignature = `${resinEstimateComputationSignature}::supports:${supportAndRaftResinMl.toFixed(6)}:${supportAndRaftVolumes.total.toFixed(6)}`;
     const hasChangedSinceLastSuccess = compositeSignature !== lastCompletedResinEstimateSignatureRef.current;
     const hadPriorValue = printingEstimatedResinMlRef.current != null;
     if (hadPriorValue && hasChangedSinceLastSuccess) {
@@ -3549,7 +3638,10 @@ export default function Home() {
       const nextValue = found || totalWithSupports > 0 ? totalWithSupports : null;
       printingEstimatedResinMlRef.current = nextValue;
       setPrintingEstimatedResinMl(nextValue);
-      setPrintingEstimatedResinTotalMl(found || sceneTotalMl > 0 ? sceneTotalMl + supportAndRaftResinMl : null);
+      setPrintingEstimatedResinTotalMl(found || sceneTotalMl > 0 ? sceneTotalMl + supportAndRaftVolumes.total : null);
+      setPrintingEstimatedModelMl(found ? totalMl : null);
+      setPrintingEstimatedSupportsMl(supportAndRaftVolumes.activeSupports);
+      setPrintingEstimatedRaftMl(supportAndRaftVolumes.activeRaft);
       lastCompletedResinEstimateSignatureRef.current = compositeSignature;
       setIsPrintingEstimatedResinBusy(false);
     };
@@ -3565,6 +3657,11 @@ export default function Home() {
     resinEstimateRefreshTick,
     shouldEstimateResinInBackground,
     supportAndRaftResinMl,
+    supportAndRaftVolumes.total,
+    supportAndRaftVolumes.activeSupports,
+    supportAndRaftVolumes.activeRaft,
+    sceneResinModels,
+    activePlateModelIds,
     visibleResinModels,
   ]);
 
@@ -3579,6 +3676,24 @@ export default function Home() {
     return fmt.quantity(printingEstimatedResinMl, 2, 'ml');
   }, [isPrintingEstimatedResinBusy, printingEstimatedResinMl, scene.models, visibleResinModels.length, fmt]);
 
+  const estimatedModelVolumeMlLabel = React.useMemo(() => {
+    if (visibleResinModels.length === 0) return fmt.quantity(0, 2, 'ml');
+    if (isPrintingEstimatedResinBusy && printingEstimatedModelMl == null) return 'Calculating…';
+    if (printingEstimatedModelMl == null) return '—';
+    return fmt.quantity(printingEstimatedModelMl, 2, 'ml');
+  }, [fmt, isPrintingEstimatedResinBusy, printingEstimatedModelMl, visibleResinModels.length]);
+  const estimatedSupportsVolumeMlLabel = React.useMemo(() => {
+    if (visibleResinModels.length === 0) return fmt.quantity(0, 2, 'ml');
+    if (isPrintingEstimatedResinBusy && printingEstimatedSupportsMl == null) return 'Calculating…';
+    if (printingEstimatedSupportsMl == null) return '—';
+    return fmt.quantity(printingEstimatedSupportsMl, 2, 'ml');
+  }, [fmt, isPrintingEstimatedResinBusy, printingEstimatedSupportsMl, visibleResinModels.length]);
+  const estimatedRaftVolumeMlLabel = React.useMemo(() => {
+    if (visibleResinModels.length === 0) return fmt.quantity(0, 2, 'ml');
+    if (isPrintingEstimatedResinBusy && printingEstimatedRaftMl == null) return 'Calculating…';
+    if (printingEstimatedRaftMl == null) return '—';
+    return fmt.quantity(printingEstimatedRaftMl, 2, 'ml');
+  }, [fmt, isPrintingEstimatedResinBusy, printingEstimatedRaftMl, visibleResinModels.length]);
 
 
   /** The same figure for every plate, shown beside the per-plate one. */
@@ -3588,12 +3703,18 @@ export default function Home() {
     return fmt.quantity(printingEstimatedResinTotalMl, 2, 'ml');
   }, [printingEstimatedResinTotalMl, sceneResinModels.length, fmt]);
 
+
   const estimatedPrintTimeLabel = React.useMemo(() => {
     if (!activeMaterialProfile || printingPreviewTotalLayers <= 0) return '—';
 
     const totalLayers = printingPreviewTotalLayers;
     const bottomLayers = Math.max(0, Math.min(totalLayers, Math.round(activeMaterialProfile.bottomLayerCount)));
     const normalLayers = Math.max(0, totalLayers - bottomLayers);
+
+    if (activeMaterialProfile.printTimeOverride?.enabled) {
+      const override = activeMaterialProfile.printTimeOverride;
+      return formatApproxPrintTimeLabel(_, bottomLayers * override.bottomSeconds + normalLayers * override.normalSeconds);
+    }
 
     const liftSec = activeMaterialProfile.liftSpeedMmMin > 0
       ? (activeMaterialProfile.liftDistanceMm / activeMaterialProfile.liftSpeedMmMin) * 60
@@ -4368,7 +4489,7 @@ export default function Home() {
 
 
 
-  // Best-effort background cleanup of stale DragonFruit temp artifacts from prior runs.
+  // Best-effort background cleanup of stale 3DRESIN temp artifacts from prior runs.
   React.useEffect(() => {
     void cleanupStalePrintTempArtifacts(3 * 24 * 60 * 60)
       .then((removed) => {
@@ -4932,7 +5053,7 @@ export default function Home() {
     }
     if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
     // Don't show recovery when the app was launched with a scene file (double-click VOXL etc.).
-    // In that case DragonFruit is already in a loading state (pendingStartupSceneHandoff).
+    // In that case 3DRESIN is already in a loading state (pendingStartupSceneHandoff).
     if (pendingStartupSceneHandoff) {
       setAutosaveRecovery(null);
       return;
@@ -7055,6 +7176,11 @@ export default function Home() {
     const bottomLayers = Math.max(0, Math.min(totalLayers, Math.round(activeMaterialProfile.bottomLayerCount)));
     const normalLayers = Math.max(0, totalLayers - bottomLayers);
 
+    if (activeMaterialProfile.printTimeOverride?.enabled) {
+      const override = activeMaterialProfile.printTimeOverride;
+      return formatEstimatedPrintTimeLabel(_, bottomLayers * override.bottomSeconds + normalLayers * override.normalSeconds);
+    }
+
     const liftSec = activeMaterialProfile.liftSpeedMmMin > 0
       ? (activeMaterialProfile.liftDistanceMm / activeMaterialProfile.liftSpeedMmMin) * 60
       : 0;
@@ -7330,6 +7456,17 @@ export default function Home() {
     hasRaft: getRaftSettingsForModel(scene.activeModel?.id).bottomMode !== 'off',
   });
 
+  useEffect(() => {
+    const islandContacts = islandsPoc.filteredIslands
+      .filter((island) => !island.supported && !island.grounded)
+      .filter((island) => island.class !== 'intersection' || island.source === 'voxel')
+      .map((island) => ({
+        point: { x: island.contact.x, y: island.contact.y, z: island.contact.z },
+      }));
+    setSupportProjectionIslandContacts(scene.activeModel?.id ?? null, islandContacts);
+    return () => setSupportProjectionIslandContacts(null, []);
+  }, [islandsPoc.filteredIslands, scene.activeModel?.id]);
+
   // Blocking progress overlays are modal: while one is up it owns Escape, so
   // the key never reaches whatever is behind it.
   useEscapeToClose(islandsPoc.scanning && !autoSupportDrivingScan, undefined);
@@ -7357,6 +7494,14 @@ export default function Home() {
     }
     scene.setMode(nextMode);
   }, [hasSlicedPlate, isActiveSliceStale, scene]);
+
+  const canInspectIslandSlice = Boolean(activeSlice && activeSlice.totalLayers > 0 && !isActiveSliceStale);
+  const handleInspectIslandSliceLayer = React.useCallback((layerIndex: number) => {
+    if (!activeSlice || activeSlice.totalLayers <= 0 || isActiveSliceStale) return;
+    const targetLayer = Math.max(1, Math.min(activeSlice.totalLayers, Math.round(layerIndex)));
+    handleModeChange('printing');
+    handlePrintingLayerChange(targetLayer);
+  }, [activeSlice, handleModeChange, handlePrintingLayerChange, isActiveSliceStale]);
 
   const handleAddPrinterFromOnboarding = React.useCallback(() => {
     openProfileSettingsModal('printer', { openPrinterLibrary: true });
@@ -8310,80 +8455,14 @@ export default function Home() {
 
   React.useEffect(() => {
     if (scene.mode !== 'support') return;
-    if (scene.activeModelId) return;
-    if (scene.models.length === 0) return;
-
-    const firstVisible = scene.models.find((model) => model.visible) ?? scene.models[0];
-    if (firstVisible) {
-      scene.setActiveModelId(firstVisible.id);
-    }
-  }, [scene.mode, scene.activeModelId, scene.models, scene.setActiveModelId]);
-
-  React.useEffect(() => {
-    if (scene.mode !== 'support') return;
-    if (scene.selectedModelIds.length <= 1) return;
-
-    const selectedIdSet = new Set(scene.selectedModelIds);
-    const firstValidSelectedId = scene.selectedModelIds.find((id) => scene.models.some((model) => model.id === id));
-    const firstVisibleSelectedId = scene.models.find((model) => model.visible && selectedIdSet.has(model.id))?.id;
-    const keptId = firstVisibleSelectedId ?? firstValidSelectedId;
-
-    if (!keptId) {
-      scene.clearModelSelection();
-      return;
-    }
-
-    scene.setSelectedModelIds([keptId]);
-    if (scene.activeModelId !== keptId) {
-      scene.setActiveModelId(keptId);
-    }
-  }, [
-    scene.mode,
-    scene.selectedModelIds,
-    scene.models,
-    scene.activeModelId,
-    scene.setActiveModelId,
-    scene.setSelectedModelIds,
-    scene.clearModelSelection,
-  ]);
-
-  React.useEffect(() => {
-    if (scene.mode !== 'support') return;
-    if (scene.models.length === 0) return;
-
-    const modelIdSet = new Set(scene.models.map((model) => model.id));
-    const activeId = scene.activeModelId;
-
-    if (activeId && modelIdSet.has(activeId)) {
-      if (scene.selectedModelIds.length === 1 && scene.selectedModelIds[0] === activeId) {
-        return;
-      }
-
-      if (scene.selectedModelIds.length === 0 || !scene.selectedModelIds.includes(activeId)) {
-        scene.setSelectedModelIds([activeId]);
-        return;
-      }
-
-      if (scene.selectedModelIds.length > 1) {
-        scene.setSelectedModelIds([activeId]);
-      }
-      return;
-    }
-
-    const fallback = scene.models.find((model) => model.visible) ?? scene.models[0];
-    if (!fallback) return;
-
-    scene.setActiveModelId(fallback.id);
-    scene.setSelectedModelIds([fallback.id]);
-  }, [
-    scene.mode,
-    scene.models,
-    scene.activeModelId,
-    scene.selectedModelIds,
-    scene.setActiveModelId,
-    scene.setSelectedModelIds,
-  ]);
-
+    const selectable = scene.models.filter(model => model.visible && !scene.isModelPlateLocked(model));
+    const selected = selectable.filter(model => scene.selectedModelIds.includes(model.id));
+    if (selected.some(model => model.id === scene.activeModelId)) return;
+    const next = selected[0] ?? selectable.find(model => model.id === scene.activeModelId) ?? selectable[0];
+    if (!next) return;
+    scene.setActiveModelId(next.id);
+    if (!selected.length) scene.setSelectedModelIds([next.id]);
+  }, [scene.mode, scene.models, scene.selectedModelIds, scene.activeModelId, scene.isModelPlateLocked, scene.setActiveModelId, scene.setSelectedModelIds]);
   const importOverlayState = React.useMemo(() => {
     if (nativePickerPreparationState.active) {
       return {
@@ -8447,7 +8526,7 @@ export default function Home() {
     ? _(msg`Opening scene…`)
     : importOverlayState.label;
   const emptyStateLoadingDetail = pendingStartupSceneHandoff
-    ? _(msg`Letting DragonFruit finish its startup animation before loading your scene.`)
+    ? _(msg`Letting 3DRESIN finish its startup animation before loading your scene.`)
     : importOverlayState.detail;
 
   // An empty scene has nothing to list, so the list is hidden outright. Otherwise
@@ -9135,6 +9214,18 @@ export default function Home() {
     requestDestructiveTransformSupportDeletion,
     scene.activeModel,
   ]);
+
+  const handleScaleMeasuredDistance = React.useCallback((factor: number) => {
+    const activeModel = scene.activeModel;
+    if (!activeModel
+      || !Number.isFinite(factor)
+      || factor <= 0
+      || scene.selectedModelIds.length !== 1
+      || scene.selectedModelIds[0] !== activeModel.id) return;
+
+    const scale = activeModel.transform.scale;
+    handleScaleSelectedModels(scale.x * factor, scale.y * factor, scale.z * factor);
+  }, [handleScaleSelectedModels, scene.activeModel, scene.selectedModelIds]);
 
   const handleResetSelectedModels = React.useCallback((reset: 'rotation' | 'scale') => {
     const targetIds = getSelectionTargetIds();
@@ -9897,6 +9988,7 @@ export default function Home() {
     handleApplyHolePunch,
   } = holePunch;
 
+  const selectModelsForSupports = scene.mode === 'support' && transformMgr.transformMode !== 'hollowing';
   // Hollowing-aware Ctrl/Cmd+A/C/V/S hotkeys (hotkey-store rewrite from #297).
   React.useEffect(() => {
     let wasAPressed = false;
@@ -9926,14 +10018,14 @@ export default function Home() {
             setHoveredHolePunchPlacementId(null);
             setHolePunchHoverPlacement(null);
           }
-        } else if (scene.mode === 'prepare') {
+        } else if (scene.mode === 'prepare' || selectModelsForSupports) {
           if (scene.models.length > 0) {
-            const visibleIds = scene.models.filter((model) => model.visible).map((model) => model.id);
+            const visibleIds = scene.models.filter((model) => model.visible && !scene.isModelPlateLocked(model)).map((model) => model.id);
             if (visibleIds.length > 0) {
               scene.setSelectedModelIds(visibleIds);
               scene.setActiveModelId(visibleIds[0]);
             }
-            setIsSelectAllModelsActive(true);
+            setIsSelectAllModelsActive(scene.mode === 'prepare');
           }
         }
       }
@@ -9997,6 +10089,7 @@ export default function Home() {
     scene,
     transformMgr.transformMode,
     activeHolePunchPlacements,
+    selectModelsForSupports,
     syncHolePunchPanelFromSelection,
     arrangeSpacingMm,
     handleTopBarSaveScene,
@@ -10098,6 +10191,8 @@ export default function Home() {
         infillMode: next.infillMode ?? defaultHollowingState.infillMode,
         infillCellMm: next.infillCellMm ?? defaultHollowingState.infillCellMm,
         infillBeamRadiusMm: next.infillBeamRadiusMm ?? defaultHollowingState.infillBeamRadiusMm,
+        detectResinTraps: next.detectResinTraps ?? false,
+        detectInteriorSuctionCups: next.detectInteriorSuctionCups ?? false,
         openFace: next.openFace,
         openFaceSelected: next.mode === 'shell_open_face' ? false : true,
       },
@@ -10119,6 +10214,8 @@ export default function Home() {
                 infillMode: persistedHollowing.infillMode ?? defaultHollowingState.infillMode,
                 infillCellMm: persistedHollowing.infillCellMm ?? defaultHollowingState.infillCellMm,
                 infillBeamRadiusMm: persistedHollowing.infillBeamRadiusMm ?? defaultHollowingState.infillBeamRadiusMm,
+                detectResinTraps: persistedHollowing.detectResinTraps ?? false,
+                detectInteriorSuctionCups: persistedHollowing.detectInteriorSuctionCups ?? false,
                 openFace: persistedHollowing.openFace,
               }
             : defaultHollowingState;
@@ -10199,6 +10296,8 @@ export default function Home() {
       infillMode: persistedHollowing?.infillMode ?? defaultHollowingState.infillMode,
       infillCellMm: persistedHollowing?.infillCellMm ?? defaultHollowingState.infillCellMm,
       infillBeamRadiusMm: persistedHollowing?.infillBeamRadiusMm ?? defaultHollowingState.infillBeamRadiusMm,
+      detectResinTraps: persistedHollowing?.detectResinTraps ?? false,
+      detectInteriorSuctionCups: persistedHollowing?.detectInteriorSuctionCups ?? false,
       openFace: persistedHollowing?.openFace ?? defaultHollowingState.openFace,
     };
 
@@ -10453,6 +10552,8 @@ export default function Home() {
         onViewTypeChange={scene.setShaderType}
         overhangViewActive={scene.shaderType === 'overhang_heatmap'}
         onOverhangViewChange={toggleOverhangView}
+        millimeterRulerVisible={millimeterRulerVisible}
+        onMillimeterRulerVisibleChange={setMillimeterRulerVisible}
         hideWorkflowControls={onboardingMounted && wizardActive}
         heatmapColors={scene.heatmapColors}
         onHeatmapColorChange={scene.onHeatmapColorChange}
@@ -10463,6 +10564,7 @@ export default function Home() {
         onSaveScene={() => { void handleTopBarSaveScene(); }}
         onSaveSceneAs={() => { handleTopBarSaveSceneAs(); }}
         onOpenScene={handleTopBarOpenScene}
+        onOpenPreparedModel={handleOpenPreparedModel}
         onCloseProgram={handleRequestProgramClose}
         showMonitorButton={showTopbarMonitorButton}
         monitorButtonActive={selectedPrinterHasActivePrint}
@@ -10546,6 +10648,9 @@ export default function Home() {
               scene: scene,
               slicing: slicing,
               islands: islands,
+              onScaleMeasuredDistance: handleScaleMeasuredDistance,
+              canInspectSliceLayer: canInspectIslandSlice,
+              onInspectSliceLayer: handleInspectIslandSliceLayer,
             })}
           </>
         ) : scene.mode === 'export' ? (
@@ -10553,6 +10658,8 @@ export default function Home() {
             {ExportPanelStack({
               scene: scene,
               slicing: slicing,
+              readinessIslands: islandsPoc,
+              drainHoleVerificationResults: holePunch.holePunchVerificationResults,
               supportsRef: supportsRef,
               captureExportThumbnailPng: captureSliceThumbnailPng,
               handleExportSuccess: handleExportSuccess,
@@ -10561,6 +10668,9 @@ export default function Home() {
               excludedSliceModelIds: excludedSliceModelIds,
               crossSectionLayerHeightMm: crossSectionLayerHeightMm,
               estimatedVolumeMlLabel: estimatedVolumeMlLabel,
+              estimatedModelVolumeMlLabel: estimatedModelVolumeMlLabel,
+              estimatedSupportsVolumeMlLabel: estimatedSupportsVolumeMlLabel,
+              estimatedRaftVolumeMlLabel: estimatedRaftVolumeMlLabel,
               handleSliceRunStartedForPrinting: handleSliceRunStartedForPrinting,
               handleSlicingFinishedForPrinting: handleSlicingFinishedForPrinting,
               handleSliceArtifactReady: handleSliceArtifactReady,
@@ -10612,7 +10722,33 @@ export default function Home() {
               key="support-settings"
               style={{ display: supportRailMode === 'manual' && transformMgr.transformMode !== 'hollowing' ? undefined : 'none' }}
             >
-              <SupportSidebar activeModelId={scene.activeModelId} />
+              <SupportSidebar
+                activeModelId={scene.activeModelId}
+                showSupportModelColorMap={showSupportModelColorMap}
+                onSupportModelColorMapChange={setShowSupportModelColorMap}
+                supportPaintingActive={transformMgr.transformMode === 'supportPainting'}
+                onSupportPaintingChange={(active) => setTransformModeWithMirrorFinalize(active ? 'supportPainting' : 'select')}
+                supportInlineActive={transformMgr.transformMode === 'supportInline'}
+                onSupportInlineChange={(active) => setTransformModeWithMirrorFinalize(active ? 'supportInline' : 'select')}
+                supportProjectionActive={transformMgr.transformMode === 'supportProjection'}
+                onSupportProjectionChange={(active) => setTransformModeWithMirrorFinalize(active ? 'supportProjection' : 'select')}
+              />
+            </div>
+            <div
+              key="support-proximity"
+              style={{ display: supportRailMode === 'proximity' && transformMgr.transformMode !== 'hollowing' ? undefined : 'none' }}
+            >
+              <SupportProximityPanel scene={scene} />
+            </div>
+            <div
+              key="support-suction-cups"
+              style={{ display: supportRailMode === 'suction' && transformMgr.transformMode !== 'hollowing' ? undefined : 'none' }}
+            >
+              <SuctionCupDetectorPanel
+                scene={scene}
+                active={scene.mode === 'support' && supportRailMode === 'suction' && transformMgr.transformMode !== 'hollowing'}
+                onFocusFinding={handleSuctionCupFocusFinding}
+              />
             </div>
             {autoSupportsExperimentEnabled && (
               <div
@@ -10623,9 +10759,12 @@ export default function Home() {
                   islands={islandsPoc}
                   hasGeometry={!!scene.geom}
                   activeModelId={scene.activeModelId ?? undefined}
+                  models={scene.models}
+                  selectedModelIds={scene.selectedModelIds}
                   autoLift={transformMgr.autoLift}
                   onAutoLiftChange={handleAutoLiftChange}
                   onBeforeRun={requestModifierDecisionBeforeSupports}
+                  onOrientForMagic={handleMagicOrientation}
                 />
               </div>
             )}
@@ -10637,6 +10776,8 @@ export default function Home() {
                 islands={islandsPoc}
                 hasGeometry={!!scene.geom}
                 bottomClearancePx={modelStatsBottomClearancePx}
+                canInspectSliceLayer={canInspectIslandSlice}
+                onInspectSliceLayer={handleInspectIslandSliceLayer}
               />
             </div>
             {scene.geom && transformMgr.transformMode === 'hollowing' && (
@@ -10645,6 +10786,8 @@ export default function Home() {
                   key="support-hollowing"
                   state={hollowing.hollowingState}
                   onStateChange={hollowing.handleHollowingStateChange}
+                  hollowing2D={hollowing.hollowing2DState}
+                  onHollowing2DChange={hollowing.handleHollowing2DChange}
                   onReset={hollowing.requestClearAppliedHollowing}
                   onResetSettings={hollowing.handleResetHollowingSettings}
                   onStartEdit={hollowing.handleStartHollowVoxelEditing}
@@ -10659,6 +10802,13 @@ export default function Home() {
                   isEditMode={hollowing.hollowingEditMode}
                   isHollowingApplied={hollowing.isHollowingApplied}
                   shellFaceSelectionPending={hollowing.isShellFaceSelectionPending}
+                  drainHoleCount={Math.max(
+                    scene.activeModel?.meshModifiers?.holePunches?.length ?? 0,
+                    scene.activeModel?.meshModifiers?.holePunchAppliedPlacements?.length ?? 0,
+                  )}
+                  drainHoleVerificationResults={holePunch.holePunchVerificationResults}
+                  canVerifyDrainHoles={holePunch.canVerifyHolePunches}
+                  onVerifyDrainHoles={holePunch.handleVerifyHolePunches}
                 />
                 <HolePunchPanel
                   key="support-hole-punch"
@@ -10673,6 +10823,9 @@ export default function Home() {
                   disabled={hollowing.hollowingEditMode}
                   interiorView={interiorView}
                   interiorViewAvailable={hasCavityGeometry}
+                  verificationResults={holePunch.holePunchVerificationResults}
+                  canVerify={holePunch.canVerifyHolePunches}
+                  onVerify={holePunch.handleVerifyHolePunches}
                 />
               </>
             )}
@@ -10685,6 +10838,9 @@ export default function Home() {
               activePrinterProfile: activePrinterProfile,
               printingResinName: printingResinName,
               estimatedPrintTimeLabel: estimatedPrintTimeLabel,
+              estimatedModelVolumeMlLabel: estimatedModelVolumeMlLabel,
+              estimatedSupportsVolumeMlLabel: estimatedSupportsVolumeMlLabel,
+              estimatedRaftVolumeMlLabel: estimatedRaftVolumeMlLabel,
               estimatedVolumeMlLabel: estimatedVolumeMlLabel,
               canDownloadPrintArtifact: canDownloadPrintArtifact,
               canSendToPrinter: canSendToPrinter,
@@ -10775,6 +10931,10 @@ export default function Home() {
               showFirstTimeOnboarding={!hasActivePrinterProfile && !allowPrepareWithoutPrinter}
               onAddPrinter={handleAddPrinterFromOnboarding}
               onUseWithoutPrinter={handleUseWithoutPrinter}
+              onStartTask={(mode) => {
+                scene.setMode(mode);
+                void handleOpenMeshDialog();
+              }}
             />
           )}
 
@@ -10812,6 +10972,7 @@ export default function Home() {
 
           <SceneCanvas
             models={scene.models}
+            supportModelColorMapEnabled={showSupportModelColorMap}
             activeModelId={sceneCanvasActiveModelId}
             visualActiveModelId={sceneCanvasVisualActiveModelId}
             selectedModelIds={sceneCanvasSelectedModelIds}
@@ -10869,6 +11030,7 @@ export default function Home() {
               setPlateTrashIntent(intent);
             }}
             cavityGeometryByModelId={new Map(Array.from(cavityGeometryByModelIdRef.current.entries()).map(([id, entry]) => [id, entry.geometry]))}
+            focusPointRequest={suctionCupFocusRequest}
             disableRaycast={transformMgr.isTransforming}
             hideCrossSectionCap={false}
             onCameraChange={handleCameraChange}
@@ -10895,6 +11057,7 @@ export default function Home() {
               scene.mode === 'support' ? islandsPoc.selectedMarkerId : islands.selectedIslandId
             }
             showOverhangs={islandsPoc.showOverhangs}
+            showMillimeterRuler={millimeterRulerVisible}
             ambientIntensity={scene.ambientIntensity}
             directionalIntensity={scene.directionalIntensity}
             materialRoughness={scene.materialRoughness}
@@ -10944,6 +11107,7 @@ export default function Home() {
             }
             onSupportHover={supports.onModelHover}
             onActiveModelChange={handleSceneModelSelection}
+            selectModelsForSupports={selectModelsForSupports}
             onMarqueeSelectionChange={handleSceneMarqueeSelection}
             placementPreviews={supports.placementPreviews}
             // One canvas, one tool: while Hollowing owns the canvas (it is a
@@ -11052,7 +11216,7 @@ export default function Home() {
             deferCameraIntro={holdEmptyStateSceneImportUi}
             freezeViewportActive={isSlicingBusy && scene.mode === 'export'}
             indicatorPlaneZ={scene.mode === 'printing' ? printingCurrentHeightMm : null}
-            indicatorPlaneColor={themeMeshHighlightColors.selection || '#ec2a77'}
+            indicatorPlaneColor={themeMeshHighlightColors.selection || '#ffb45d'}
             onNewDeviceDetected={handleNewDeviceDetected}
           >
             {scene.mode === 'prepare' && transformMgr.transformMode === 'smoothing' && (
@@ -11114,6 +11278,9 @@ export default function Home() {
                 heightMm={slicing.heightMm}
                 estimatedPrintTimeLabelOverride={modelStatsEstimatedPrintTimeLabel}
                 estimatedResinLabelOverride={estimatedVolumeMlLabel}
+                estimatedModelResinLabelOverride={estimatedModelVolumeMlLabel}
+                estimatedSupportsResinLabelOverride={estimatedSupportsVolumeMlLabel}
+                estimatedRaftResinLabelOverride={estimatedRaftVolumeMlLabel}
                 estimatedResinTotalLabel={estimatedResinTotalLabel}
               />
             </div>
@@ -11171,11 +11338,28 @@ export default function Home() {
               mode: supportRailMode,
               onModeChange: (nextMode) => {
                 setSupportRailMode(nextMode);
-                // Picking a panel tool leaves the Hollowing transform mode, so its
-                // panel gives way to the selected one.
-                if (transformMgr.transformMode === 'hollowing') {
+                // A panel selection exits interaction tools, so their canvas mode
+                // cannot stay active behind a different Support panel.
+                if (
+                  transformMgr.transformMode === 'hollowing'
+                  || transformMgr.transformMode === 'supportPainting'
+                  || transformMgr.transformMode === 'supportInline'
+                  || transformMgr.transformMode === 'supportProjection'
+                ) {
                   setTransformModeWithMirrorFinalize('select');
                 }
+              },
+              activeInteractionMode:
+                transformMgr.transformMode === 'supportPainting'
+                || transformMgr.transformMode === 'supportInline'
+                || transformMgr.transformMode === 'supportProjection'
+                  ? transformMgr.transformMode
+                  : null,
+              onInteractionModeSelect: (nextMode) => {
+                setSupportRailMode('manual');
+                setTransformModeWithMirrorFinalize(
+                  transformMgr.transformMode === nextMode ? 'select' : nextMode,
+                );
               },
               ...modelsRailToggle,
               hollowingActive: transformMgr.transformMode === 'hollowing',

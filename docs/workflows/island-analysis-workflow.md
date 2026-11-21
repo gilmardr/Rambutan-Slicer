@@ -24,6 +24,7 @@ Use workflow defaults as a starting point:
 
 - Enable ID labels/voxel visuals.
 - Use Island list to search, sort, and select islands.
+- When a current slice exists, use **Inspect first risk layer in slice** to compare the reported layer with the actual printer output.
 - Toggle showing child/merged islands.
 - Open Hierarchy view for parent/child relationships.
 

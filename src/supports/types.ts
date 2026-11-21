@@ -65,6 +65,8 @@ export interface SupportEntity {
     generatedBy?: SupportGeneratedBy;
     /** Auto-support origin, for debug origin colouring. */
     origin?: SupportOrigin;
+    /** User-facing groups used by projection supports and support selection. */
+    supportTags?: string[];
     /**
      * Which support type this is.
      *

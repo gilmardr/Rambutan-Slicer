@@ -1,4 +1,5 @@
-use std::collections::VecDeque;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +18,7 @@ pub enum HollowMode {
 #[serde(rename_all = "snake_case")]
 pub enum InfillMode {
     Lattice,
+    DoubleLattice,
     Pillar,
 }
 
@@ -56,6 +58,10 @@ pub struct HollowOptions {
     pub infill_beam_radius_mm: f32,
     pub open_face: OpenFace,
     pub drain_holes: Vec<DrainHoleSpec>,
+    /// Through-wall hole punches used only as external vents by pocket detection.
+    pub pocket_detection_vents: Vec<DrainHoleSpec>,
+    pub detect_resin_traps: bool,
+    pub detect_interior_suction_cups: bool,
     pub preview_cavity_only: bool,
     pub smooth_internal_surfaces: bool,
     /// Number of voxel chamfer passes to run on internal cavity boundaries.
@@ -89,6 +95,9 @@ impl Default for HollowOptions {
             infill_beam_radius_mm: 0.35,
             open_face: OpenFace::ZMax,
             drain_holes: Vec::new(),
+            pocket_detection_vents: Vec::new(),
+            detect_resin_traps: false,
+            detect_interior_suction_cups: false,
             preview_cavity_only: false,
             smooth_internal_surfaces: true,
             internal_chamfer_passes: 2,
@@ -636,6 +645,8 @@ pub fn hollow_voxel(mut mesh: IndexedMesh, options: &HollowOptions) -> HollowOut
         }
     }
 
+    apply_pocket_detection(&grid, &solid, &mut keep, options, &source_bbox, voxel_mm);
+
     let removed_voxels = occupied_voxels.saturating_sub(keep.iter().filter(|v| **v).count());
 
     let (mut out_mesh, cavity_mesh) = if options.preview_voxel_spheres {
@@ -1092,6 +1103,15 @@ impl HollowSession {
                 keep[blocked_index] = true;
             }
         }
+
+        apply_pocket_detection(
+            &self.grid,
+            &self.solid,
+            &mut keep,
+            options,
+            &self.source_bbox,
+            self.grid.voxel_mm,
+        );
 
         (keep, kept_shell)
     }
@@ -3115,7 +3135,7 @@ fn build_smooth_infill_mesh(
     let dir_extent_pad = extent.length() + spacing_mm * 1.5;
 
     let directions: &[Vec3] = match infill_mode {
-        InfillMode::Lattice => &[
+        InfillMode::Lattice | InfillMode::DoubleLattice => &[
             Vec3::new(1.0, 1.0, 1.0),
             Vec3::new(1.0, 1.0, -1.0),
             Vec3::new(1.0, -1.0, 1.0),
@@ -3142,27 +3162,47 @@ fn build_smooth_infill_mesh(
         let u_steps = ((u_extent * 2.0) / spacing_mm).ceil() as isize;
         let v_steps = ((v_extent * 2.0) / spacing_mm).ceil() as isize;
 
-        for u_step in 0..=u_steps {
-            let u_offset = -u_extent + u_step as f32 * spacing_mm;
-            for v_step in 0..=v_steps {
-                let v_offset = -v_extent + v_step as f32 * spacing_mm;
-                let line_origin = center
-                    .add(basis_u.scale(u_offset))
-                    .add(basis_v.scale(v_offset))
-                    .sub(axis.scale(dir_extent_pad));
+        // Double lattice adds a second copy of each diagonal beam family,
+        // shifted by half a cell in both directions across the lattice plane.
+        let phase_count = if infill_mode == InfillMode::DoubleLattice { 2 } else { 1 };
+        for phase_index in 0..phase_count {
+            let phase_offset = phase_index as f32 * spacing_mm * 0.5;
+            for u_step in 0..=u_steps {
+                let u_offset = -u_extent + u_step as f32 * spacing_mm + phase_offset;
+                for v_step in 0..=v_steps {
+                    let v_offset = -v_extent + v_step as f32 * spacing_mm + phase_offset;
+                    let line_origin = center
+                        .add(basis_u.scale(u_offset))
+                        .add(basis_v.scale(v_offset))
+                        .sub(axis.scale(dir_extent_pad));
 
-                let mut run_start: Option<f32> = None;
-                let mut last_inside_t = 0.0f32;
-                for sample_idx in 0..=line_sample_count {
-                    let t = sample_idx as f32 * sample_step;
-                    let point = line_origin.add(axis.scale(t));
-                    let inside = point_samples_carved_cavity(grid, solid, keep, point);
-                    if inside {
-                        if run_start.is_none() {
-                            run_start = Some(t);
+                    let mut run_start: Option<f32> = None;
+                    let mut last_inside_t = 0.0f32;
+                    for sample_idx in 0..=line_sample_count {
+                        let t = sample_idx as f32 * sample_step;
+                        let point = line_origin.add(axis.scale(t));
+                        let inside = point_samples_carved_cavity(grid, solid, keep, point);
+                        if inside {
+                            if run_start.is_none() {
+                                run_start = Some(t);
+                            }
+                            last_inside_t = t;
+                        } else if let Some(start_t) = run_start.take() {
+                            append_infill_beam_segment(
+                                &mut soup,
+                                line_origin,
+                                axis,
+                                start_t,
+                                last_inside_t,
+                                embed_pad,
+                                min_run_length,
+                                radius_mm,
+                                radial_segments,
+                            );
                         }
-                        last_inside_t = t;
-                    } else if let Some(start_t) = run_start.take() {
+                    }
+
+                    if let Some(start_t) = run_start.take() {
                         append_infill_beam_segment(
                             &mut soup,
                             line_origin,
@@ -3175,20 +3215,6 @@ fn build_smooth_infill_mesh(
                             radial_segments,
                         );
                     }
-                }
-
-                if let Some(start_t) = run_start.take() {
-                    append_infill_beam_segment(
-                        &mut soup,
-                        line_origin,
-                        axis,
-                        start_t,
-                        last_inside_t,
-                        embed_pad,
-                        min_run_length,
-                        radius_mm,
-                        radial_segments,
-                    );
                 }
             }
         }
@@ -3894,6 +3920,132 @@ fn refine_non_surface_solid_components_with_parity(
             for &i in &component {
                 solid[i] = false;
             }
+        }
+    }
+}
+
+fn apply_pocket_detection(
+    grid: &GridSpec,
+    solid: &[bool],
+    keep: &mut [bool],
+    options: &HollowOptions,
+    bbox: &Aabb,
+    voxel_mm: f32,
+) {
+    if (!options.detect_resin_traps && !options.detect_interior_suction_cups)
+        || matches!(options.mode, HollowMode::ShellOpenFace)
+    {
+        return;
+    }
+
+    let source_keep = keep.to_vec();
+    let mut vented_keep = source_keep.clone();
+    for vent in &options.pocket_detection_vents {
+        apply_drain_hole_corridor(grid, &mut vented_keep, vent, bbox, voxel_mm);
+    }
+
+    let mut fill = vec![false; keep.len()];
+    if options.detect_resin_traps {
+        mark_gravity_traps(grid, solid, &source_keep, &vented_keep, false, &mut fill);
+    }
+    if options.detect_interior_suction_cups {
+        mark_gravity_traps(grid, solid, &source_keep, &vented_keep, true, &mut fill);
+    }
+
+    for (index, should_fill) in fill.into_iter().enumerate() {
+        if should_fill {
+            keep[index] = true;
+        }
+    }
+}
+
+/// Finds cavity voxels whose lowest path to an exterior opening requires
+/// climbing above their own height. `invert_height` performs the same
+/// spill-path check from the opposite side for interior suction cups.
+fn mark_gravity_traps(
+    grid: &GridSpec,
+    solid: &[bool],
+    source_keep: &[bool],
+    vented_keep: &[bool],
+    invert_height: bool,
+    fill: &mut [bool],
+) {
+    let mut spill_level = vec![u16::MAX; source_keep.len()];
+    let mut queue = BinaryHeap::<Reverse<(u16, usize)>>::new();
+
+    let height = |z: usize| -> u16 {
+        if invert_height {
+            (grid.nz - 1 - z) as u16
+        } else {
+            z as u16
+        }
+    };
+
+    for z in 0..grid.nz {
+        for y in 0..grid.ny {
+            for x in 0..grid.nx {
+                if x != 0
+                    && x + 1 != grid.nx
+                    && y != 0
+                    && y + 1 != grid.ny
+                    && z != 0
+                    && z + 1 != grid.nz
+                {
+                    continue;
+                }
+
+                let index = grid.idx(x, y, z);
+                if vented_keep[index] {
+                    continue;
+                }
+
+                let level = height(z);
+                if level < spill_level[index] {
+                    spill_level[index] = level;
+                    queue.push(Reverse((level, index)));
+                }
+            }
+        }
+    }
+
+    while let Some(Reverse((level, index))) = queue.pop() {
+        if spill_level[index] != level {
+            continue;
+        }
+
+        let z = index / (grid.nx * grid.ny);
+        let remainder = index - z * grid.nx * grid.ny;
+        let y = remainder / grid.nx;
+        let x = remainder - y * grid.nx;
+
+        for (dx, dy, dz) in N6 {
+            let nx = x as isize + dx;
+            let ny = y as isize + dy;
+            let nz = z as isize + dz;
+            if !grid.in_bounds(nx, ny, nz) {
+                continue;
+            }
+
+            let neighbor = grid.idx(nx as usize, ny as usize, nz as usize);
+            if vented_keep[neighbor] {
+                continue;
+            }
+
+            let candidate = level.max(height(nz as usize));
+            if candidate < spill_level[neighbor] {
+                spill_level[neighbor] = candidate;
+                queue.push(Reverse((candidate, neighbor)));
+            }
+        }
+    }
+
+    for index in 0..source_keep.len() {
+        if source_keep[index] || !solid[index] || spill_level[index] == u16::MAX {
+            continue;
+        }
+        let z = index / (grid.nx * grid.ny);
+        if spill_level[index] > height(z) {
+            fill[index] = true;
         }
     }
 }

@@ -19,6 +19,7 @@ import {
     DEFAULT_WEBCAM_ROTATION_DEG,
 } from '@/features/profiles/outputFormatUtils';
 import { hasWindow } from '@/utils/dom';
+import { computeBuildDimensionMm } from './buildVolumeUtils';
 
 export type PrinterOutputFormat = string;
 export type PrinterNetworkSupport = string;
@@ -111,6 +112,7 @@ export type PrinterPreset = {
         depth: number;
         height: number;
     };
+    defaultTransitionLayersMm?: number;
     safetyMarginMm?: {
         front: number;
         back: number;
@@ -126,6 +128,7 @@ export type PrinterPreset = {
         webcamRotationDeg?: PrinterWebcamRotationDeg;
         mirrorX?: boolean;
         mirrorY?: boolean;
+        rotateScreen?: boolean;
     };
 };
 
@@ -157,6 +160,7 @@ export type PrinterProfile = {
         depth: number;
         height: number;
     };
+    defaultTransitionLayersMm?: number;
     display: {
         resolutionX: number;
         resolutionY: number;
@@ -166,6 +170,7 @@ export type PrinterProfile = {
         webcamRotationDeg?: PrinterWebcamRotationDeg;
         mirrorX?: boolean;
         mirrorY?: boolean;
+        rotateScreen?: boolean;
     };
     network?: PrinterNetworkSettings;
     networkFleet?: PrinterNetworkDevice[];
@@ -258,6 +263,25 @@ export type MaterialAntiAliasingSettings = {
     supportTipShrinkPercent: number;
 };
 
+export type MaterialToleranceCompensation = {
+    /** Positive values shrink enclosed holes; negative values enlarge them. */
+    innerDiameterMm: number;
+    /** Positive values expand outer contours; negative values shrink them. */
+    outerDiameterMm: number;
+    /** When false, normal-layer values also apply to bottom layers. */
+    bottomEnabled: boolean;
+    bottomInnerDiameterMm: number;
+    bottomOuterDiameterMm: number;
+};
+
+export const DEFAULT_MATERIAL_TOLERANCE_COMPENSATION: MaterialToleranceCompensation = {
+    innerDiameterMm: 0,
+    outerDiameterMm: 0,
+    bottomEnabled: false,
+    bottomInnerDiameterMm: 0,
+    bottomOuterDiameterMm: 0,
+};
+
 export const DEFAULT_MATERIAL_ANTI_ALIASING_SETTINGS: MaterialAntiAliasingSettings = {
     enableCustomSettings: false,
     enableOverride: false,
@@ -325,6 +349,8 @@ export type MaterialProfile = {
         y: number;
         z: number;
     };
+    toleranceCompensation?: MaterialToleranceCompensation;
+    printTimeOverride?: { enabled: boolean; bottomSeconds: number; normalSeconds: number };
     layerHeightMm: number;
     normalExposureSec: number;
     bottomExposureSec: number;
@@ -337,6 +363,12 @@ export type MaterialProfile = {
     localSettingsByOutput?: Record<string, LocalMaterialSettingsMap>;
 };
 
+function normalizePrintTimeOverride(value: unknown): NonNullable<MaterialProfile['printTimeOverride']> {
+    const input = value && typeof value === 'object' ? value as Partial<NonNullable<MaterialProfile['printTimeOverride']>> : {};
+    const seconds = (n: unknown) => typeof n === 'number' && Number.isFinite(n) ? Math.max(0, n) : 0;
+    return { enabled: input.enabled === true, bottomSeconds: seconds(input.bottomSeconds), normalSeconds: seconds(input.normalSeconds) };
+}
+
 function normalizeMinimumAaAlphaPercent(value: unknown, fallback = 35): number {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return fallback;
@@ -347,6 +379,18 @@ function clampNumber(value: unknown, fallback: number, min: number, max: number)
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return fallback;
     return Math.max(min, Math.min(max, numeric));
+}
+
+function sanitizeMaterialToleranceCompensation(input: unknown): MaterialToleranceCompensation {
+    const source = (input && typeof input === 'object') ? input as Record<string, unknown> : {};
+    const defaults = DEFAULT_MATERIAL_TOLERANCE_COMPENSATION;
+    return {
+        innerDiameterMm: clampNumber(source.innerDiameterMm, defaults.innerDiameterMm, -5, 5),
+        outerDiameterMm: clampNumber(source.outerDiameterMm, defaults.outerDiameterMm, -5, 5),
+        bottomEnabled: source.bottomEnabled === true,
+        bottomInnerDiameterMm: clampNumber(source.bottomInnerDiameterMm, defaults.bottomInnerDiameterMm, -5, 5),
+        bottomOuterDiameterMm: clampNumber(source.bottomOuterDiameterMm, defaults.bottomOuterDiameterMm, -5, 5),
+    };
 }
 
 function sanitizeMaterialAntiAliasingSettings(input: unknown): MaterialAntiAliasingSettings {
@@ -890,6 +934,7 @@ const BUILTIN_PRINTER_PRESETS: PrinterPreset[] = (printerPresetsData as PrinterP
         ),
         mirrorX: normalizeMirrorFlag((preset.display as { mirrorX?: unknown } | undefined)?.mirrorX, false),
         mirrorY: normalizeMirrorFlag((preset.display as { mirrorY?: unknown } | undefined)?.mirrorY, false),
+        rotateScreen: normalizeMirrorFlag((preset.display as { rotateScreen?: unknown } | undefined)?.rotateScreen, false),
     },
 }));
 
@@ -921,6 +966,7 @@ const DEFAULT_PRINTER_PROFILES: PrinterProfile[] = BUILTIN_PRINTER_PRESETS.map((
     isOfficial: true,
     isCustom: false,
     buildVolumeMm: preset.buildVolumeMm,
+    defaultTransitionLayersMm: normalizeOptionalNonNegativeNumber((preset as any).defaultTransitionLayersMm),
     safetyMarginMm: sanitizeSafetyMarginMm((preset as any).safetyMarginMm),
     display: preset.display,
     network: sanitizePrinterNetworkSettings((preset as any).network),
@@ -974,6 +1020,52 @@ function isOfficialProfileByHeuristic(profile: Partial<PrinterProfile>): boolean
 function normalizeMirrorFlag(value: unknown, fallback = false): boolean {
     if (typeof value === 'boolean') return value;
     return fallback;
+}
+
+function normalizeOptionalNonNegativeNumber(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value)
+        ? Math.max(0, value)
+        : undefined;
+}
+
+function resolveBuildVolumeMm(options: {
+    mode: PrinterBuildDimensionMode;
+    pixelSize?: PrinterPixelSize;
+    display?: Pick<PrinterProfile['display'], 'resolutionX' | 'resolutionY'>;
+    buildVolume?: Partial<PrinterProfile['buildVolumeMm']> | null;
+    fallbackDisplay?: Pick<PrinterPreset['display'], 'resolutionX' | 'resolutionY'>;
+    fallbackBuildVolume?: PrinterPreset['buildVolumeMm'];
+}): PrinterProfile['buildVolumeMm'] {
+    const toPositive = (value: unknown): number | undefined => {
+        const number = Number(value);
+        return Number.isFinite(number) && number > 0 ? number : undefined;
+    };
+    const width = toPositive(options.buildVolume?.width);
+    const depth = toPositive(options.buildVolume?.depth);
+    const height = toPositive(options.buildVolume?.height)
+        ?? toPositive(options.fallbackBuildVolume?.height)
+        ?? 175;
+
+    if (options.mode === 'auto' && options.pixelSize) {
+        const resolutionX = toPositive(options.display?.resolutionX)
+            ?? toPositive(options.fallbackDisplay?.resolutionX)
+            ?? 2560;
+        const resolutionY = toPositive(options.display?.resolutionY)
+            ?? toPositive(options.fallbackDisplay?.resolutionY)
+            ?? 1620;
+
+        return {
+            width: computeBuildDimensionMm(resolutionX, options.pixelSize.x),
+            depth: computeBuildDimensionMm(resolutionY, options.pixelSize.y),
+            height,
+        };
+    }
+
+    return {
+        width: width ?? toPositive(options.fallbackBuildVolume?.width) ?? 143,
+        depth: depth ?? toPositive(options.fallbackBuildVolume?.depth) ?? 89,
+        height,
+    };
 }
 
 function sanitizeSafetyMarginMm(input: unknown): PrinterProfile['safetyMarginMm'] {
@@ -1107,40 +1199,21 @@ function sanitizeState(input: Partial<ProfileStoreState> | null | undefined): Pr
                     platformBadge: sanitizePlatformBadge((profile as any).platformBadge) ?? sanitizePlatformBadge((matchedPreset as any)?.platformBadge),
                     pixelSize: resolvedPixelSize,
                     bitDepth: sanitizeBitDepth((profile as any).bitDepth) ?? sanitizeBitDepth((matchedPreset as any)?.bitDepth),
+                    defaultTransitionLayersMm: normalizeOptionalNonNegativeNumber((profile as any).defaultTransitionLayersMm)
+                        ?? normalizeOptionalNonNegativeNumber((matchedPreset as any)?.defaultTransitionLayersMm),
                     buildDimensionMode: resolvedBuildDimensionMode,
                     officialPresetId,
                     officialPresetVersion: normalizeProfileVersion((profile as any).officialPresetVersion, fallbackOfficialPresetVersion),
                     isOfficial: isOfficialProfileByHeuristic(profile),
                     isCustom: typeof profile.isCustom === 'boolean' ? profile.isCustom : !isOfficialProfileByHeuristic(profile),
-                    buildVolumeMm: (() => {
-                        // When buildDimensionMode is 'auto', compute width/depth from pixelSize × resolution
-                        const toPositive = (v: unknown): number | undefined => {
-                            const n = Number(v);
-                            return Number.isFinite(n) && n > 0 ? n : undefined;
-                        };
-                        const rawW = toPositive((rawBuildVolume as any)?.width);
-                        const rawD = toPositive((rawBuildVolume as any)?.depth);
-                        const rawH = toPositive((rawBuildVolume as any)?.height)
-                            ?? toPositive(fallbackBuildVolume?.height)
-                            ?? 175;
-
-                        if (resolvedBuildDimensionMode === 'auto' && resolvedPixelSize) {
-                            const resX = Number(rawDisplay?.resolutionX) || fallbackDisplay?.resolutionX || 2560;
-                            const resY = Number(rawDisplay?.resolutionY) || fallbackDisplay?.resolutionY || 1620;
-                            const px = resolvedPixelSize;
-                            return {
-                                width: rawW ?? (resX * px.x) / 1000,
-                                depth: rawD ?? (resY * px.y) / 1000,
-                                height: rawH,
-                            };
-                        }
-
-                        return {
-                            width: rawW ?? fallbackBuildVolume?.width ?? 143,
-                            depth: rawD ?? fallbackBuildVolume?.depth ?? 89,
-                            height: rawH,
-                        };
-                    })(),
+                    buildVolumeMm: resolveBuildVolumeMm({
+                        mode: resolvedBuildDimensionMode,
+                        pixelSize: resolvedPixelSize,
+                        display: rawDisplay,
+                        buildVolume: rawBuildVolume,
+                        fallbackDisplay,
+                        fallbackBuildVolume,
+                    }),
                     safetyMarginMm: explicitSafetyMargin ?? fallbackSafetyMargin,
                     display: {
                         resolutionX: Number(rawDisplay?.resolutionX) || fallbackDisplay?.resolutionX || 2560,
@@ -1159,6 +1232,7 @@ function sanitizeState(input: Partial<ProfileStoreState> | null | undefined): Pr
                         ),
                         mirrorX: normalizeMirrorFlag(rawDisplay?.mirrorX, normalizeMirrorFlag(fallbackDisplay?.mirrorX, false)),
                         mirrorY: normalizeMirrorFlag(rawDisplay?.mirrorY, normalizeMirrorFlag(fallbackDisplay?.mirrorY, false)),
+                        rotateScreen: normalizeMirrorFlag(rawDisplay?.rotateScreen, normalizeMirrorFlag(fallbackDisplay?.rotateScreen, false)),
                     },
                     network: networkProfileState.network,
                     networkFleet: networkProfileState.networkFleet,
@@ -1217,6 +1291,8 @@ function sanitizeState(input: Partial<ProfileStoreState> | null | undefined): Pr
                             y: Number((profile as any).scaleCompensationPct?.y) || 0,
                             z: Number((profile as any).scaleCompensationPct?.z) || 0,
                         },
+                        toleranceCompensation: sanitizeMaterialToleranceCompensation((profile as any).toleranceCompensation),
+                        printTimeOverride: normalizePrintTimeOverride((profile as any).printTimeOverride),
                         layerHeightMm: Number((profile as any).layerHeightMm) || 0.05,
                         normalExposureSec: Number((profile as any).normalExposureSec) || 2.5,
                         bottomExposureSec: Number((profile as any).bottomExposureSec) || 28,
@@ -1443,6 +1519,7 @@ function ensureActiveMaterialForActivePrinter(nextState: ProfileStoreState): Pro
             bottleCapacityMl: 1000,
             resinFamily: 'standard',
             scaleCompensationPct: { x: 0, y: 0, z: 0 },
+            toleranceCompensation: DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
             layerHeightMm: 0.05,
             normalExposureSec: 2.5,
             bottomExposureSec: 28,
@@ -1585,24 +1662,26 @@ export function addPrinterProfile(partial?: Partial<Omit<PrinterProfile, 'id'>>)
 
     const resolvedBuildDimensionMode = normalizeBuildDimensionMode((partial as any)?.buildDimensionMode) ?? 'manual';
     const resolvedPixelSize = sanitizePixelSize(partial?.pixelSize);
-    let resolvedBuildVolumeMm = partial?.buildVolumeMm ?? { width: 143, depth: 89, height: 175 };
-
-    // When auto mode is active and pixelSize is known, ensure build volume is computed
-    // from pixelSize × resolution (not a stale fallback).
-    if (resolvedBuildDimensionMode === 'auto' && resolvedPixelSize && partial?.display) {
-        const resX = partial.display.resolutionX ?? 2560;
-        const resY = partial.display.resolutionY ?? 1620;
-        if (
-            !resolvedBuildVolumeMm
-            || (resolvedBuildVolumeMm.width === 143 && resolvedBuildVolumeMm.depth === 89)
-        ) {
-            resolvedBuildVolumeMm = {
-                width: (resX * resolvedPixelSize.x) / 1000,
-                depth: (resY * resolvedPixelSize.y) / 1000,
-                height: resolvedBuildVolumeMm?.height ?? 175,
-            };
-        }
-    }
+    const resolvedDisplay = {
+        resolutionX: partial?.display?.resolutionX ?? 2560,
+        resolutionY: partial?.display?.resolutionY ?? 1620,
+        outputFormat: normalizeOutputFormat(partial?.display?.outputFormat) ?? '',
+        formatVersion: normalizeFormatVersion(partial?.display?.formatVersion),
+        settingsMode: normalizeSettingsMode(partial?.display?.settingsMode),
+        webcamRotationDeg: normalizeWebcamRotationDeg(
+            partial?.display?.webcamRotationDeg ?? (partial?.display as { webcamOrientation?: unknown } | undefined)?.webcamOrientation,
+            DEFAULT_WEBCAM_ROTATION_DEG,
+        ),
+        mirrorX: normalizeMirrorFlag(partial?.display?.mirrorX, false),
+        mirrorY: normalizeMirrorFlag(partial?.display?.mirrorY, false),
+        rotateScreen: normalizeMirrorFlag(partial?.display?.rotateScreen, false),
+    };
+    const resolvedBuildVolumeMm = resolveBuildVolumeMm({
+        mode: resolvedBuildDimensionMode,
+        pixelSize: resolvedPixelSize,
+        display: resolvedDisplay,
+        buildVolume: partial?.buildVolumeMm,
+    });
 
     const profile: PrinterProfile = {
         id: createId('printer'),
@@ -1624,20 +1703,9 @@ export function addPrinterProfile(partial?: Partial<Omit<PrinterProfile, 'id'>>)
         isOfficial: partial?.isOfficial ?? false,
         isCustom: partial?.isCustom ?? true,
         buildVolumeMm: resolvedBuildVolumeMm,
+        defaultTransitionLayersMm: normalizeOptionalNonNegativeNumber(partial?.defaultTransitionLayersMm) ?? 0,
         safetyMarginMm: sanitizeSafetyMarginMm(partial?.safetyMarginMm),
-        display: {
-            resolutionX: partial?.display?.resolutionX ?? 2560,
-            resolutionY: partial?.display?.resolutionY ?? 1620,
-            outputFormat: normalizeOutputFormat(partial?.display?.outputFormat) ?? '',
-            formatVersion: normalizeFormatVersion(partial?.display?.formatVersion),
-            settingsMode: normalizeSettingsMode(partial?.display?.settingsMode),
-            webcamRotationDeg: normalizeWebcamRotationDeg(
-                partial?.display?.webcamRotationDeg ?? (partial?.display as { webcamOrientation?: unknown } | undefined)?.webcamOrientation,
-                DEFAULT_WEBCAM_ROTATION_DEG,
-            ),
-            mirrorX: normalizeMirrorFlag(partial?.display?.mirrorX, false),
-            mirrorY: normalizeMirrorFlag(partial?.display?.mirrorY, false),
-        },
+        display: resolvedDisplay,
         network: networkSettings,
         networkFleet: networkSupport ? sanitizePrinterNetworkFleet(partial?.networkFleet, networkSupport, networkSettings.ipAddress) : undefined,
         activeNetworkDeviceId: typeof partial?.activeNetworkDeviceId === 'string' ? partial.activeNetworkDeviceId.trim() || undefined : undefined,
@@ -1748,6 +1816,7 @@ export function addPrinterProfileFromPreset(presetId: string): string {
         isOfficial: true,
         isCustom: false,
         buildVolumeMm: preset.buildVolumeMm,
+        defaultTransitionLayersMm: normalizeOptionalNonNegativeNumber(preset.defaultTransitionLayersMm),
         safetyMarginMm: sanitizeSafetyMarginMm((preset as any).safetyMarginMm),
         display: {
             resolutionX: preset.display.resolutionX,
@@ -1762,6 +1831,7 @@ export function addPrinterProfileFromPreset(presetId: string): string {
             ),
             mirrorX: normalizeMirrorFlag((preset.display as { mirrorX?: unknown }).mirrorX, false),
             mirrorY: normalizeMirrorFlag((preset.display as { mirrorY?: unknown }).mirrorY, false),
+            rotateScreen: normalizeMirrorFlag((preset.display as { rotateScreen?: unknown }).rotateScreen, false),
         },
     });
 }
@@ -1796,6 +1866,8 @@ export function addMaterialProfile(
             y: partial?.scaleCompensationPct?.y ?? 0,
             z: partial?.scaleCompensationPct?.z ?? 0,
         },
+        toleranceCompensation: sanitizeMaterialToleranceCompensation(partial?.toleranceCompensation),
+        printTimeOverride: normalizePrintTimeOverride(partial?.printTimeOverride),
         layerHeightMm: partial?.layerHeightMm ?? 0.05,
         normalExposureSec: partial?.normalExposureSec ?? 2.5,
         bottomExposureSec: partial?.bottomExposureSec ?? 28,
@@ -1826,6 +1898,10 @@ export function updatePrinterProfile(id: string, updates: Partial<Omit<PrinterPr
         sourceUpdates: Partial<Omit<PrinterProfile, 'id'>>,
     ): Partial<Omit<PrinterProfile, 'id'>> => {
         const nextUpdates: Partial<Omit<PrinterProfile, 'id'>> = {};
+
+        if (Object.prototype.hasOwnProperty.call(sourceUpdates, 'defaultTransitionLayersMm')) {
+            nextUpdates.defaultTransitionLayersMm = sourceUpdates.defaultTransitionLayersMm;
+        }
 
         if (Object.prototype.hasOwnProperty.call(sourceUpdates, 'networkSupport')) {
             nextUpdates.networkSupport = sourceUpdates.networkSupport;
@@ -1941,6 +2017,9 @@ export function updatePrinterProfile(id: string, updates: Partial<Omit<PrinterPr
             safetyMarginMm: appliedUpdates.safetyMarginMm !== undefined
                 ? sanitizeSafetyMarginMm(appliedUpdates.safetyMarginMm)
                 : profile.safetyMarginMm,
+            defaultTransitionLayersMm: Object.prototype.hasOwnProperty.call(appliedUpdates, 'defaultTransitionLayersMm')
+                ? normalizeOptionalNonNegativeNumber(appliedUpdates.defaultTransitionLayersMm)
+                : profile.defaultTransitionLayersMm,
             display: appliedUpdates.display
                 ? {
                     resolutionX: Number(appliedUpdates.display.resolutionX) || profile.display.resolutionX,
@@ -1959,6 +2038,7 @@ export function updatePrinterProfile(id: string, updates: Partial<Omit<PrinterPr
                     ),
                     mirrorX: normalizeMirrorFlag(appliedUpdates.display.mirrorX, profile.display.mirrorX === true),
                     mirrorY: normalizeMirrorFlag(appliedUpdates.display.mirrorY, profile.display.mirrorY === true),
+                    rotateScreen: normalizeMirrorFlag(appliedUpdates.display.rotateScreen, profile.display.rotateScreen === true),
                 }
                 : profile.display,
             network: nextNetworkProfileState.network,
@@ -2118,6 +2198,10 @@ export function updateMaterialProfile(id: string, updates: Partial<Omit<Material
             localSettingsByOutput: updates.localSettingsByOutput !== undefined
                 ? sanitizeLocalSettingsByOutput(updates.localSettingsByOutput)
                 : profile.localSettingsByOutput,
+            toleranceCompensation: updates.toleranceCompensation !== undefined
+                ? sanitizeMaterialToleranceCompensation(updates.toleranceCompensation)
+                : sanitizeMaterialToleranceCompensation(profile.toleranceCompensation),
+            printTimeOverride: normalizePrintTimeOverride(updates.printTimeOverride ?? profile.printTimeOverride),
             antiAliasingSettings: updates.antiAliasingSettings !== undefined
                 ? sanitizeMaterialAntiAliasingSettings(updates.antiAliasingSettings)
                 : profile.antiAliasingSettings,
@@ -2222,6 +2306,7 @@ export function duplicatePrinterProfileAsCustom(id: string): string {
                 bottleCapacityMl: 1000,
                 resinFamily: 'standard',
                 scaleCompensationPct: { x: 0, y: 0, z: 0 },
+                toleranceCompensation: DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
                 layerHeightMm: 0.05,
                 normalExposureSec: 2.5,
                 bottomExposureSec: 28,
@@ -2324,6 +2409,7 @@ export function importPrinterBundle(payload: unknown): string {
         isOfficial: false,
         isCustom: true,
         buildVolumeMm: sourcePrinter.buildVolumeMm ?? { width: 143, depth: 89, height: 175 },
+        defaultTransitionLayersMm: normalizeOptionalNonNegativeNumber(sourcePrinter.defaultTransitionLayersMm),
         safetyMarginMm: sanitizeSafetyMarginMm(sourcePrinter.safetyMarginMm),
         display: {
             resolutionX: sourcePrinter.display?.resolutionX ?? 2560,
@@ -2337,6 +2423,7 @@ export function importPrinterBundle(payload: unknown): string {
             ),
             mirrorX: normalizeMirrorFlag(sourcePrinter.display?.mirrorX, false),
             mirrorY: normalizeMirrorFlag(sourcePrinter.display?.mirrorY, false),
+            rotateScreen: normalizeMirrorFlag(sourcePrinter.display?.rotateScreen, false),
         },
         network: importedNetworkSettings,
         networkFleet: importedNetworkSupport
@@ -2379,6 +2466,8 @@ export function importPrinterBundle(payload: unknown): string {
                 y: Number(material.scaleCompensationPct?.y ?? 0),
                 z: Number(material.scaleCompensationPct?.z ?? 0),
             },
+            toleranceCompensation: sanitizeMaterialToleranceCompensation(material.toleranceCompensation),
+            printTimeOverride: normalizePrintTimeOverride(material.printTimeOverride),
             layerHeightMm: Number.isFinite(Number(material.layerHeightMm)) ? Number(material.layerHeightMm) : 0.05,
             normalExposureSec: Number.isFinite(Number(material.normalExposureSec)) ? Number(material.normalExposureSec) : 2.5,
             bottomExposureSec: Number.isFinite(Number(material.bottomExposureSec)) ? Number(material.bottomExposureSec) : 28,
@@ -2404,6 +2493,7 @@ export function importPrinterBundle(payload: unknown): string {
             bottleCapacityMl: 1000,
             resinFamily: 'standard',
             scaleCompensationPct: { x: 0, y: 0, z: 0 },
+            toleranceCompensation: DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
             layerHeightMm: 0.05,
             normalExposureSec: 2.5,
             bottomExposureSec: 28,
@@ -2788,6 +2878,7 @@ export function applyOfficialPrinterProfileUpdate(printerProfileId: string): App
                         settingsMode: normalizeSettingsMode((preset.display as { settingsMode?: unknown }).settingsMode),
                         mirrorX: normalizeMirrorFlag((preset.display as { mirrorX?: unknown }).mirrorX, false),
                         mirrorY: normalizeMirrorFlag((preset.display as { mirrorY?: unknown }).mirrorY, false),
+                        rotateScreen: normalizeMirrorFlag((preset.display as { rotateScreen?: unknown }).rotateScreen, false),
                     },
                     // Preserve user-managed connection/fleet state.
                     network: sanitizePrinterNetworkSettings(item.network),
@@ -2861,6 +2952,9 @@ export function applyOfficialMaterialProfileUpdate(materialProfileId: string): A
                     y: Number((template as any).scaleCompensationPct?.y) || 0,
                     z: Number((template as any).scaleCompensationPct?.z) || 0,
                 },
+                toleranceCompensation: sanitizeMaterialToleranceCompensation(
+                    (template as any).toleranceCompensation ?? item.toleranceCompensation,
+                ),
                 layerHeightMm: Number((template as any).layerHeightMm) || item.layerHeightMm,
                 normalExposureSec: Number((template as any).normalExposureSec) || item.normalExposureSec,
                 bottomExposureSec: Number((template as any).bottomExposureSec) || item.bottomExposureSec,

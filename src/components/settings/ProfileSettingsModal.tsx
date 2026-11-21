@@ -2,12 +2,20 @@
 
 import React from 'react';
 import { Plural, Trans } from '@lingui/react/macro';
+import { msg } from '@lingui/core/macro';
+import { useLingui } from '@lingui/react';
 import { createPortal } from 'react-dom';
 import { useEscapeToClose } from '@/hotkeys/useEscapeToClose';
 import { AlertTriangle, Box, Check, Square, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, Edit3, FlaskConical, Frown, ImagePlus, Info, LayoutGrid, Lock, Plus, Printer, RefreshCw, Search, Trash2, Unlock, Upload, Wifi, WifiOff, X } from 'lucide-react';
 import { Button, IconButton, IconChip, Spinner } from '@/components/atoms';
 import FleetManagement from '@/components/settings/FleetManagement';
 import { NumberInput } from '@/components/ui/NumberInput';
+import { useLocaleFormat } from '@/hooks/useLocaleFormat';
+import CustomPrinterProfileModal, { type CustomPrinterProfileDraft } from '@/components/printers/CustomPrinterProfileModal';
+import { RESIN_PRINTER_MANUFACTURERS } from '@/features/profiles/printerManufacturers';
+import { computeBuildDimensionMm } from '@/features/profiles/buildVolumeUtils';
+import { getMaterialPresetCompatibility, getMaterialPresetOrigin } from '@/features/profiles/materialPresetLibrary';
+import { CHITUBOX_PRINTER_CATALOG, type ChituboxPrinterCatalogEntry } from '@/features/profiles/chituboxPrinterCatalog';
 import { SelectDropdown } from '@/components/ui/SelectDropdown';
 import { StructuredDialogModal } from '@/components/ui/StructuredDialogModal';
 import {
@@ -18,7 +26,9 @@ import {
   applyOfficialMaterialProfileUpdate,
   applyOfficialPrinterProfileUpdate,
   DEFAULT_MATERIAL_ANTI_ALIASING_SETTINGS,
+  DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
   addMaterialProfile,
+  addPrinterProfile,
   addPrinterProfileFromPreset,
   disconnectPrinterNetworkDevice,
   duplicatePrinterProfileAsCustom,
@@ -54,6 +64,7 @@ import {
   type PrinterProfile,
 } from '@/features/profiles/profileStore';
 import {
+  getInstalledProfilePlugins,
   getAvailableProfileNetworkModes,
   getDefaultProfileNetworkUiAdapter,
   getRuntimeMaterialPresets,
@@ -96,6 +107,7 @@ import {
   type MaterialDraft,
   type LocalSettingsByOutputDraft,
   FieldTagChip,
+  FieldHelpTooltip,
   LabeledInput,
   LabeledNumberInput,
   LabeledTwoStageNumberInput,
@@ -162,6 +174,37 @@ function writeRemoteMaterialByPrinter(printerId: string, materialId: string): vo
 }
 
 const OUTPUT_FORMAT_OPTIONS = getAvailableOutputFormatOptions();
+
+const PRINTER_PROFILE_MESSAGES = {
+  rotateScreen: msg`Rotate`,
+  screenWidthPixels: msg`Width (px)`,
+  screenHeightPixels: msg`Height (px)`,
+  screenHorizontalResolution: msg`Horizontal Resolution (μm)`,
+  screenVerticalResolution: msg`Vertical Resolution (μm)`,
+  defaultTransitionLayers: msg`Default Transition Layers`,
+  defaultTransitionHelp: msg`Used when a material does not set transition layers; converted to a whole layer count using the material layer height.`,
+};
+
+function normalizePrinterCatalogName(value: string): string {
+  return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function printerPresetMatchesCatalogEntry(
+  preset: PrinterPreset,
+  entry: ChituboxPrinterCatalogEntry,
+): boolean {
+  const manufacturer = normalizePrinterCatalogName(entry.manufacturer);
+  if (normalizePrinterCatalogName(preset.manufacturer) !== manufacturer) return false;
+
+  const fullModel = normalizePrinterCatalogName(entry.model);
+  const modelWithoutManufacturer = fullModel.startsWith(manufacturer)
+    ? fullModel.slice(manufacturer.length)
+    : fullModel;
+  const catalogNames = new Set([fullModel, modelWithoutManufacturer]);
+
+  return [preset.name, preset.family, preset.libraryDisplayName]
+    .some((value) => typeof value === 'string' && catalogNames.has(normalizePrinterCatalogName(value)));
+}
 const WEBCAM_ROTATION_OPTIONS = [
   { value: '0', label: '0°' },
   { value: '90', label: '90°' },
@@ -261,12 +304,6 @@ type ManualBuildDimensions = {
   depth: number;
 };
 
-function computeBuildDimensionMm(resolutionPx: number, pixelSizeUm: number): number {
-  const safeResolution = Math.max(1, Math.round(resolutionPx));
-  const safePixelSize = Math.max(0.001, Number(pixelSizeUm) || 0.001);
-  return Number(((safeResolution * safePixelSize) / 1000).toFixed(3));
-}
-
 function resolveDefaultLocalSettingsForOutput(
   outputFormat: string,
   settingsMode?: string,
@@ -318,6 +355,8 @@ export function ProfileSettingsModal({
   openNetworkSettingsToken = 0,
   openMaterialAntiAliasingToken = 0,
 }: ProfileSettingsModalProps) {
+  const { _ } = useLingui();
+  const fmt = useLocaleFormat();
   const logNetworkScanDebug = React.useCallback((scope: string, details: Record<string, unknown>) => {
     try {
       console.info(`[NetworkSettings][AutoScan][${scope}]`, details);
@@ -373,6 +412,7 @@ export function ProfileSettingsModal({
     bottleCapacityMl: 1000,
     resinFamily: 'standard',
     scaleCompensationPct: { x: 0, y: 0, z: 0 },
+    toleranceCompensation: DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
     layerHeightMm: 0.05,
     normalExposureSec: 2.5,
     bottomExposureSec: 28,
@@ -391,6 +431,7 @@ export function ProfileSettingsModal({
     bottleCapacityMl: 1000,
     resinFamily: 'standard',
     scaleCompensationPct: { x: 0, y: 0, z: 0 },
+    toleranceCompensation: DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
     layerHeightMm: 0.05,
     normalExposureSec: 2.5,
     bottomExposureSec: 28,
@@ -406,6 +447,11 @@ export function ProfileSettingsModal({
   const [isEditingPrinter, setIsEditingPrinter] = React.useState(false);
   const [uploadTargetPrinterId, setUploadTargetPrinterId] = React.useState<string | null>(null);
   const [showPresetPicker, setShowPresetPicker] = React.useState(false);
+  const [showCustomPrinterProfileModal, setShowCustomPrinterProfileModal] = React.useState(false);
+  const [customPrinterInitialManufacturer, setCustomPrinterInitialManufacturer] = React.useState('');
+  const [customPrinterInitialModel, setCustomPrinterInitialModel] = React.useState('');
+  const [customPrinterInitialOutputFormat, setCustomPrinterInitialOutputFormat] = React.useState('');
+  const [customPrinterFormatOptions, setCustomPrinterFormatOptions] = React.useState(OUTPUT_FORMAT_OPTIONS);
   const [presetSearch, setPresetSearch] = React.useState('');
   const [selectedPresetManufacturer, setSelectedPresetManufacturer] = React.useState<string>('');
   const [selectedLibraryPresetIds, setSelectedLibraryPresetIds] = React.useState<Set<string>>(new Set());
@@ -491,11 +537,21 @@ export function ProfileSettingsModal({
   const officialMaterialUpdates = React.useMemo(() => getOfficialMaterialProfileUpdates(profileState), [profileState]);
 
   const presetManufacturers = React.useMemo(() => {
-    const uniq = new Set(libraryPrinterPresets.map((preset) => preset.manufacturer));
-    const sorted = Array.from(uniq)
-      .filter(m => m.toLowerCase() !== 'generic')
+    const manufacturersByKey = new Map<string, string>();
+    for (const preset of libraryPrinterPresets) {
+      const key = preset.manufacturer.trim().toLocaleLowerCase();
+      if (key && !manufacturersByKey.has(key)) manufacturersByKey.set(key, preset.manufacturer);
+    }
+    for (const manufacturer of RESIN_PRINTER_MANUFACTURERS) {
+      const key = manufacturer.toLocaleLowerCase();
+      if (!manufacturersByKey.has(key)) manufacturersByKey.set(key, manufacturer);
+    }
+
+    const all = Array.from(manufacturersByKey.values());
+    const sorted = all
+      .filter((manufacturer) => manufacturer.toLowerCase() !== 'generic')
       .sort((a, b) => a.localeCompare(b));
-    const generic = Array.from(uniq).filter(m => m.toLowerCase() === 'generic');
+    const generic = all.filter((manufacturer) => manufacturer.toLowerCase() === 'generic');
     return [...sorted, ...generic];
   }, [libraryPrinterPresets]);
 
@@ -534,6 +590,20 @@ export function ProfileSettingsModal({
       .map(([family, presets]) => ({ family, presets }));
   }, [filteredPrinterPresets, selectedPresetManufacturer]);
 
+  const filteredPrinterCatalogEntries = React.useMemo(() => {
+    const search = presetSearch.trim().toLocaleLowerCase();
+    return CHITUBOX_PRINTER_CATALOG.filter((entry) => {
+      const manufacturerMatch = search.length > 0
+        || entry.manufacturer.toLocaleLowerCase() === selectedPresetManufacturer.toLocaleLowerCase();
+      const searchMatch = search.length === 0
+        || entry.model.toLocaleLowerCase().includes(search)
+        || entry.manufacturer.toLocaleLowerCase().includes(search)
+        || entry.outputFormats.some((format) => format.toLocaleLowerCase().includes(search));
+      const alreadyHasPreset = libraryPrinterPresets.some((preset) => printerPresetMatchesCatalogEntry(preset, entry));
+      return manufacturerMatch && searchMatch && !alreadyHasPreset;
+    });
+  }, [libraryPrinterPresets, presetSearch, selectedPresetManufacturer]);
+
   const addedOfficialPresetIds = React.useMemo(() => {
     const set = new Set<string>();
     profileState.printerProfiles.forEach((profile) => {
@@ -557,6 +627,19 @@ export function ProfileSettingsModal({
     if (!selectedPrinterId) return fallback;
     return profileState.printerProfiles.find((profile) => profile.id === selectedPrinterId) ?? fallback;
   }, [profileState, selectedPrinterId]);
+
+  const screenDimensionsMm = React.useMemo(() => {
+    if (!selectedPrinter) return null;
+    const screenWidth = selectedPrinter.pixelSize
+      ? computeBuildDimensionMm(selectedPrinter.display.resolutionX, selectedPrinter.pixelSize.x)
+      : selectedPrinter.buildVolumeMm.width;
+    const screenDepth = selectedPrinter.pixelSize
+      ? computeBuildDimensionMm(selectedPrinter.display.resolutionY, selectedPrinter.pixelSize.y)
+      : selectedPrinter.buildVolumeMm.depth;
+    return selectedPrinter.display.rotateScreen === true
+      ? { width: screenDepth, depth: screenWidth }
+      : { width: screenWidth, depth: screenDepth };
+  }, [selectedPrinter]);
 
   const printerDitherBitDepth = React.useMemo<number | null>(() => {
     const printerBitDepth = Number(selectedPrinter?.bitDepth?.bits);
@@ -810,6 +893,10 @@ export function ProfileSettingsModal({
     const printerPresetId = selectedPrinter?.officialPresetId?.trim() ?? '';
     return getRuntimeMaterialPresets(printerPresetId.length > 0 ? printerPresetId : undefined);
   }, [profileState, selectedPrinter?.officialPresetId]);
+  const availableMaterialPresetPlugins = React.useMemo(
+    () => getInstalledProfilePlugins().filter((plugin) => plugin.enabled),
+    [profileState],
+  );
 
   const materialPresetBrands = React.useMemo(() => {
     const uniq = new Set(availableMaterialPresets.map((preset) => (preset.brand || 'Default').trim() || 'Default'));
@@ -2803,6 +2890,8 @@ export function ProfileSettingsModal({
         y: selectedMaterial.scaleCompensationPct.y,
         z: selectedMaterial.scaleCompensationPct.z,
       },
+      toleranceCompensation: selectedMaterial.toleranceCompensation ?? DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
+      printTimeOverride: selectedMaterial.printTimeOverride,
       layerHeightMm: selectedMaterial.layerHeightMm,
       normalExposureSec: selectedMaterial.normalExposureSec,
       bottomExposureSec: selectedMaterial.bottomExposureSec,
@@ -2858,6 +2947,26 @@ export function ProfileSettingsModal({
     if (presetManufacturers.length > 0) setSelectedPresetManufacturer(presetManufacturers[0]);
   }, [handlePickPrinter, presetManufacturers]);
 
+  const handleOpenCustomPrinterProfile = React.useCallback((
+    manufacturer = '',
+    model = '',
+    outputFormat = '',
+    formats = OUTPUT_FORMAT_OPTIONS,
+  ) => {
+    setCustomPrinterInitialManufacturer(manufacturer);
+    setCustomPrinterInitialModel(model);
+    setCustomPrinterInitialOutputFormat(outputFormat);
+    setCustomPrinterFormatOptions(formats);
+    setShowPresetPicker(false);
+    setShowCustomPrinterProfileModal(true);
+  }, []);
+
+  const handleCreateCustomPrinterProfile = React.useCallback((draft: CustomPrinterProfileDraft) => {
+    const newId = addPrinterProfile(draft);
+    handlePickPrinter(newId);
+    setIsEditingPrinter(true);
+    setShowCustomPrinterProfileModal(false);
+  }, [handlePickPrinter]);
   const handleAddSelectedPrinterPresets = React.useCallback(() => {
     if (selectedLibraryPresetIds.size === 0) return;
     let lastId: string | null = null;
@@ -2923,6 +3032,7 @@ export function ProfileSettingsModal({
       bottleCapacityMl: 1000,
       resinFamily: selectedResinFamilyValue ?? 'standard',
       scaleCompensationPct: { x: 0, y: 0, z: 0 },
+      toleranceCompensation: DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
       layerHeightMm: 0.05,
       normalExposureSec: 2.5,
       bottomExposureSec: 28,
@@ -2954,6 +3064,7 @@ export function ProfileSettingsModal({
       bottleCapacityMl: preset.bottleCapacityMl ?? 1000,
       resinFamily: preset.resinFamily ?? 'standard',
       scaleCompensationPct: preset.scaleCompensationPct ?? { x: 0, y: 0, z: 0 },
+      toleranceCompensation: preset.toleranceCompensation ?? DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
       layerHeightMm: preset.layerHeightMm ?? 0.05,
       normalExposureSec: preset.normalExposureSec ?? 2.5,
       bottomExposureSec: preset.bottomExposureSec ?? 28,
@@ -3002,6 +3113,7 @@ export function ProfileSettingsModal({
         bottleCapacityMl: preset.bottleCapacityMl ?? 1000,
         resinFamily: preset.resinFamily ?? 'standard',
         scaleCompensationPct: preset.scaleCompensationPct ?? { x: 0, y: 0, z: 0 },
+        toleranceCompensation: preset.toleranceCompensation ?? DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
         layerHeightMm: preset.layerHeightMm ?? 0.05,
         normalExposureSec: preset.normalExposureSec ?? 2.5,
         bottomExposureSec: preset.bottomExposureSec ?? 28,
@@ -3139,6 +3251,8 @@ export function ProfileSettingsModal({
       bottleCapacityMl: selectedMaterial.bottleCapacityMl,
       resinFamily: selectedMaterial.resinFamily,
       scaleCompensationPct: selectedMaterial.scaleCompensationPct,
+      toleranceCompensation: selectedMaterial.toleranceCompensation ?? DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
+      printTimeOverride: selectedMaterial.printTimeOverride,
       layerHeightMm: selectedMaterial.layerHeightMm,
       normalExposureSec: selectedMaterial.normalExposureSec,
       bottomExposureSec: selectedMaterial.bottomExposureSec,
@@ -3313,6 +3427,8 @@ export function ProfileSettingsModal({
             y: Number(source.scaleCompensationPct?.y ?? 0),
             z: Number(source.scaleCompensationPct?.z ?? 0),
           },
+          toleranceCompensation: source.toleranceCompensation ?? DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
+          printTimeOverride: source.printTimeOverride,
           layerHeightMm: Number.isFinite(Number(source.layerHeightMm)) ? Number(source.layerHeightMm) : 0.05,
           normalExposureSec: Number.isFinite(Number(source.normalExposureSec)) ? Number(source.normalExposureSec) : 2.5,
           bottomExposureSec: Number.isFinite(Number(source.bottomExposureSec)) ? Number(source.bottomExposureSec) : 28,
@@ -4530,7 +4646,7 @@ export function ProfileSettingsModal({
                 <div>
                   <h3 className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>Edit Unit</h3>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Customize nickname and card thumbnail for this fleet unit in DragonFruit.
+                    Customize nickname and card thumbnail for this fleet unit in 3DRESIN.
                   </p>
                 </div>
                 <IconButton
@@ -4721,6 +4837,21 @@ export function ProfileSettingsModal({
                 </div>
 
                 <div className="p-3 overflow-y-auto custom-scrollbar min-h-0">
+                  <div className="mb-3 rounded-md border p-3 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+                    <p className="text-xs max-w-xl" style={{ color: 'var(--text-muted)' }}>
+                      <Trans>Profiles are available for any manufacturer when you have the exact machine specifications and an installed output encoder.</Trans>
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={() => handleOpenCustomPrinterProfile(selectedPresetManufacturer)}
+                      variant="secondary"
+                      size="auto"
+                      className="!h-8 !px-3 !py-0 text-sm inline-flex items-center gap-1.5 rounded-md"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <Trans>Create custom profile</Trans>
+                    </Button>
+                  </div>
                   {isSearching ? (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(176px,1fr))] gap-2.5">
                       {filteredPrinterPresets.map(renderPresetLibraryCard)}
@@ -4761,6 +4892,70 @@ export function ProfileSettingsModal({
                 </div>
               </div>
 
+              {filteredPrinterCatalogEntries.length > 0 && (
+                <section className="px-3 pb-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>
+                      <Trans>More CHITUBOX printer models</Trans>
+                    </h4>
+                    <a
+                      href="https://docs.chitubox.com/en-US/chitubox/latest/introduction"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs underline underline-offset-2"
+                      style={{ color: 'var(--accent-secondary)' }}
+                    >
+                      <Trans>Official model and format list</Trans>
+                    </a>
+                  </div>
+                  <p className="mb-3 rounded-md border p-2.5 text-xs" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-muted)', background: 'var(--surface-1)' }}>
+                    <Trans>Catalog models without a built-in profile need their exact build size, screen resolution, and firmware settings from the printer manual. A profile can be created only when this build has an encoder for one of the model's listed formats.</Trans>
+                  </p>
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-2.5">
+                    {filteredPrinterCatalogEntries.map((entry) => {
+                      const compatibleFormats = OUTPUT_FORMAT_OPTIONS.filter((format) => (
+                        entry.outputFormats.some((catalogFormat) => catalogFormat.toLowerCase() === format.value.toLowerCase())
+                      ));
+                      return (
+                        <article
+                          key={entry.manufacturer + '-' + entry.model}
+                          className="flex min-h-[166px] flex-col rounded-lg border p-3"
+                          style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}
+                        >
+                          <div>
+                            <h5 className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>{entry.model}</h5>
+                            <p className="mt-0.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>{entry.manufacturer}</p>
+                            <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                              <Trans>CHITUBOX formats</Trans>: {entry.outputFormats.join(', ')}
+                            </p>
+                            <p className="mt-1 text-xs" style={{ color: compatibleFormats.length > 0 ? 'var(--accent-secondary)' : 'var(--text-muted)' }}>
+                              {compatibleFormats.length > 0
+                                ? <Trans>Encoder available: {compatibleFormats.map((format) => format.value).join(', ')}</Trans>
+                                : <Trans>No compatible encoder is installed</Trans>}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            disabled={compatibleFormats.length === 0}
+                            onClick={() => handleOpenCustomPrinterProfile(
+                              entry.manufacturer,
+                              entry.model,
+                              compatibleFormats[0]?.value ?? '',
+                              compatibleFormats,
+                            )}
+                            variant="secondary"
+                            size="auto"
+                            className="mt-auto !h-8 !px-2.5 !py-0 text-xs"
+                          >
+                            <Trans>Create profile</Trans>
+                          </Button>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
               {/* Printer Library footer */}
               <div className="flex items-center justify-between gap-3 px-3 py-3 border-t shrink-0" style={{ borderColor: 'var(--border-subtle)', background: 'color-mix(in srgb, var(--surface-1), transparent 8%)' }}>
                 <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
@@ -4785,6 +4980,16 @@ export function ProfileSettingsModal({
           </div>
         )}
 
+        {showCustomPrinterProfileModal && (
+          <CustomPrinterProfileModal
+            initialManufacturer={customPrinterInitialManufacturer}
+            initialModel={customPrinterInitialModel}
+            initialOutputFormat={customPrinterInitialOutputFormat}
+            formats={customPrinterFormatOptions}
+            onCancel={() => setShowCustomPrinterProfileModal(false)}
+            onCreate={handleCreateCustomPrinterProfile}
+          />
+        )}
         {variantChooserPreset && (
           <PrinterVariantPickerModal
             preset={variantChooserPreset}
@@ -5006,6 +5211,24 @@ export function ProfileSettingsModal({
                 </div>
 
                 <div className="rounded-md border p-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-2)' }}>
+                  <div className="ui-meta font-semibold uppercase tracking-wide mb-2"><Trans>Image/Scene</Trans></div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    <LabeledToggleInput
+                      label="Mirror X"
+                      disabled={isSelectedPrinterOfficial}
+                      checked={selectedPrinter.display.mirrorX === true}
+                      onChange={(checked) => handlePrinterDisplayChange({ mirrorX: checked })}
+                    />
+                    <LabeledToggleInput
+                      label="Mirror Y"
+                      disabled={isSelectedPrinterOfficial}
+                      checked={selectedPrinter.display.mirrorY === true}
+                      onChange={(checked) => handlePrinterDisplayChange({ mirrorY: checked })}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-md border p-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-2)' }}>
                   <div className="ui-meta font-semibold uppercase tracking-wide mb-2">Build Volume</div>
                   <div
                     className="mb-3 rounded-md border p-2.5 flex flex-wrap items-center justify-between gap-2"
@@ -5122,10 +5345,26 @@ export function ProfileSettingsModal({
                 </div>
 
                 <div className="rounded-md border p-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-2)' }}>
-                  <div className="ui-meta font-semibold uppercase tracking-wide mb-2">Display</div>
+                  <div className="ui-meta font-semibold uppercase tracking-wide mb-2"><Trans>Screen</Trans></div>
+                  {screenDimensionsMm && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-2.5">
+                      <div className="space-y-1">
+                        <div className="ui-label font-medium"><Trans>Screen Width</Trans></div>
+                        <div className="ui-input w-full h-[36px] px-2.5 flex items-center text-sm opacity-75">
+                          {fmt.quantity(screenDimensionsMm.width, 3, 'mm')}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="ui-label font-medium"><Trans>Screen Depth</Trans></div>
+                        <div className="ui-input w-full h-[36px] px-2.5 flex items-center text-sm opacity-75">
+                          {fmt.quantity(screenDimensionsMm.depth, 3, 'mm')}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     <LabeledNumberInput
-                      label="Resolution X (px)"
+                      label={_(PRINTER_PROFILE_MESSAGES.screenWidthPixels)}
                       disabled={isSelectedPrinterOfficial}
                       value={selectedPrinter.display.resolutionX}
                       onChange={(value) => handlePrinterDisplayChange({
@@ -5133,7 +5372,7 @@ export function ProfileSettingsModal({
                       })}
                     />
                     <LabeledNumberInput
-                      label="Resolution Y (px)"
+                      label={_(PRINTER_PROFILE_MESSAGES.screenHeightPixels)}
                       disabled={isSelectedPrinterOfficial}
                       value={selectedPrinter.display.resolutionY}
                       onChange={(value) => handlePrinterDisplayChange({
@@ -5148,13 +5387,13 @@ export function ProfileSettingsModal({
                     />
 
                     <LabeledNumberInput
-                      label="Pixel Size X (μm)"
+                      label={_(PRINTER_PROFILE_MESSAGES.screenHorizontalResolution)}
                       disabled={isSelectedPrinterOfficial}
                       value={selectedPrinter.pixelSize?.x ?? 1}
                       onChange={(value) => handlePrinterPixelSizeChange('x', value)}
                     />
                     <LabeledNumberInput
-                      label="Pixel Size Y (μm)"
+                      label={_(PRINTER_PROFILE_MESSAGES.screenVerticalResolution)}
                       disabled={isSelectedPrinterOfficial}
                       value={selectedPrinter.pixelSize?.y ?? 1}
                       onChange={(value) => handlePrinterPixelSizeChange('y', value)}
@@ -5166,6 +5405,48 @@ export function ProfileSettingsModal({
                       checked={selectedPrinter.antiAliasing === true}
                       onChange={(checked) => updatePrinterProfile(selectedPrinter.id, { antiAliasing: checked })}
                     />
+                    <LabeledToggleInput
+                      label={_(PRINTER_PROFILE_MESSAGES.rotateScreen)}
+                      disabled={isSelectedPrinterOfficial}
+                      checked={selectedPrinter.display.rotateScreen === true}
+                      onChange={(checked) => handlePrinterDisplayChange({ rotateScreen: checked })}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-md border p-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-2)' }}>
+                  <div className="ui-meta font-semibold uppercase tracking-wide mb-2"><Trans>Other parameters</Trans></div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    <label className="space-y-1 block">
+                      <span className="ui-label font-medium inline-flex items-center gap-1.5">
+                        {_(PRINTER_PROFILE_MESSAGES.defaultTransitionLayers)}
+                        <FieldHelpTooltip
+                          label={_(PRINTER_PROFILE_MESSAGES.defaultTransitionLayers)}
+                          help={_(PRINTER_PROFILE_MESSAGES.defaultTransitionHelp)}
+                        />
+                      </span>
+                      <div className="relative">
+                        <NumberInput
+                          value={selectedPrinter.defaultTransitionLayersMm ?? 0}
+                          onChange={(value) => updatePrinterProfile(selectedPrinter.id, { defaultTransitionLayersMm: value })}
+                          min={0}
+                          step={0.01}
+                          showStepper={false}
+                          className="ui-input w-full h-[36px] px-2.5 pr-12 leading-tight text-sm"
+                        />
+                        <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                          {fmt.unit('mm', '')}
+                        </span>
+                      </div>
+                    </label>
+                    {selectedFormatVersionOptions.length > 0 && (
+                      <SelectDropdown
+                        label="Format Version"
+                        value={selectedResolvedFormatVersion ?? selectedFormatVersionOptions[0].value}
+                        options={selectedFormatVersionOptions}
+                        onChange={(value) => handlePrinterDisplayChange({ formatVersion: value })}
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -5215,15 +5496,6 @@ export function ProfileSettingsModal({
                       />
                     )}
 
-                    {selectedFormatVersionOptions.length > 0 && (
-                      <SelectDropdown
-                        label="Format Version"
-                        value={selectedResolvedFormatVersion ?? selectedFormatVersionOptions[0].value}
-                        options={selectedFormatVersionOptions}
-                        onChange={(value) => handlePrinterDisplayChange({ formatVersion: value })}
-                      />
-                    )}
-
                     {selectedSettingsModeOptions.length > 0 && (
                       <SelectDropdown
                         label="Settings Mode"
@@ -5234,19 +5506,6 @@ export function ProfileSettingsModal({
                       />
                     )}
 
-                    <LabeledToggleInput
-                      label="Mirror X"
-                      disabled={isSelectedPrinterOfficial}
-                      checked={selectedPrinter.display.mirrorX === true}
-                      onChange={(checked) => handlePrinterDisplayChange({ mirrorX: checked })}
-                    />
-
-                    <LabeledToggleInput
-                      label="Mirror Y"
-                      disabled={isSelectedPrinterOfficial}
-                      checked={selectedPrinter.display.mirrorY === true}
-                      onChange={(checked) => handlePrinterDisplayChange({ mirrorY: checked })}
-                    />
                   </div>
                 </div>
               </div>
@@ -5299,6 +5558,11 @@ export function ProfileSettingsModal({
                   <div>
                     <h3 className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>Material Library{selectedPrinter ? ` for ${selectedPrinter.manufacturer} ${selectedPrinter.name}` : ''}</h3>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Choose an official material preset to add.</p>
+                    {!selectedPrinter.officialPresetId?.trim() && (
+                      <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                        <Trans>Printer-specific resin compatibility cannot be verified for this custom profile.</Trans>
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -5426,6 +5690,8 @@ export function ProfileSettingsModal({
                       const isSelected = !isAlreadyAdded && selectedLibraryMaterialKeys.has(selectionKey);
                       const resinFamilyLabel = RESIN_FAMILY_OPTIONS.find((option) => option.value === preset.resinFamily)?.label ?? preset.resinFamily;
                       const familyColor = RESIN_FAMILY_COLOR[preset.resinFamily] ?? '#94a3b8';
+                      const origin = getMaterialPresetOrigin(templateId, availableMaterialPresetPlugins);
+                      const compatibility = getMaterialPresetCompatibility(preset.validForPresets, selectedPrinter.officialPresetId);
 
                       const handleToggle = () => {
                         if (isAlreadyAdded) return;
@@ -5490,6 +5756,23 @@ export function ProfileSettingsModal({
                                   </span>
                                 )}
                               </div>
+                            </div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                              <span>
+                                {origin ? (
+                                  <>
+                                    <Trans>Source: {origin.pluginName}</Trans>
+                                    {' · '}
+                                    {origin.source === 'builtin' ? <Trans>Built-in</Trans> : <Trans>Installed plugin</Trans>}
+                                  </>
+                                ) : <Trans>Source not identified</Trans>}
+                              </span>
+                              <span style={{ color: compatibility === 'compatible' ? 'var(--accent-secondary)' : compatibility === 'incompatible' ? 'var(--danger)' : 'var(--text-muted)' }}>
+                                {compatibility === 'compatible' && <Trans>Compatible with this printer</Trans>}
+                                {compatibility === 'incompatible' && <Trans>Does not match this printer</Trans>}
+                                {compatibility === 'unverified' && <Trans>Printer compatibility not verified</Trans>}
+                                {compatibility === 'not-specified' && <Trans>No printer restriction listed</Trans>}
+                              </span>
                             </div>
                           </div>
                         </button>

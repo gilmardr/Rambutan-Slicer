@@ -30,7 +30,7 @@ type FirstRunOnboardingProps = {
 // preference + preset + colors keys and live-applies the CSS variables.
 function applyBuiltInThemePreference(preference: ThemePreference): void {
   if (typeof window === 'undefined') return;
-  const preset = preference === 'light' ? 'dragonfruit-light' : 'dragonfruit-dark';
+  const preset = preference === 'light' ? 'rambutan-light' : 'rambutan-dark';
   const colors = getThemeProfile(preset).colors;
   window.localStorage.setItem(THEME_STORAGE_KEY, preference);
   window.localStorage.setItem(THEME_PRESET_STORAGE_KEY, preset);
@@ -100,11 +100,11 @@ export function FirstRunOnboarding({ onExit }: FirstRunOnboardingProps) {
       }}
       role="dialog"
       aria-modal="true"
-      aria-label={_(msg`DragonFruit first-time setup`)}
+      aria-label={_(msg`3DRESIN first-time setup`)}
     >
       {/* Faded, blurred brand icon as a backdrop watermark. */}
       <img
-        src="/dragonfruit_assets/branding/simple_icon.svg"
+        src="/rambutan-icon.svg"
         alt=""
         aria-hidden="true"
         draggable={false}
@@ -164,9 +164,9 @@ export function FirstRunOnboarding({ onExit }: FirstRunOnboardingProps) {
                 <div className="flex flex-1 flex-col items-center justify-start text-center">
                   <div className="mt-2 max-w-[340px] text-base leading-relaxed text-pretty" />
                   <img
-                    src="/dragonfruit_assets/branding/text_logo.svg"
+                    src="/rambutan-wordmark.svg"
                     // i18n-ignore: product name
-                    alt="DragonFruit"
+                    alt="Rambutan Slicer"
                     className="h-11 w-auto object-contain"
                     draggable={false}
                   />
@@ -174,7 +174,7 @@ export function FirstRunOnboarding({ onExit }: FirstRunOnboardingProps) {
                     {_(msg`Welcome!`)}
                   </h2>
                   <p className="mt-6 max-w-[540px] text-base leading-relaxed text-pretty" style={{ color: 'var(--text-muted)' }}>
-                    {_(msg`DragonFruit is a free, open-source slicer for resin 3D printing. Load a model, orient it, add supports, and slice it for your printer.`)}
+                    {_(msg`3DRESIN is a free, open-source slicer for resin 3D printing. Load a model, orient it, add supports, and slice it for your printer.`)}
                   </p>
                   <p className="mt-10 max-w-[540px] text-base leading-relaxed text-pretty" style={{ color: 'var(--text-muted)' }}>
                     {_(msg`From the community, for the community. Free to use, open to contribute, and shaped by the people who print with it.`)}
@@ -225,7 +225,7 @@ export function FirstRunOnboarding({ onExit }: FirstRunOnboardingProps) {
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-2">
                           <span className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>
-                            {_(msg`Dark`)}
+                            {_(msg({ message: 'Dark', context: 'Color theme' }))}
                           </span>
                           {themePreference === 'dark' && <Check className="h-4 w-4 shrink-0" style={{ color: 'var(--accent)' }} />}
                         </span>
@@ -256,7 +256,7 @@ export function FirstRunOnboarding({ onExit }: FirstRunOnboardingProps) {
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-2">
                           <span className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>
-                            {_(msg`Light`)}
+                            {_(msg({ message: 'Light', context: 'Color theme' }))}
                           </span>
                           {themePreference === 'light' && <Check className="h-4 w-4 shrink-0" style={{ color: 'var(--accent)' }} />}
                         </span>
@@ -325,7 +325,7 @@ export function FirstRunOnboarding({ onExit }: FirstRunOnboardingProps) {
                     onClick={startReveal}
                     className="ui-onboarding-success-action !h-10 !px-7 text-[15px]"
                   >
-                    {_(msg`Start using DragonFruit`)}
+                    {_(msg`Start using 3DRESIN`)}
                   </Button>
                 </div>
               </div>

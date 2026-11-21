@@ -10,6 +10,7 @@ import { computeAndApplySupportDiameterProfile } from './TrunkReplacement';
 import { supportDataForEntity, type SupportData } from '../../rendering/SupportBuilder';
 import { markPlacementSurface, markSupportDataPlacementSurface, type PlacementSurface } from '../../PlacementLogic/placementSurface';
 import type { LimitationCode, Segment, WarningCode } from '../../types';
+import type { SupportSettings } from '../../Settings/types';
 import { calculateSmoothedNormal } from '../../PlacementLogic/PlacementUtils';
 import { getSettings } from '../../Settings/state';
 import { decideGridPlacement } from '../../PlacementLogic/Grid';
@@ -97,6 +98,7 @@ export function buildCavityBridge(
     modelId: string,
     mesh: THREE.Mesh,
     sizing?: { tipContactDiameterMm: number; shaftDiameterMm: number },
+    settingsOverride?: SupportSettings,
 ): { kind: SupportTypeId; supportData: SupportData; entity: BridgingEntity } | null {
     // Offset origin slightly inward along tip normal so we don't self-hit the
     // surface we just clicked.
@@ -145,7 +147,7 @@ export function buildCavityBridge(
     // right there. Nearest radius wins; the kind's own verticality gate — 20°
     // for a stick, 45° for a twig, both enforced in the type's registered
     // builder — and the shaft-blocked check after the build bound the cant.
-    const settings = getSettings();
+    const settings = settingsOverride ?? getSettings();
     const cutoff = settings.meshToMesh?.stickVsTwigCutoffMm ?? 5;
     const NEAR_RADII_MM = [0, 0.75, 1.5, 2.25] as const;
     // A twig's own reach: it is a short bridge, so a lateral offset up to its
@@ -615,7 +617,7 @@ export function useTrunkPlacementV2() {
         });
     }, [processSupportHover]);
 
-    const onSupportClick = useCallback((hit: THREE.Intersection) => {
+    const onSupportClick = useCallback((hit: THREE.Intersection, settingsOverride?: SupportSettings) => {
         if (isPlacementHardDisabled || !hit) return;
         // Suppress placement if a contact-disk HUD drag just ended; the
         // mouseup that ends the drag would otherwise propagate to the canvas
@@ -628,13 +630,13 @@ export function useTrunkPlacementV2() {
         const modelId = hit.object.userData.modelId || 'unknown';
         const placementSurface = getPlacementSurfaceFromHit(hit);
         
-        const settings = getSettings();
+        const settings = settingsOverride ?? getSettings();
 
         // Grid mode routes too: the router commits its base to a legal grid
         // node when the grid is on, and the resolver below adopts that node
         // rather than re-deriving one from a straight drop.
         const mesh = hit.object instanceof THREE.Mesh ? hit.object : undefined;
-        const result = buildTrunkData({ tipPos, tipNormal, modelId, mesh });
+        const result = buildTrunkData({ tipPos, tipNormal, modelId, mesh, settingsOverride: settings });
 
         // When the trunk can't route to the build plate (stagnation, budget
         // exhaustion, or general collision), fall back to a cavity stick/twig
@@ -650,7 +652,7 @@ export function useTrunkPlacementV2() {
                 || (result.error && result.error !== 'ANGLE_TOO_STEEP'));
         if (cavityBridgeEligible) {
             if (mesh) {
-                const cavityBridge = buildCavityBridge(tipPos, tipNormal, modelId, mesh);
+                const cavityBridge = buildCavityBridge(tipPos, tipNormal, modelId, mesh, undefined, settings);
                 if (cavityBridge) {
                     // The registry chose the type; committing it needs no
                     // second choice here.
@@ -744,7 +746,7 @@ export function useTrunkPlacementV2() {
         }
         if (decision.kind === 'reject') {
             if (decision.reason === 'COLLISION_WITH_MODEL' && mesh) {
-                const cavityBridge = buildCavityBridge(tipPos, tipNormal, modelId, mesh);
+                const cavityBridge = buildCavityBridge(tipPos, tipNormal, modelId, mesh, undefined, settings);
                 if (cavityBridge) {
                     // The registry chose the type; committing it needs no
                     // second choice here.

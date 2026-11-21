@@ -64,9 +64,9 @@ export function buildBoundaryPoints(
     return pts;
 }
 
-/** Absolute floor on grid/poisson spacing (mm) — no combination of factors may
- *  push past proven commercial practice (heaviest documented preset ≈ 1.5 mm). */
-export const GRID_SPACING_FLOOR_MM = 1.2;
+/** Absolute floor on grid/poisson spacing (mm) so overlapping support shafts
+ *  cannot be packed into a near-continuous wall on broad undersides. */
+export const GRID_SPACING_FLOOR_MM = 2.0;
 
 /** Surface sampler: resolve a footprint point to its surface Z, or null when
  *  the point lies outside the region. The triangle path also reports the

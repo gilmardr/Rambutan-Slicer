@@ -14,6 +14,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1')
 if (-not $PSBoundParameters.ContainsKey('OutputDirectory')) {
     $OutputDirectory = Join-Path $PSScriptRoot '../src-tauri/windows-resources'
 }

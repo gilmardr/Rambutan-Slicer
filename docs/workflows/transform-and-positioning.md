@@ -54,6 +54,15 @@ either writes `useTransformManager`'s `autoLift`.
   gizmo dragging, and **Reset Scale**, including tilted models. Scaling does not
   snap the bottom to the Auto-Lift distance.
 
+### Scale from a measured distance
+
+1. In **Analysis**, start **Measure distance** and mark two points on the same model.
+2. Keep only that model selected and active.
+3. Enter the desired distance and choose **Scale to target distance**.
+
+The model scales uniformly, keeps its bottom height, and uses the normal support
+transform safeguards and undo history.
+
 ## Several models at once
 
 With more than one model selected, the panel and the gizmo act on the whole

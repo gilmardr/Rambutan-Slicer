@@ -1,4 +1,8 @@
-import type { MaterialProfile, PrinterProfile } from '@/features/profiles/profileStore';
+import {
+  DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
+  type MaterialProfile,
+  type PrinterProfile,
+} from '@/features/profiles/profileStore';
 import { getProfileLocalMaterialSettingsAdapter } from '@/features/plugins/pluginRegistry';
 import {
   resolveOutputFormatVersion,
@@ -38,23 +42,33 @@ export type SliceRasterSettings = {
   heightPx: number;
   sourceResolutionX: number;
   sourceResolutionY: number;
+  buildWidthMm: number;
+  buildDepthMm: number;
   xPackingMode: 'none' | 'rgb8_div3' | 'gray3_div2';
   mirrorX: boolean;
   mirrorY: boolean;
+  rotateScreen: boolean;
   layerHeightMm: number;
   totalLayers: number;
   tallestObjectHeightMm: number;
 };
 
-function resolvePluginPackedWidth(printerProfile: PrinterProfile): {
+export type ModelSliceRangeV1 = {
+  startTriangle: number;
+  triangleCount: number;
+  wallThicknessMm: number;
+};
+
+function resolvePluginPackedWidth(
+  printerProfile: PrinterProfile,
+  sourceResolutionX: number,
+  sourceResolutionY: number,
+): {
   widthPx: number;
   sourceResolutionX: number;
   sourceResolutionY: number;
   xPackingMode: 'none' | 'rgb8_div3' | 'gray3_div2';
 } {
-  const sourceResolutionX = Math.max(1, Math.round(printerProfile.display.resolutionX));
-  const sourceResolutionY = Math.max(1, Math.round(printerProfile.display.resolutionY));
-
   const explicitBitDepth = Number(printerProfile.bitDepth?.bits);
   let bitDepth = Number.isFinite(explicitBitDepth) && explicitBitDepth > 0
     ? Math.round(explicitBitDepth)
@@ -126,8 +140,19 @@ export function resolveSliceRasterSettings(options: {
   printerProfile: PrinterProfile;
   materialProfile: MaterialProfile;
 }): SliceRasterSettings {
-  const sourceResolutionX = Math.max(1, Math.round(options.printerProfile.display.resolutionX));
-  const sourceResolutionY = Math.max(1, Math.round(options.printerProfile.display.resolutionY));
+  const rotateScreen = options.printerProfile.display.rotateScreen === true;
+  const sourceResolutionX = Math.max(1, Math.round(
+    rotateScreen ? options.printerProfile.display.resolutionY : options.printerProfile.display.resolutionX,
+  ));
+  const sourceResolutionY = Math.max(1, Math.round(
+    rotateScreen ? options.printerProfile.display.resolutionX : options.printerProfile.display.resolutionY,
+  ));
+  const buildWidthMm = Math.max(1, rotateScreen
+    ? options.printerProfile.buildVolumeMm.depth
+    : options.printerProfile.buildVolumeMm.width);
+  const buildDepthMm = Math.max(1, rotateScreen
+    ? options.printerProfile.buildVolumeMm.width
+    : options.printerProfile.buildVolumeMm.depth);
 
   const resolvedFormat = resolveSlicingFormatDefinition({
     printerProfile: options.printerProfile,
@@ -144,7 +169,7 @@ export function resolveSliceRasterSettings(options: {
   const xPackingStrategy = resolvedFormat.xPackingStrategy ?? 'none';
 
   const packed = xPackingStrategy === 'bitdepth-packed-x'
-    ? resolvePluginPackedWidth(options.printerProfile)
+    ? resolvePluginPackedWidth(options.printerProfile, sourceResolutionX, sourceResolutionY)
     : {
       widthPx: sourceResolutionX,
       sourceResolutionX,
@@ -169,9 +194,12 @@ export function resolveSliceRasterSettings(options: {
     heightPx,
     sourceResolutionX: packed.sourceResolutionX,
     sourceResolutionY: packed.sourceResolutionY,
+    buildWidthMm,
+    buildDepthMm,
     xPackingMode: packed.xPackingMode,
     mirrorX: options.printerProfile.display.mirrorX === true,
     mirrorY: options.printerProfile.display.mirrorY === true,
+    rotateScreen,
     layerHeightMm,
     totalLayers: 1,
     tallestObjectHeightMm: layerHeightMm,
@@ -228,6 +256,7 @@ export function mergeMetadataOverridesIntoMetadata(
   materialProfile: MaterialProfile,
   settingsMode?: string,
   printerOutputFormat?: string,
+  defaultTransitionLayersMm?: number,
 ): string {
   try {
     const parsed = JSON.parse(metadataJson) as Record<string, unknown>;
@@ -256,13 +285,27 @@ export function mergeMetadataOverridesIntoMetadata(
       const localForOutput = materialProfile.localSettingsByOutput?.[printerOutputFormat ?? outputFormat]
         ?? materialProfile.localSettingsByOutput?.[outputFormat]
         ?? {};
+      const defaultTransitionLayerCount = typeof defaultTransitionLayersMm === 'number' && Number.isFinite(defaultTransitionLayersMm)
+        ? Math.round(Math.max(0, defaultTransitionLayersMm) / Math.max(0.001, materialProfile.layerHeightMm))
+        : undefined;
 
       fieldSchema.forEach((field) => {
         if (field.kind === 'spacer') return;
 
-        const fieldValue = Object.prototype.hasOwnProperty.call(localForOutput, field.key)
-          ? localForOutput[field.key]
-          : field.defaultValue;
+        const transitionDefaultForField = field.key === 'transitionLayerCount' && defaultTransitionLayerCount != null
+          ? Math.round(Math.max(field.min ?? 0, Math.min(field.max ?? Number.POSITIVE_INFINITY, defaultTransitionLayerCount)))
+          : undefined;
+        const hasLocalValue = Object.prototype.hasOwnProperty.call(localForOutput, field.key);
+        const isUnchangedTransitionDefault = field.key === 'transitionLayerCount'
+          && hasLocalValue
+          && transitionDefaultForField != null
+          && coerceLocalMaterialSettingValue(localForOutput[field.key]!, field.kind)
+            === coerceLocalMaterialSettingValue(field.defaultValue, field.kind);
+        const fieldValue = isUnchangedTransitionDefault || (!hasLocalValue && field.key === 'transitionLayerCount')
+          ? transitionDefaultForField ?? field.defaultValue
+          : hasLocalValue
+            ? localForOutput[field.key]
+            : field.defaultValue;
 
         const coercedValue = coerceLocalMaterialSettingValue(
           fieldValue,
@@ -271,6 +314,21 @@ export function mergeMetadataOverridesIntoMetadata(
 
         const targetPath = (field.metadataPath?.trim() || `material.${field.key}`);
         setMetadataPathValue(parsed, targetPath, coercedValue);
+      });
+
+      const scaleCompensationFields = [
+        ['scaleCompensationXPct', materialProfile.scaleCompensationPct.x],
+        ['scaleCompensationYPct', materialProfile.scaleCompensationPct.y],
+        ['scaleCompensationZPct', materialProfile.scaleCompensationPct.z],
+      ] as const;
+      scaleCompensationFields.forEach(([key, value]) => {
+        const field = fieldSchema.find((candidate) => candidate.key === key);
+        if (!field || field.kind === 'spacer') return;
+        setMetadataPathValue(
+          parsed,
+          field.metadataPath?.trim() || `material.${field.key}`,
+          value,
+        );
       });
     }
 
@@ -344,9 +402,13 @@ export function buildSliceJobManifestNodes(options: {
     printer: {
       id: printerProfile.id,
       name: printerProfile.name,
-      resolutionX: printerProfile.display.resolutionX,
-      resolutionY: printerProfile.display.resolutionY,
-      buildVolumeMm: printerProfile.buildVolumeMm,
+      resolutionX: settings.sourceResolutionX,
+      resolutionY: settings.sourceResolutionY,
+      buildVolumeMm: {
+        ...printerProfile.buildVolumeMm,
+        width: settings.buildWidthMm,
+        depth: settings.buildDepthMm,
+      },
       bitDepth: printerProfile.bitDepth,
       outputFormat: printerProfile.display.outputFormat,
       formatVersion: printerProfile.display.formatVersion,
@@ -356,10 +418,16 @@ export function buildSliceJobManifestNodes(options: {
     material: {
       id: materialProfile.id,
       name: materialProfile.name,
+      scaleCompensationPct: {
+        x: Number(materialProfile.scaleCompensationPct?.x) || 0,
+        y: Number(materialProfile.scaleCompensationPct?.y) || 0,
+        z: Number(materialProfile.scaleCompensationPct?.z) || 0,
+      },
       layerHeightMm: materialProfile.layerHeightMm,
       normalExposureSec: materialProfile.normalExposureSec,
       bottomExposureSec: materialProfile.bottomExposureSec,
       bottomLayerCount: materialProfile.bottomLayerCount,
+      toleranceCompensation: materialProfile.toleranceCompensation ?? DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
       liftDistanceMm: materialProfile.liftDistanceMm,
       liftSpeedMmMin: materialProfile.liftSpeedMmMin,
       retractSpeedMmMin: materialProfile.retractSpeedMmMin,
@@ -369,9 +437,12 @@ export function buildSliceJobManifestNodes(options: {
       heightPx: settings.heightPx,
       sourceResolutionX: settings.sourceResolutionX,
       sourceResolutionY: settings.sourceResolutionY,
+      buildWidthMm: settings.buildWidthMm,
+      buildDepthMm: settings.buildDepthMm,
       xPackingMode: settings.xPackingMode,
       mirrorX: settings.mirrorX,
       mirrorY: settings.mirrorY,
+      rotateScreen: settings.rotateScreen,
       layerHeightMm: settings.layerHeightMm,
       totalLayers: scene.totalLayers,
       tallestObjectHeightMm: scene.tallestObjectHeightMm,
@@ -396,6 +467,8 @@ export type AssembledSliceJob = {
   buildDepthMm: number;
   layerHeightMm: number;
   totalLayers: number;
+  bottomLayerCount: number;
+  toleranceCompensation: NonNullable<MaterialProfile['toleranceCompensation']>;
   ditherEnabled: boolean;
   ditherBitDepth: number;
   ditherDeviceGamma: number;
@@ -454,10 +527,12 @@ export function assembleSliceJob(options: {
     xPackingMode: settings.xPackingMode,
     mirrorX: settings.mirrorX,
     mirrorY: settings.mirrorY,
-    buildWidthMm: Math.max(1, printerProfile.buildVolumeMm.width),
-    buildDepthMm: Math.max(1, printerProfile.buildVolumeMm.depth),
+    buildWidthMm: settings.buildWidthMm,
+    buildDepthMm: settings.buildDepthMm,
     layerHeightMm: settings.layerHeightMm,
     totalLayers: scene.totalLayers,
+    bottomLayerCount: materialProfile.bottomLayerCount,
+    toleranceCompensation: materialProfile.toleranceCompensation ?? DEFAULT_MATERIAL_TOLERANCE_COMPENSATION,
     ditherEnabled: dither.ditherEnabled,
     ditherBitDepth: dither.ditherBitDepth,
     ditherDeviceGamma: dither.ditherDeviceGamma,
@@ -474,6 +549,7 @@ export function assembleSliceJob(options: {
       materialProfile,
       settingsMode,
       printerProfile.display.outputFormat,
+      printerProfile.defaultTransitionLayersMm,
     ),
   };
 }
@@ -515,6 +591,7 @@ export function buildNativeSliceJob(assembled: AssembledSliceJob, options: {
   /** Used when the anti-aliasing request did not decide `aaOnSupports`. */
   aaOnSupportsFallback: boolean;
   modelTriangleCount: number;
+  modelSliceRanges?: ModelSliceRangeV1[];
 }) {
   const antiAliasing = assembled.antiAliasing;
   const pngCompressionStrategy = resolvePngCompressionStrategy(
@@ -556,11 +633,20 @@ export function buildNativeSliceJob(assembled: AssembledSliceJob, options: {
     ditherBitDepth: assembled.ditherBitDepth,
     ditherDeviceGamma: assembled.ditherDeviceGamma,
     modelTriangleCount: options.modelTriangleCount,
+    ...(options.modelSliceRanges && options.modelSliceRanges.length > 0
+      ? { modelSliceRanges: options.modelSliceRanges }
+      : {}),
     containerCompressionLevel: resolveContainerCompressionLevel(pngCompressionStrategy),
     buildWidthMm: assembled.buildWidthMm,
     buildDepthMm: assembled.buildDepthMm,
     layerHeightMm: assembled.layerHeightMm,
     totalLayers: assembled.totalLayers,
+    bottomLayerCount: assembled.bottomLayerCount,
+    innerDiameterToleranceMm: assembled.toleranceCompensation.innerDiameterMm,
+    outerDiameterToleranceMm: assembled.toleranceCompensation.outerDiameterMm,
+    bottomToleranceEnabled: assembled.toleranceCompensation.bottomEnabled,
+    bottomInnerDiameterToleranceMm: assembled.toleranceCompensation.bottomInnerDiameterMm,
+    bottomOuterDiameterToleranceMm: assembled.toleranceCompensation.bottomOuterDiameterMm,
     metadataJson: assembled.metadataJson,
   };
 }

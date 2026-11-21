@@ -234,7 +234,7 @@ export function useExportThumbnailCapture({
     const helperOriginalVisibility = new WeakMap<THREE.Object3D, boolean>();
     const buildPlateHelperNodes: THREE.Object3D[] = [];
     const gridHelperNodes: THREE.Object3D[] = [];
-    const fallbackModelBaseColor = meshColor ?? '#a3a3a3';
+    const fallbackModelBaseColor = meshColor ?? '#f3f0e8';
     const captureSelectedTintStrength = THREE.MathUtils.clamp(selectedTintStrength ?? 0.70, 0, 1);
 
     const hideHelperForFit = (node: THREE.Object3D) => {
@@ -287,7 +287,7 @@ export function useExportThumbnailCapture({
       try {
         colorMaterial.color.setStyle(blended);
       } catch {
-        colorMaterial.color.setStyle('#ec2a77');
+        colorMaterial.color.setStyle('#f3f0e8');
       }
       colorMaterial.needsUpdate = true;
     };
@@ -784,9 +784,9 @@ export function useExportThumbnailCapture({
       const includeGradient = exportThumbnailRenderOptions?.includeGradient ?? false;
       if (includeGradient) {
         const rootStyles = getComputedStyle(document.documentElement);
-        const radialColor = rootStyles.getPropertyValue('--scene-gradient-radial').trim() || '#ff37aa';
-        const linearStartColor = rootStyles.getPropertyValue('--scene-gradient-linear-start').trim() || '#ff37aa';
-        const linearMidColor = rootStyles.getPropertyValue('--scene-gradient-linear-mid').trim() || '#6f33ff';
+        const radialColor = rootStyles.getPropertyValue('--scene-gradient-radial').trim() || '#205a61';
+        const linearStartColor = rootStyles.getPropertyValue('--scene-gradient-linear-start').trim() || '#10252d';
+        const linearMidColor = rootStyles.getPropertyValue('--scene-gradient-linear-mid').trim() || '#154f56';
 
         context.save();
         context.globalCompositeOperation = 'screen';

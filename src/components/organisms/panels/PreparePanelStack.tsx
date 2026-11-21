@@ -7,6 +7,8 @@ import { ArrangePanel } from '@/components/controls/ArrangePanel';
 import { DuplicatePanel } from '@/components/controls/DuplicatePanel';
 import { MeshSmoothingSettingsPanel } from '@/features/mesh-smoothing/MeshSmoothingSettingsPanel';
 import { OrganicCutPanel, type OrganicCutSession } from '@/features/organicCut';
+import { SolidOperationsCard } from '@/components/controls/SolidOperationsCard';
+import { TextLabelCard } from '@/components/controls/TextLabelCard';
 import type { useSceneCollectionManager } from '@/features/scene/useSceneCollectionManager';
 import type { useTransformManager } from '@/features/transform/useTransformManager';
 import type { useArrangeManager } from '@/features/scene/arrange/useArrangeManager';
@@ -269,6 +271,14 @@ export function PreparePanelStack({
         <AutoRotationPanel key="prepare-orientation" {...orientationPanel} />
       )}
 
+      {scene.models.length > 0 && transformMgr.transformMode === 'engraving' && (
+        <TextLabelCard key="prepare-text-label" scene={scene} />
+      )}
+
+      {scene.models.length > 0 && transformMgr.transformMode === 'solidOperations' && (
+        <SolidOperationsCard key="prepare-solid-operations" scene={scene} />
+      )}
+
       {scene.geom && transformMgr.transformMode === 'smoothing' && (
         <MeshSmoothingSettingsPanel key="prepare-smoothing-settings" />
       )}
@@ -289,6 +299,14 @@ export function PreparePanelStack({
           canAddLoop={organicCut.canAddLoop}
           onRemoveLoop={organicCut.removeLoop}
           canRemoveLoop={organicCut.canRemoveLoop}
+          plugCount={organicCut.plugCount}
+          activePlugIndex={organicCut.activePlugIndex}
+          onSelectPlug={organicCut.selectPlug}
+          onAddPlug={organicCut.addPlug}
+          onAddOppositeSidePlug={organicCut.addOppositeSidePlug}
+          canAddPlug={organicCut.canAddPlug}
+          onRemovePlug={organicCut.removePlug}
+          canRemovePlug={organicCut.canRemovePlug}
           onApply={organicCut.apply}
           isApplying={organicCut.isApplying}
           canApply={organicCut.canApply}

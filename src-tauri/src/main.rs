@@ -65,6 +65,8 @@ mod window_state;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use serde::Deserialize;
 use serde::Serialize;
+use std::io::{Read, Write};
+use sha2::{Digest, Sha256};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use tauri::ipc::{InvokeBody, Response};
@@ -678,11 +680,25 @@ struct SliceJobMetadata {
     zaa_duplicate_z: Option<bool>,
     #[serde(default)]
     model_triangle_count: u32,
+      #[serde(default)]
+      model_slice_ranges: Vec<dragonfruit_slicing_engine::types::ModelSliceRangeV1>,
     container_compression_level: u8,
     build_width_mm: f32,
     build_depth_mm: f32,
     layer_height_mm: f32,
     total_layers: u32,
+    #[serde(default)]
+    bottom_layer_count: u32,
+    #[serde(default)]
+    inner_diameter_tolerance_mm: f32,
+    #[serde(default)]
+    outer_diameter_tolerance_mm: f32,
+    #[serde(default)]
+    bottom_tolerance_enabled: bool,
+    #[serde(default)]
+    bottom_inner_diameter_tolerance_mm: f32,
+    #[serde(default)]
+    bottom_outer_diameter_tolerance_mm: f32,
     export_thumbnail_png_base64: Option<String>,
     #[serde(default)]
     dither_enabled: bool,
@@ -1650,6 +1666,7 @@ async fn slice_solid_native_to_temp_path(
             z_blur_sigma: meta.z_blur_sigma,
             aa_on_supports: meta.aa_on_supports,
             model_triangle_count: meta.model_triangle_count,
+              model_slice_ranges: meta.model_slice_ranges,
             minimum_aa_alpha_percent: meta.minimum_aa_alpha_percent,
             mirror_x: meta.mirror_x,
             mirror_y: meta.mirror_y,
@@ -1668,6 +1685,12 @@ async fn slice_solid_native_to_temp_path(
             build_depth_mm: meta.build_depth_mm,
             layer_height_mm: meta.layer_height_mm,
             total_layers: meta.total_layers,
+            bottom_layer_count: meta.bottom_layer_count,
+            inner_diameter_tolerance_mm: meta.inner_diameter_tolerance_mm,
+            outer_diameter_tolerance_mm: meta.outer_diameter_tolerance_mm,
+            bottom_tolerance_enabled: meta.bottom_tolerance_enabled,
+            bottom_inner_diameter_tolerance_mm: meta.bottom_inner_diameter_tolerance_mm,
+            bottom_outer_diameter_tolerance_mm: meta.bottom_outer_diameter_tolerance_mm,
             export_thumbnail_png_base64: meta.export_thumbnail_png_base64,
             triangles_xyz,
             metadata_json: meta.metadata_json,
@@ -2166,6 +2189,7 @@ struct PickedOpenFile {
 
 const LOCAL_BACKUP_STATE_FILE_NAME: &str = "state.json";
 const LOCAL_BACKUP_HISTORY_DIR_NAME: &str = "history";
+const LOCAL_BACKUP_MODELS_DIR_NAME: &str = "models";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2181,6 +2205,8 @@ struct LocalBackupSyncResponse {
     history_id: String,
     state_path: String,
     history_path: String,
+    model_files_synced: usize,
+    model_files_skipped: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -2193,6 +2219,18 @@ struct LocalBackupHistoryEntry {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct LocalBackupModelLibraryEntry {
+    name: String,
+    kind: String,
+    stored_name: String,
+    size_bytes: u64,
+    path: String,
+    updated_at: String,
+    backup_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct LocalBackupReadHistoryResponse {
     document_json: String,
 }
@@ -2201,6 +2239,7 @@ struct LocalBackupReadHistoryResponse {
 #[serde(rename_all = "camelCase")]
 struct LocalBackupRestoreResponse {
     synced_at: Option<String>,
+    document_json: String,
 }
 
 fn normalize_backup_directory_path(directory_path: &str) -> Result<std::path::PathBuf, String> {
@@ -2240,6 +2279,468 @@ fn local_backup_history_file_path(
     }
 
     Ok(local_backup_history_dir(root).join(format!("{id}.json")))
+}
+
+fn is_supported_local_backup_model(kind: &str, extension: &str) -> bool {
+    match kind {
+        "mesh" => matches!(extension, "stl" | "obj" | "3mf"),
+        "scene" => {
+            extension == "voxl"
+                || extension == "lys"
+                || BUILTIN_PLUGIN_SCENE_EXTENSIONS.contains(&extension)
+        }
+        _ => false,
+    }
+}
+
+fn local_backup_model_asset_path(root: &std::path::Path, stored_name: &str) -> Option<std::path::PathBuf> {
+    let (hash, extension) = stored_name.rsplit_once('.')?;
+    if hash.len() != 64
+        || !hash.chars().all(|character| character.is_ascii_hexdigit())
+        || extension.is_empty()
+        || extension.len() > 16
+        || !extension.chars().all(|character| character.is_ascii_alphanumeric())
+    {
+        return None;
+    }
+
+    Some(
+        root.join(LOCAL_BACKUP_MODELS_DIR_NAME)
+            .join(format!("{}.{}", hash.to_ascii_lowercase(), extension.to_ascii_lowercase())),
+    )
+}
+
+fn file_matches_sha256(path: &std::path::Path, expected_hash: &str, expected_size: u64) -> bool {
+    let Ok(file) = std::fs::File::open(path) else {
+        return false;
+    };
+    if file.metadata().map(|metadata| metadata.len()).ok() != Some(expected_size) {
+        return false;
+    }
+
+    let mut reader = std::io::BufReader::new(file);
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let Ok(read) = reader.read(&mut buffer) else {
+            return false;
+        };
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+
+    format!("{:x}", hasher.finalize()) == expected_hash
+}
+
+fn copy_local_backup_model_asset(
+    source: &std::path::Path,
+    root: &std::path::Path,
+    original_name: &str,
+) -> Result<(String, u64), String> {
+    let extension = std::path::Path::new(original_name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_ascii_lowercase)
+        .filter(|value| {
+            !value.is_empty()
+                && value.len() <= 16
+                && value.chars().all(|character| character.is_ascii_alphanumeric())
+        })
+        .ok_or_else(|| format!("Unsupported model filename '{original_name}'"))?;
+
+    let source = std::fs::File::open(source)
+        .map_err(|error| format!("Failed opening model file '{}': {error}", source.display()))?;
+    let models_dir = root.join(LOCAL_BACKUP_MODELS_DIR_NAME);
+    std::fs::create_dir_all(&models_dir).map_err(|error| {
+        format!(
+            "Failed creating model library '{}': {error}",
+            models_dir.display()
+        )
+    })?;
+
+    let temp_target = models_dir.join("model-asset.bin");
+    let temp_path = sibling_commit_temp_path(&temp_target)?;
+    let copy_result = (|| {
+        let mut reader = std::io::BufReader::new(source);
+        let mut writer = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&temp_path)
+            .map_err(|error| {
+                format!(
+                    "Failed staging model asset in '{}': {error}",
+                    models_dir.display()
+                )
+            })?;
+        let mut hasher = Sha256::new();
+        let mut size_bytes = 0_u64;
+        let mut buffer = [0_u8; 64 * 1024];
+
+        loop {
+            let read = reader
+                .read(&mut buffer)
+                .map_err(|error| format!("Failed reading model file: {error}"))?;
+            if read == 0 {
+                break;
+            }
+            writer
+                .write_all(&buffer[..read])
+                .map_err(|error| format!("Failed staging model file: {error}"))?;
+            hasher.update(&buffer[..read]);
+            size_bytes = size_bytes.saturating_add(read as u64);
+        }
+
+        writer
+            .flush()
+            .map_err(|error| format!("Failed flushing staged model file: {error}"))?;
+        drop(writer);
+
+        Ok((format!("{:x}", hasher.finalize()), size_bytes))
+    })();
+    let (hash, size_bytes) = match copy_result {
+        Ok(result) => result,
+        Err(error) => {
+            let _ = std::fs::remove_file(&temp_path);
+            return Err(error);
+        }
+    };
+
+    let stored_name = format!("{hash}.{extension}");
+    let destination = models_dir.join(&stored_name);
+    if file_matches_sha256(&destination, &hash, size_bytes) {
+        std::fs::remove_file(&temp_path).map_err(|error| {
+            format!("Failed removing duplicate model staging file: {error}")
+        })?;
+    } else {
+        commit_scene_file_atomic(&temp_path, &destination)?;
+    }
+
+    Ok((stored_name, size_bytes))
+}
+
+fn sync_local_backup_model_assets(
+    root: &std::path::Path,
+    document: &mut serde_json::Value,
+) -> (usize, usize) {
+    let Some(local_storage) = document
+        .get_mut("snapshot")
+        .and_then(|snapshot| snapshot.get_mut("localStorage"))
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return (0, 0);
+    };
+    let Some(recent_files_json) = local_storage
+        .get("app-recent-opened-files")
+        .and_then(serde_json::Value::as_str)
+    else {
+        return (0, 0);
+    };
+    let Ok(mut recent_files) = serde_json::from_str::<serde_json::Value>(recent_files_json) else {
+        return (0, 0);
+    };
+    let Some(entries) = recent_files.as_array_mut() else {
+        return (0, 0);
+    };
+
+    let mut assets = Vec::new();
+    let mut skipped = 0;
+    for entry in entries {
+        let Some(record) = entry.as_object_mut() else {
+            continue;
+        };
+        let Some(id) = record
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string)
+        else {
+            continue;
+        };
+        let Some(name) = record
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string)
+        else {
+            continue;
+        };
+        let Some(kind) = record
+            .get("kind")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string)
+        else {
+            continue;
+        };
+        let Some(extension) = std::path::Path::new(&name)
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(str::to_ascii_lowercase)
+        else {
+            continue;
+        };
+        if !is_supported_local_backup_model(&kind, &extension) {
+            if matches!(kind.as_str(), "mesh" | "scene") {
+                if record.remove("sourcePath").is_some() {
+                    skipped += 1;
+                }
+            }
+            continue;
+        }
+
+        let source_path = record
+            .get("sourcePath")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|path| !path.is_empty())
+            .map(str::to_string);
+        let Some(source_path) = source_path else {
+            skipped += 1;
+            continue;
+        };
+
+        match copy_local_backup_model_asset(
+            std::path::Path::new(&source_path),
+            root,
+            &name,
+        ) {
+            Ok((stored_name, size_bytes)) => {
+                record.remove("sourcePath");
+                assets.push(serde_json::json!({
+                    "id": id,
+                    "name": name,
+                    "kind": kind,
+                    "storedName": stored_name,
+                    "sizeBytes": size_bytes,
+                }));
+            }
+            Err(_) => {
+                record.remove("sourcePath");
+                skipped += 1;
+            }
+        }
+    }
+
+    let files_synced = assets.len();
+    if let Some(value) = local_storage.get_mut("app-recent-opened-files") {
+        *value = serde_json::Value::String(recent_files.to_string());
+    }
+    if let Some(snapshot) = document
+        .get_mut("snapshot")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        snapshot.insert("modelAssets".to_string(), serde_json::Value::Array(assets));
+    }
+
+    (files_synced, skipped)
+}
+
+fn restore_local_backup_model_paths(
+    root: &std::path::Path,
+    document: &mut serde_json::Value,
+) -> usize {
+    let Some(snapshot) = document.get("snapshot") else {
+        return 0;
+    };
+    let asset_paths: std::collections::HashMap<String, (String, u64)> = snapshot
+        .get("modelAssets")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|asset| {
+            let id = asset.get("id")?.as_str()?.to_string();
+            let stored_name = asset.get("storedName")?.as_str()?;
+            let path = local_backup_model_asset_path(root, stored_name)?;
+            if !path.is_file() {
+                return None;
+            }
+            let kind = asset.get("kind")?.as_str()?;
+            let extension = std::path::Path::new(stored_name)
+                .extension()?
+                .to_str()?
+                .to_ascii_lowercase();
+            if !is_supported_local_backup_model(kind, &extension) {
+                return None;
+            }
+            let size_bytes = asset.get("sizeBytes")?.as_u64()?;
+            let expected_hash = stored_name.rsplit_once('.')?.0;
+            if !file_matches_sha256(&path, expected_hash, size_bytes) {
+                return None;
+            }
+            Some((id, (path.to_string_lossy().to_string(), size_bytes)))
+        })
+        .collect();
+
+    let Some(local_storage) = document
+        .get_mut("snapshot")
+        .and_then(|snapshot| snapshot.get_mut("localStorage"))
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return 0;
+    };
+    let Some(recent_files_json) = local_storage
+        .get("app-recent-opened-files")
+        .and_then(serde_json::Value::as_str)
+    else {
+        return 0;
+    };
+    let Ok(mut recent_files) = serde_json::from_str::<serde_json::Value>(recent_files_json) else {
+        return 0;
+    };
+    let Some(entries) = recent_files.as_array_mut() else {
+        return 0;
+    };
+
+    let mut restored = 0;
+    for entry in entries {
+        let Some(record) = entry.as_object_mut() else {
+            continue;
+        };
+        let Some(id) = record.get("id").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        if let Some((path, size_bytes)) = asset_paths.get(id) {
+            record.insert("sourcePath".to_string(), serde_json::Value::String(path.clone()));
+            record.insert("sizeBytes".to_string(), serde_json::Value::from(*size_bytes));
+            restored += 1;
+        }
+    }
+
+    local_storage.insert(
+        "app-recent-opened-files".to_string(),
+        serde_json::Value::String(recent_files.to_string()),
+    );
+    restored
+}
+
+fn collect_local_backup_model_library(
+    root: &std::path::Path,
+) -> Result<Vec<LocalBackupModelLibraryEntry>, String> {
+    let mut documents = Vec::new();
+    let state_path = local_backup_state_path(root);
+    if state_path.is_file() {
+        documents.push(state_path);
+    }
+
+    let history_dir = local_backup_history_dir(root);
+    if history_dir.is_dir() {
+        let entries = std::fs::read_dir(&history_dir).map_err(|error| {
+            format!(
+                "Failed listing backup history directory '{}': {error}",
+                history_dir.display()
+            )
+        })?;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let id = path.file_stem().and_then(|value| value.to_str()).unwrap_or_default();
+            if path.is_file()
+                && path.extension().and_then(|value| value.to_str()) == Some("json")
+                && is_valid_local_backup_history_id(id)
+            {
+                documents.push(path);
+            }
+        }
+    }
+
+    let mut library = std::collections::HashMap::<String, LocalBackupModelLibraryEntry>::new();
+    for path in documents {
+        let Ok(raw) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        let Ok(document) = serde_json::from_str::<serde_json::Value>(&raw) else {
+            continue;
+        };
+        let updated_at = document
+            .get("updatedAt")
+            .and_then(serde_json::Value::as_str)
+            .or_else(|| {
+                document
+                    .get("snapshot")
+                    .and_then(|snapshot| snapshot.get("updatedAt"))
+                    .and_then(serde_json::Value::as_str)
+            })
+            .unwrap_or_default()
+            .to_string();
+        let Some(assets) = document
+            .get("snapshot")
+            .and_then(|snapshot| snapshot.get("modelAssets"))
+            .and_then(serde_json::Value::as_array)
+        else {
+            continue;
+        };
+
+        for asset in assets {
+            let (Some(name), Some(kind), Some(stored_name), Some(size_bytes)) = (
+                asset.get("name").and_then(serde_json::Value::as_str),
+                asset.get("kind").and_then(serde_json::Value::as_str),
+                asset.get("storedName").and_then(serde_json::Value::as_str),
+                asset.get("sizeBytes").and_then(serde_json::Value::as_u64),
+            ) else {
+                continue;
+            };
+            let Some(asset_path) = local_backup_model_asset_path(root, stored_name) else {
+                continue;
+            };
+            let Some((expected_hash, extension)) = stored_name.rsplit_once('.') else {
+                continue;
+            };
+            if !is_supported_local_backup_model(kind, extension)
+                || !file_matches_sha256(&asset_path, expected_hash, size_bytes)
+            {
+                continue;
+            }
+
+            let entry = library
+                .entry(stored_name.to_string())
+                .or_insert_with(|| LocalBackupModelLibraryEntry {
+                    name: name.to_string(),
+                    kind: kind.to_string(),
+                    stored_name: stored_name.to_string(),
+                    size_bytes,
+                    path: asset_path.to_string_lossy().to_string(),
+                    updated_at: updated_at.clone(),
+                    backup_count: 0,
+                });
+            entry.backup_count = entry.backup_count.saturating_add(1);
+            if updated_at >= entry.updated_at {
+                entry.name = name.to_string();
+                entry.kind = kind.to_string();
+                entry.size_bytes = size_bytes;
+                entry.path = asset_path.to_string_lossy().to_string();
+                entry.updated_at = updated_at.clone();
+            }
+        }
+    }
+
+    let mut entries: Vec<_> = library.into_values().collect();
+    entries.sort_by(|left, right| {
+        left.name
+            .to_lowercase()
+            .cmp(&right.name.to_lowercase())
+            .then_with(|| left.stored_name.cmp(&right.stored_name))
+    });
+    Ok(entries)
+}
+
+fn write_local_backup_file_atomic(
+    target: &std::path::Path,
+    content: &[u8],
+) -> Result<(), String> {
+    let temp = sibling_commit_temp_path(target)?;
+    if let Err(err) = std::fs::write(&temp, content) {
+        let _ = std::fs::remove_file(&temp);
+        return Err(format!(
+            "Failed staging local backup '{}': {err}",
+            target.display()
+        ));
+    }
+
+    commit_scene_file_atomic(&temp, target).map_err(|error| {
+        format!(
+            "Failed committing local backup '{}': {error}",
+            target.display()
+        )
+    })
 }
 
 fn ensure_local_backup_structure(root: &std::path::Path) -> Result<(), String> {
@@ -2361,8 +2862,10 @@ async fn local_backup_sync(
         let root = normalize_backup_directory_path(&directory_path)?;
         ensure_local_backup_structure(&root)?;
 
-        let parsed = serde_json::from_str::<serde_json::Value>(&document_json)
+        let mut parsed = serde_json::from_str::<serde_json::Value>(&document_json)
             .map_err(|err| format!("Invalid backup document JSON: {err}"))?;
+        let (model_files_synced, model_files_skipped) =
+            sync_local_backup_model_assets(&root, &mut parsed);
         let normalized_document = serde_json::to_string_pretty(&parsed)
             .map_err(|err| format!("Failed formatting backup document JSON: {err}"))?;
 
@@ -2387,25 +2890,16 @@ async fn local_backup_sync(
         let state_path = local_backup_state_path(&root);
         let history_path = local_backup_history_file_path(&root, &history_id)?;
 
-        std::fs::write(&state_path, normalized_document.as_bytes()).map_err(|err| {
-            format!(
-                "Failed writing backup state file '{}': {err}",
-                state_path.display()
-            )
-        })?;
-
-        std::fs::write(&history_path, normalized_document.as_bytes()).map_err(|err| {
-            format!(
-                "Failed writing backup history file '{}': {err}",
-                history_path.display()
-            )
-        })?;
+        write_local_backup_file_atomic(&history_path, normalized_document.as_bytes())?;
+        write_local_backup_file_atomic(&state_path, normalized_document.as_bytes())?;
 
         Ok(LocalBackupSyncResponse {
             synced_at,
             history_id,
             state_path: state_path.to_string_lossy().to_string(),
             history_path: history_path.to_string_lossy().to_string(),
+            model_files_synced,
+            model_files_skipped,
         })
     })
     .await
@@ -2477,6 +2971,18 @@ async fn local_backup_list_history(
 }
 
 #[tauri::command]
+async fn local_backup_list_model_library(
+    directory_path: String,
+) -> Result<Vec<LocalBackupModelLibraryEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = normalize_backup_directory_path(&directory_path)?;
+        collect_local_backup_model_library(&root)
+    })
+    .await
+    .map_err(|err| format!("List local backup model library task failed to join: {err}"))?
+}
+
+#[tauri::command]
 async fn local_backup_read_history_item(
     directory_path: String,
     id: String,
@@ -2532,22 +3038,23 @@ async fn local_backup_restore_history_item(
         let history_path = local_backup_history_file_path(&root, id.trim())?;
         let state_path = local_backup_state_path(&root);
 
-        let document_json = std::fs::read_to_string(&history_path).map_err(|err| {
+        let source_document_json = std::fs::read_to_string(&history_path).map_err(|err| {
             format!(
                 "Failed reading backup history file '{}': {err}",
                 history_path.display()
             )
         })?;
+        let mut document = serde_json::from_str::<serde_json::Value>(&source_document_json)
+            .map_err(|err| format!("Invalid backup history document JSON: {err}"))?;
+        restore_local_backup_model_paths(&root, &mut document);
+        let document_json = serde_json::to_string_pretty(&document)
+            .map_err(|err| format!("Failed formatting restored backup document: {err}"))?;
 
-        std::fs::write(&state_path, document_json.as_bytes()).map_err(|err| {
-            format!(
-                "Failed restoring backup state file '{}': {err}",
-                state_path.display()
-            )
-        })?;
+        write_local_backup_file_atomic(&state_path, document_json.as_bytes())?;
 
         Ok(LocalBackupRestoreResponse {
             synced_at: extract_backup_document_updated_at(&document_json),
+            document_json,
         })
     })
     .await
@@ -4365,11 +4872,6 @@ fn main() {
             .level_for("rustls", log::LevelFilter::Warn)
             .level_for("h2", log::LevelFilter::Warn)
             .level_for("tokio_tungstenite", log::LevelFilter::Warn)
-            // Updater plugin logs ERROR for non-2XX endpoint responses (expected
-            // during dev when no release exists yet). The frontend handles
-            // surfacing real update failures to the user, so suppress the
-            // Rust-side noise here.
-            .level_for("tauri_plugin_updater", log::LevelFilter::Off)
             // The Vulkan loader hands wgpu every implicit layer installed on the
             // machine, and a third-party overlay whose manifest is missing or
             // whose layer violates the loader's naming policy is reported as an
@@ -4485,10 +4987,7 @@ fn main() {
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(tauri_plugin_macos_fps::init());
 
-    // Updater plugin — checks GitHub releases for new versions and handles
-    // download + install across all platforms.
-    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
-    // Process plugin — needed for app relaunch after update installs.
+    // Process plugin — used for app relaunch flows.
     let builder = builder.plugin(tauri_plugin_process::init());
 
     builder
@@ -4541,6 +5040,7 @@ fn main() {
             local_backup_read_state,
             local_backup_sync,
             local_backup_list_history,
+            local_backup_list_model_library,
             local_backup_read_history_item,
             local_backup_delete_history_item,
             local_backup_restore_history_item,
@@ -4798,6 +5298,194 @@ mod tests {
             .filter(|n| n.contains(".tmp-"))
             .collect();
         assert!(residue.is_empty(), "temp residue left behind: {residue:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn local_backup_atomic_writer_replaces_snapshot_without_changing_its_path() {
+        let dir = unique_test_dir("local-backup-atomic");
+        let target = dir.join("state.json");
+
+        super::write_local_backup_file_atomic(&target, br#"{"version":1}"#)
+            .expect("initial backup write failed");
+        super::write_local_backup_file_atomic(&target, br#"{"version":2}"#)
+            .expect("backup replacement failed");
+
+        assert_eq!(
+            std::fs::read(&target).expect("backup state unreadable"),
+            br#"{"version":2}"#,
+        );
+        assert!(
+            std::fs::read_dir(&dir)
+                .expect("backup directory unreadable")
+                .all(|entry| entry.expect("backup entry unreadable").path() == target),
+            "atomic replacement should leave no staging files behind"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn local_backup_model_asset_copy_is_content_addressed_and_deduplicated() {
+        let dir = unique_test_dir("local-backup-model-asset");
+        let source = dir.join("source.stl");
+        let backup = dir.join("backup");
+        std::fs::create_dir_all(&dir).expect("test directory creation failed");
+        std::fs::write(&source, b"prepared model bytes").expect("source write failed");
+
+        let (first_name, first_size) =
+            super::copy_local_backup_model_asset(&source, &backup, "sample.stl")
+                .expect("first model asset copy failed");
+        let (second_name, second_size) =
+            super::copy_local_backup_model_asset(&source, &backup, "sample.stl")
+                .expect("duplicate model asset copy failed");
+
+        assert_eq!(first_name, second_name);
+        assert_eq!(first_size, b"prepared model bytes".len() as u64);
+        assert_eq!(second_size, first_size);
+        assert_eq!(
+            std::fs::read(backup.join("models").join(&first_name))
+                .expect("synced model asset unreadable"),
+            b"prepared model bytes",
+        );
+        assert_eq!(
+            std::fs::read_dir(backup.join("models"))
+                .expect("model library directory unreadable")
+                .count(),
+            1,
+            "identical model files should share one library asset"
+        );
+
+        std::fs::write(backup.join("models").join(&first_name), b"corrupt")
+            .expect("corrupting synced asset failed");
+        super::copy_local_backup_model_asset(&source, &backup, "sample.stl")
+            .expect("corrupt model asset repair failed");
+        assert_eq!(
+            std::fs::read(backup.join("models").join(first_name))
+                .expect("repaired model asset unreadable"),
+            b"prepared model bytes",
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn local_backup_model_asset_sync_and_restore_rewrite_recent_file_paths() {
+        let dir = unique_test_dir("local-backup-model-roundtrip");
+        let source = dir.join("Prepared.stl");
+        let backup = dir.join("backup");
+        std::fs::create_dir_all(&dir).expect("test directory creation failed");
+        std::fs::write(&source, b"prepared model bytes").expect("source write failed");
+        let mut document = serde_json::json!({
+            "snapshot": {
+                "localStorage": {
+                    "app-recent-opened-files": serde_json::json!([{
+                        "id": "mesh-id",
+                        "name": "Prepared.stl",
+                        "kind": "mesh",
+                        "sourcePath": source.to_string_lossy(),
+                        "sizeBytes": 999,
+                        "openedAt": 123,
+                    }]).to_string(),
+                },
+            },
+        });
+
+        let synced = super::sync_local_backup_model_assets(&backup, &mut document);
+        assert_eq!(synced, (1, 0));
+        let recent_files_json = document["snapshot"]["localStorage"]["app-recent-opened-files"]
+            .as_str()
+            .expect("recent file index missing from snapshot");
+        let recent_files: serde_json::Value =
+            serde_json::from_str(recent_files_json).expect("recent file index malformed");
+        assert!(recent_files[0].get("sourcePath").is_none());
+        assert_eq!(document["snapshot"]["modelAssets"].as_array().unwrap().len(), 1);
+
+        let stored_name = document["snapshot"]["modelAssets"][0]["storedName"]
+            .as_str()
+            .expect("model asset name missing")
+            .to_string();
+        std::fs::write(backup.join("models").join(&stored_name), b"corrupt")
+            .expect("corrupting model asset failed");
+        let mut corrupted_document = document.clone();
+        assert_eq!(
+            super::restore_local_backup_model_paths(&backup, &mut corrupted_document),
+            0,
+            "restore must not point recent files at an asset with invalid bytes"
+        );
+        super::copy_local_backup_model_asset(&source, &backup, "Prepared.stl")
+            .expect("model asset repair failed");
+
+        assert_eq!(super::restore_local_backup_model_paths(&backup, &mut document), 1);
+        let restored_files: serde_json::Value = serde_json::from_str(
+            document["snapshot"]["localStorage"]["app-recent-opened-files"]
+                .as_str()
+                .expect("restored recent file index missing"),
+        )
+        .expect("restored recent file index malformed");
+        let restored_path = restored_files[0]["sourcePath"]
+            .as_str()
+            .expect("restored recent file path missing");
+        assert_eq!(
+            std::fs::read(restored_path).expect("restored asset unreadable"),
+            b"prepared model bytes",
+        );
+        assert_eq!(restored_files[0]["sizeBytes"], b"prepared model bytes".len() as u64);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn local_backup_model_library_indexes_assets_from_state_and_history() {
+        let dir = unique_test_dir("local-backup-model-library");
+        let source = dir.join("sample.stl");
+        let backup = dir.join("backup");
+        std::fs::create_dir_all(&dir).expect("test directory creation failed");
+        std::fs::write(&source, b"prepared model bytes").expect("source write failed");
+        let mut document = serde_json::json!({
+            "updatedAt": "2026-11-18T00:00:00.000Z",
+            "snapshot": {
+                "localStorage": {
+                    "app-recent-opened-files": serde_json::json!([{
+                        "id": "mesh-id",
+                        "name": "sample.stl",
+                        "kind": "mesh",
+                        "sourcePath": source.to_string_lossy(),
+                        "sizeBytes": 999,
+                        "openedAt": 123,
+                    }]).to_string(),
+                },
+            },
+        });
+        assert_eq!(
+            super::sync_local_backup_model_assets(&backup, &mut document),
+            (1, 0)
+        );
+        std::fs::create_dir_all(super::local_backup_history_dir(&backup))
+            .expect("history directory creation failed");
+        let document_json = serde_json::to_string(&document).expect("document serialization failed");
+        super::write_local_backup_file_atomic(
+            &super::local_backup_state_path(&backup),
+            document_json.as_bytes(),
+        )
+        .expect("state file write failed");
+        super::write_local_backup_file_atomic(
+            &super::local_backup_history_file_path(&backup, "1700000000000")
+                .expect("history path invalid"),
+            document_json.as_bytes(),
+        )
+        .expect("history file write failed");
+
+        let library = super::collect_local_backup_model_library(&backup)
+            .expect("model library collection failed");
+        assert_eq!(library.len(), 1);
+        assert_eq!(library[0].name, "sample.stl");
+        assert_eq!(library[0].kind, "mesh");
+        assert_eq!(library[0].backup_count, 2);
+        assert_eq!(
+            std::fs::read(&library[0].path).expect("library item unreadable"),
+            b"prepared model bytes",
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

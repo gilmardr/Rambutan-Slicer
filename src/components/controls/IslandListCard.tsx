@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
 import { Plural } from '@lingui/react/macro';
+import { Trans } from '@lingui/react/macro';
 import type { Island } from '@/volumeAnalysis/IslandScan/types';
 import { IslandHierarchyModal } from '@/components/modals/IslandHierarchyModal';
 import { ChevronRight, Network } from 'lucide-react';
@@ -10,6 +11,7 @@ import { Button, Card, CardHeader, IconChip, Input } from '@/components/atoms';
 import { PanelCollapseToggle } from '@/components/atoms/PanelCollapseToggle';
 import { useFloatingPanelCollapse } from '@/components/layout/FloatingPanelStack';
 import { useLocaleFormat } from '@/hooks/useLocaleFormat';
+import { getSlicerLayerIndex, getSlicePreviewLayerNumber } from '@/volumeAnalysis/IslandScan/sliceLayerMapping';
 
 type IslandListCardProps = {
   islands: Island[];
@@ -19,6 +21,8 @@ type IslandListCardProps = {
   onShowMergedChange: (show: boolean) => void;
   layerHeightMm: number;
   zOffsetMm: number;
+  canInspectSliceLayer: boolean;
+  onInspectSliceLayer: (layerNumber: number) => void;
 };
 
 /**
@@ -33,6 +37,8 @@ export function IslandListCard({
   onShowMergedChange,
   layerHeightMm,
   zOffsetMm,
+  canInspectSliceLayer,
+  onInspectSliceLayer,
 }: IslandListCardProps) {
   const { _ } = useLingui();
   const fmt = useLocaleFormat();
@@ -186,6 +192,9 @@ export function IslandListCard({
             </div>
             {sortedIslands.map((island) => {
               const layerSpan = island.lastLayer - island.firstLayer + 1;
+              const firstSliceLayer = getSlicerLayerIndex(island.firstLayer, zOffsetMm, layerHeightMm);
+              const lastSliceLayer = getSlicerLayerIndex(island.lastLayer, zOffsetMm, layerHeightMm);
+              const firstSlicePreviewLayer = getSlicePreviewLayerNumber(island.firstLayer, zOffsetMm, layerHeightMm);
               const isSelected = island.id === selectedIslandId;
               const isMerged = island.status === 'complete';
 
@@ -221,7 +230,7 @@ export function IslandListCard({
                         )}
                       </div>
                       <div className="ui-meta leading-tight">
-                        L{island.firstLayer}–{island.lastLayer} ({layerSpan})
+                        L{firstSliceLayer}–{lastSliceLayer} ({layerSpan})
                       </div>
                       <div className="ui-meta leading-tight">
                         {island.volumeMm3 !== undefined
@@ -230,7 +239,21 @@ export function IslandListCard({
                       </div>
                       {island.maxAreaMm2 !== undefined && island.maxAreaLayer !== undefined && (
                         <div className="ui-meta leading-tight" style={{ color: 'color-mix(in srgb, var(--text-muted), black 20%)' }}>
-                          Max: {fmt.quantity(island.maxAreaMm2, 2, 'mm2')} @ L{Math.round(island.maxAreaLayer + (zOffsetMm / layerHeightMm))}
+                          Max: {fmt.quantity(island.maxAreaMm2, 2, 'mm2')} @ L{getSlicerLayerIndex(island.maxAreaLayer, zOffsetMm, layerHeightMm)}
+                        </div>
+                      )}
+                      {canInspectSliceLayer ? (
+                        <Button
+                          type="button"
+                          onClick={() => onInspectSliceLayer(firstSlicePreviewLayer)}
+                          size="auto"
+                          className="mt-1 !h-7 px-2 text-[10px]"
+                        >
+                          <Trans>Inspect first risk layer in slice</Trans> · {fmt.fixed(firstSlicePreviewLayer, 0)}
+                        </Button>
+                      ) : (
+                        <div className="ui-meta mt-1 leading-snug">
+                          <Trans>Slice this plate to compare this finding with the output.</Trans>
                         </div>
                       )}
                     </div>

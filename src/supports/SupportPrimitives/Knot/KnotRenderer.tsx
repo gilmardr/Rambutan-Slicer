@@ -28,7 +28,7 @@ interface KnotRendererProps {
 
 export function KnotRenderer({
     knot,
-    color: propColor = '#c8752a',
+    color: propColor = '#78c63f',
     emissive: propEmissive = '#000000',
     emissiveIntensity: propEmissiveIntensity = 0,
     selectedColor: _selectedColor,

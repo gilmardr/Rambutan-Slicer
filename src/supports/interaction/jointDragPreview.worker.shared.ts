@@ -1,10 +1,8 @@
 import type { Knot, Roots } from '../types';
 import type { JointDragPreviewCandidateKnots, JointDragPreviewSnapshot } from './jointDragPreviewMath';
+import type { RecordDelta } from './recordDelta';
 
-export type RecordDelta<T> = {
-  upserts: Record<string, T>;
-  deleteIds: string[];
-};
+export type { RecordDelta } from './recordDelta';
 
 export type JointDragPreviewInputDelta = Partial<{
   roots: RecordDelta<Roots>;

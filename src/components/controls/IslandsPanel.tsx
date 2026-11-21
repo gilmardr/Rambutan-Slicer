@@ -63,9 +63,17 @@ interface IslandsPanelProps {
   islands: UseIslandsReturn;
   hasGeometry: boolean;
   bottomClearancePx?: number;
+  canInspectSliceLayer?: boolean;
+  onInspectSliceLayer?: (layerIndex: number) => void;
 }
 
-export function IslandsPanel({ islands, hasGeometry, bottomClearancePx = 88 }: IslandsPanelProps) {
+export function IslandsPanel({
+  islands,
+  hasGeometry,
+  bottomClearancePx = 88,
+  canInspectSliceLayer = false,
+  onInspectSliceLayer,
+}: IslandsPanelProps) {
   const { _ } = useLingui();
   const fmt = useLocaleFormat();
   const [expanded, setExpanded] = useFloatingPanelCollapse(true);
@@ -124,6 +132,10 @@ export function IslandsPanel({ islands, hasGeometry, bottomClearancePx = 88 }: I
   }, [orderedIslands, selectedMarkerId]);
   const currentIslandLabel = selectedIndex >= 0
     ? orderedIslands[selectedIndex].id.replace(/^\D+/, '')
+    : null;
+  const selectedIsland = selectedIndex >= 0 ? orderedIslands[selectedIndex] : null;
+  const selectedSliceLayer = selectedIsland
+    ? Math.max(1, Math.floor(selectedIsland.baseZ / islands.layerHeightMm) + 1)
     : null;
 
   const computedBottomClearance = Math.max(140, Math.round(bottomClearancePx));
@@ -250,6 +262,40 @@ export function IslandsPanel({ islands, hasGeometry, bottomClearancePx = 88 }: I
                     </button>
                   </div>
                 </div>
+                {selectedIsland && selectedSliceLayer !== null && (
+                  <div className="mt-2 rounded-md border p-2 space-y-1.5" style={SECTION_CARD}>
+                    {selectedIsland.source === 'voxel' ? (
+                      <>
+                        <div className="text-[10px] font-medium" style={{ color: 'var(--text-strong)' }}>
+                          <Trans>Rasterized layer estimate</Trans>
+                        </div>
+                        <div className="ui-meta">
+                          <Trans>Scan resolution</Trans>: {fmt.quantity(islands.pxMm, 2, 'mmPerPx')}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-[10px] leading-snug" style={{ color: 'var(--text-muted)' }}>
+                        {selectedIsland.source === 'overhang'
+                          ? <Trans>Mesh overhang estimate; confirm against the sliced layer.</Trans>
+                          : <Trans>Mesh minimum estimate; confirm against the sliced layer.</Trans>}
+                      </div>
+                    )}
+                    {canInspectSliceLayer && onInspectSliceLayer ? (
+                      <Button
+                        type="button"
+                        onClick={() => onInspectSliceLayer(selectedSliceLayer)}
+                        size="auto"
+                        className="w-full !h-7 px-2 text-[10px]"
+                      >
+                        <Trans>Inspect in slice preview</Trans> · {fmt.fixed(selectedSliceLayer, 0)}
+                      </Button>
+                    ) : (
+                      <div className="text-[10px] leading-snug" style={{ color: 'var(--text-muted)' }}>
+                        <Trans>Slice this plate to compare the finding with the actual output layer.</Trans>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Display toggles (advanced only — the chips are self-explanatory) */}
                 {advancedMode && (
                 <div className="rounded-md border p-2" style={SECTION_CARD}>

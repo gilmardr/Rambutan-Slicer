@@ -48,10 +48,8 @@ interface InstancedShaftGroupProps {
      */
     instanceColor?: (shaft: InstancedShaft) => THREE.Color;
     /**
-     * Instances to hide, by the primitive they draw. The world layer keeps an
-     * excluded model in its arrays and hides it here, so an activation change
-     * costs the changed instances rather than a full re-layout. Curved shafts
-     * are not hidden this way: they are merged into one tube mesh.
+     * Primitives to hide. Straight shafts update one instance matrix; hidden
+     * curved shafts are omitted when their merged tube mesh is rebuilt.
      */
     isHidden?: (shaft: InstancedShaft) => boolean;
     /**
@@ -94,7 +92,7 @@ const shaftMidpoint = new THREE.Vector3();
 
 export function InstancedShaftGroup({
     shafts,
-    color = '#ff8800',
+    color = '#78c63f',
     emissive = '#000000',
     emissiveIntensity = 0,
     transparent = false,
@@ -143,6 +141,7 @@ export function InstancedShaftGroup({
         noteActivity('support-mode:curved-shaft-tubes');
         const byColor = new Map<string, InstancedShaft[]>();
         for (const shaft of curvedShafts) {
+            if (isHidden?.(shaft)) continue;
             const color = instanceColor ? instanceColor(shaft).getHexString() : NO_TINT_KEY;
             const bucket = byColor.get(color);
             if (bucket) bucket.push(shaft);
@@ -153,7 +152,7 @@ export function InstancedShaftGroup({
             const tubes = buildBatchedBezierTubes(group, radialSegments);
             return tubes ? [{ color, shafts: group, tubes }] : [];
         });
-    }, [curvedShafts, radialSegments, instanceColor]);
+    }, [curvedShafts, radialSegments, instanceColor, isHidden]);
 
     useEffect(() => {
         return () => {

@@ -6,32 +6,32 @@
   -webkit-user-select: none;
   -moz-user-select: none;
   /* App theme foundation (dark first) */
-  --background: #0b0f14;
-  --foreground: #e6ebf2;
+  --background: #090b12;
+  --foreground: #f1eff1;
 
-  --surface-0: #111216;
-  --surface-1: #1a1b21;
-  --surface-2: #23252e;
+  --surface-0: #101219;
+  --surface-1: #171a22;
+  --surface-2: #20232d;
 
-  --border-subtle: #272a33;
-  --border-strong: #353944;
+  --border-subtle: #2b2e38;
+  --border-strong: #3b404b;
 
-  --text-strong: #f8f8fb;
-  --text-muted: #c3c7cf;
-  --indicator: #c3c7cf;
+  --text-strong: #fff9f8;
+  --text-muted: #c0bdc3;
+  --indicator: #b9b6bd;
 
-  --accent: #ec2a77;
-  --primary-button-surface: #c11f61;
-  --accent-hover: #d81d67;
-  --accent-contrast: #fff6ff;
-  --accent-secondary: #baf72e;
-  --secondary-button-surface: #bdf435;
-  --accent-secondary-hover: #a6df29;
-  --accent-secondary-contrast: #182106;
-  --topbar-accent: #ec2a77;
+  --accent: #ed0921;
+  --primary-button-surface: #c90c23;
+  --accent-hover: #ff4654;
+  --accent-contrast: #ffffff;
+  --accent-secondary: #78c63f;
+  --secondary-button-surface: #78c63f;
+  --accent-secondary-hover: #a3df68;
+  --accent-secondary-contrast: #10200a;
+  --topbar-accent: #ed0921;
 
-  --danger: #e45454;
-  --success: #2eb67d;
+  --danger: #ff4d54;
+  --success: #78c63f;
 
   --accent-secondary-action-color: var(--accent-secondary);
   --accent-secondary-action-border: color-mix(in srgb, var(--accent-secondary), var(--border-subtle) 42%);
@@ -73,36 +73,37 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --background: #b4b6c2;
-  --foreground: #191a20;
+  --background: #f2f2f4;
+  --foreground: #19191d;
 
-  --surface-0: #bcbfd0;
-  --surface-1: #b2b5c4;
-  --surface-2: #a6a9b8;
+  --surface-0: #fbfbfc;
+  --surface-1: #f1f1f4;
+  --surface-2: #e6e7eb;
 
-  --border-subtle: #9498a8;
-  --border-strong: #818596;
+  --border-subtle: #d1d2d8;
+  --border-strong: #b4b6bf;
 
-  --text-strong: #191a20;
-  --text-muted: #3c4050;
-  --indicator: #4a4e62;
+  --text-strong: #17171b;
+  --text-muted: #4e4e57;
+  --indicator: #4e4e57;
 
-  --accent: #ec2a77;
-  --primary-button-surface: #c11f61;
-  --accent-hover: #d81d67;
-  --accent-contrast: #fff0f7;
-  --accent-secondary: #6ab80a;
-  --secondary-button-surface: #4e8900;
-  --accent-secondary-hover: #5fa309;
-  --accent-secondary-contrast: #f0fff4;
-  --topbar-accent: #ec2a77;
+  --accent: #b50920;
+  --primary-button-surface: #b50920;
+  --accent-hover: #8e0719;
+  --accent-contrast: #ffffff;
+  --accent-secondary: #438020;
+  --secondary-button-surface: #438020;
+  --accent-secondary-hover: #356a17;
+  --accent-secondary-contrast: #ffffff;
+  --topbar-accent: #b50920;
 
   --danger: #c9302c;
+  --success: #438020;
 
-  --accent-secondary-action-color: color-mix(in srgb, #4f8a08, var(--text-strong) 30%);
-  --accent-secondary-action-border: color-mix(in srgb, #6aa20d, var(--border-subtle) 34%);
-  --accent-secondary-action-bg-92: color-mix(in srgb, #6aa20d, var(--surface-1) 80%);
-  --accent-secondary-action-bg-90: color-mix(in srgb, #6aa20d, var(--surface-1) 78%);
+  --accent-secondary-action-color: color-mix(in srgb, #438020, var(--text-strong) 30%);
+  --accent-secondary-action-border: color-mix(in srgb, #438020, var(--border-subtle) 34%);
+  --accent-secondary-action-bg-92: color-mix(in srgb, #438020, var(--surface-1) 80%);
+  --accent-secondary-action-bg-90: color-mix(in srgb, #438020, var(--surface-1) 78%);
 }
 
 @theme inline {
@@ -114,36 +115,37 @@
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']):not([data-theme='light']) {
-    --background: #b4b6c2;
-    --foreground: #191a20;
+    --background: #f2f2f4;
+    --foreground: #19191d;
 
-    --surface-0: #bcbfd0;
-    --surface-1: #b2b5c4;
-    --surface-2: #a6a9b8;
+    --surface-0: #fbfbfc;
+    --surface-1: #f1f1f4;
+    --surface-2: #e6e7eb;
 
-    --border-subtle: #9498a8;
-    --border-strong: #818596;
+    --border-subtle: #d1d2d8;
+    --border-strong: #b4b6bf;
 
-    --text-strong: #191a20;
-    --text-muted: #3c4050;
-    --indicator: #4a4e62;
+    --text-strong: #17171b;
+    --text-muted: #4e4e57;
+    --indicator: #4e4e57;
 
-    --accent: #ec2a77;
-    --primary-button-surface: #c11f61;
-    --accent-hover: #d81d67;
-    --accent-contrast: #fff0f7;
-    --accent-secondary: #6ab80a;
-    --secondary-button-surface: #4e8900;
-    --accent-secondary-hover: #5fa309;
-    --accent-secondary-contrast: #182106;
-    --topbar-accent: #ec2a77;
+    --accent: #b50920;
+    --primary-button-surface: #b50920;
+    --accent-hover: #8e0719;
+    --accent-contrast: #ffffff;
+    --accent-secondary: #438020;
+    --secondary-button-surface: #438020;
+    --accent-secondary-hover: #356a17;
+    --accent-secondary-contrast: #ffffff;
+    --topbar-accent: #b50920;
 
     --danger: #c9302c;
+    --success: #438020;
 
-    --accent-secondary-action-color: color-mix(in srgb, #4f8a08, var(--text-strong) 30%);
-    --accent-secondary-action-border: color-mix(in srgb, #6aa20d, var(--border-subtle) 34%);
-    --accent-secondary-action-bg-92: color-mix(in srgb, #6aa20d, var(--surface-1) 80%);
-    --accent-secondary-action-bg-90: color-mix(in srgb, #6aa20d, var(--surface-1) 78%);
+    --accent-secondary-action-color: color-mix(in srgb, #438020, var(--text-strong) 30%);
+    --accent-secondary-action-border: color-mix(in srgb, #438020, var(--border-subtle) 34%);
+    --accent-secondary-action-bg-92: color-mix(in srgb, #438020, var(--surface-1) 80%);
+    --accent-secondary-action-bg-90: color-mix(in srgb, #438020, var(--surface-1) 78%);
   }
 }
 

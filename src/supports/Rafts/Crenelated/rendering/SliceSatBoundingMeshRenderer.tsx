@@ -987,7 +987,7 @@ export default function SliceSatBoundingMeshRenderer({
           renderOrder={100000}
         >
           <meshStandardMaterial
-            color="#baf72e"
+            color="#ffb45d"
             transparent
             opacity={0.14}
             side={THREE.DoubleSide}
@@ -1003,7 +1003,7 @@ export default function SliceSatBoundingMeshRenderer({
             raycast={() => null}
             renderOrder={100000}
           >
-            <lineBasicMaterial color="#baf72e" transparent opacity={0.7} depthWrite={false} depthTest />
+            <lineBasicMaterial color="#ffb45d" transparent opacity={0.7} depthWrite={false} depthTest />
           </lineSegments>
         )}
       </group>
@@ -1021,7 +1021,7 @@ export default function SliceSatBoundingMeshRenderer({
         </mesh>
         {satGeometries.wireGeometry && (
           <lineSegments geometry={satGeometries.wireGeometry} raycast={() => null} renderOrder={100000}>
-            <lineBasicMaterial color="#baf72e" transparent opacity={0.95} depthWrite={false} depthTest />
+            <lineBasicMaterial color="#ffb45d" transparent opacity={0.95} depthWrite={false} depthTest />
           </lineSegments>
         )}
       </group>
@@ -1031,7 +1031,7 @@ export default function SliceSatBoundingMeshRenderer({
   return (
     <mesh geometry={satGeometries.meshGeometry} raycast={() => null} renderOrder={100000}>
       <meshStandardMaterial
-        color="#baf72e"
+        color="#ffb45d"
         transparent
         opacity={0.22}
         side={THREE.DoubleSide}

@@ -44,17 +44,20 @@ function stubbedStorage(entries: Record<string, string>) {
 test('every migration names a real key and ends on the value the code ships', () => {
     const shipped = createDefaultAutoSupportSettings();
 
-    for (const migration of AUTO_SUPPORT_DEFAULT_MIGRATIONS) {
+    for (let index = 0; index < AUTO_SUPPORT_DEFAULT_MIGRATIONS.length; index++) {
+        const migration = AUTO_SUPPORT_DEFAULT_MIGRATIONS[index];
         const current = shipped[migration.key];
         assert.notEqual(
             current,
             undefined,
             `autoSupport.${String(migration.key)} is not a setting any more: drop the entry`,
         );
+        const next = AUTO_SUPPORT_DEFAULT_MIGRATIONS.slice(index + 1)
+            .find((candidate) => candidate.key === migration.key);
         assert.equal(
-            current,
             migration.to,
-            `autoSupport.${String(migration.key)} ships ${String(current)}, but the table migrates to ${String(migration.to)}`,
+            next?.from ?? current,
+            `autoSupport.${String(migration.key)} must migrate to the next shipped default`,
         );
         assert.notEqual(
             migration.from,
@@ -79,7 +82,7 @@ test('a shipped default moves to the new one, a chosen value does not', () => {
 
     const migrated = applyAutoSupportDefaultMigrations(block, 0);
 
-    assert.equal(migrated?.areaPerSupportMm2, 10);
+    assert.equal(migrated?.areaPerSupportMm2, 20);
     assert.equal(migrated?.leafFanMaxAngleDeg, 45);
     assert.equal(migrated?.enabled, false);
     assert.equal(migrated?.sizeScale, 1.2);
@@ -227,7 +230,7 @@ test('the preset load path migrates a factory preset’s auto-support block, and
 
     // `structure` inherits its auto-support values, so they follow the table. Its
     // bracing and root diameter are not auto-support defaults and stay put.
-    assert.equal(structure.settings.autoSupport.areaPerSupportMm2, 10, 'the inherited density followed the default');
+    assert.equal(structure.settings.autoSupport.areaPerSupportMm2, 20, 'the inherited density followed the default');
     assert.equal(structure.settings.autoSupport.leafFanMaxAngleDeg, 45, 'so did the inherited angle');
     assert.equal(structure.settings.autoBracing.braceDiameterMm, 0.7, 'the bracing block is out of scope');
     assert.equal(structure.settings.autoBracing.patternIntervalMm, 10, 'the whole bracing block is out of scope');

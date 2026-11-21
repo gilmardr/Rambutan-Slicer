@@ -15,7 +15,7 @@
  * way to free a part attached in several places (e.g. a tail joined at two posts).
  */
 import React from 'react';
-import type { TenonPreviewFrame, OrganicCutLoopPoint, OrganicCutResult } from './types';
+import type { TenonPreviewFrame, OrganicCutLoopPoint, OrganicCutPlugSpec, OrganicCutResult } from './types';
 import type { OrganicCutPanelState } from './OrganicCutPanel';
 import {
   useOrganicCutDragState,
@@ -57,19 +57,29 @@ const EDIT_COALESCE_WINDOW_MS = 500;
 
 /** Drop the derived polyline: it is recomputed from the points on restore. */
 function toSnapshot(loops: SessionLoop[]): OrganicCutLoopSnapshot[] {
-  return loops.map((l) => ({ points: l.points.slice(), tenon: { ...l.tenon } }));
+  return loops.map((l) => ({ points: l.points.slice(), tenon: { ...l.tenon }, plugs: l.plugs.map((plug) => ({ ...plug })) }));
 }
 
 /** Rebuild session loops from a snapshot; the seam recomputes from the points. */
 function fromSnapshot(snapshot: OrganicCutLoopSnapshot[]): SessionLoop[] {
-  return snapshot.map((l) => ({ points: l.points.slice(), polyline: null, tenon: { ...l.tenon } }));
+  return snapshot.map((l) => ({
+    points: l.points.slice(),
+    polyline: null,
+    tenon: { ...l.tenon },
+    plugs: (l.plugs ?? []).map((plug) => ({ ...plug })),
+  }));
 }
 
 /** Value-equality of two loop sets, to skip pushing a no-op edit. */
 function loopsEqual(a: SessionLoop[], b: SessionLoop[]): boolean {
   if (a === b) return true;
   if (a.length !== b.length) return false;
-  return a.every((l, i) => l.points === b[i].points && tenonsEqual(l.tenon, b[i].tenon));
+  return a.every((l, i) =>
+    l.points === b[i].points &&
+    tenonsEqual(l.tenon, b[i].tenon) &&
+    l.plugs.length === b[i].plugs.length &&
+    l.plugs.every((plug, j) => tenonsEqual(plug, b[i].plugs[j])),
+  );
 }
 
 /** Minimum points before a cut is possible. 2 = the simplest flat plane cut. */
@@ -88,10 +98,14 @@ export type LoopTenonSettings = Pick<
   | 'tenonDepthMm'
   | 'tenonShape'
   | 'tenonFilletMm'
+  | 'tenonChamferSizeMm'
+  | 'tenonChamferDepthMm'
+  | 'tenonTaperAngleDeg'
   | 'tenonToleranceMm'
   | 'tenonAnchor'
   | 'tenonUniformScale'
   | 'tenonSwapSides'
+  | 'tenonBothSides'
   | 'tenonTiltRad'
   | 'tenonRollRad'
 >;
@@ -136,10 +150,14 @@ function extractTenon(ps: OrganicCutPanelState): LoopTenonSettings {
     tenonDepthMm: ps.tenonDepthMm,
     tenonShape: ps.tenonShape,
     tenonFilletMm: ps.tenonFilletMm,
+    tenonChamferSizeMm: ps.tenonChamferSizeMm,
+    tenonChamferDepthMm: ps.tenonChamferDepthMm,
+    tenonTaperAngleDeg: ps.tenonTaperAngleDeg,
     tenonToleranceMm: ps.tenonToleranceMm,
     tenonAnchor: ps.tenonAnchor,
     tenonUniformScale: ps.tenonUniformScale,
     tenonSwapSides: ps.tenonSwapSides,
+    tenonBothSides: ps.tenonBothSides,
     tenonTiltRad: ps.tenonTiltRad,
     tenonRollRad: ps.tenonRollRad,
   };
@@ -180,10 +198,14 @@ function tenonsEqual(a: LoopTenonSettings, b: LoopTenonSettings): boolean {
     a.tenonDepthMm === b.tenonDepthMm &&
     a.tenonShape === b.tenonShape &&
     a.tenonFilletMm === b.tenonFilletMm &&
+    a.tenonChamferSizeMm === b.tenonChamferSizeMm &&
+    a.tenonChamferDepthMm === b.tenonChamferDepthMm &&
+    a.tenonTaperAngleDeg === b.tenonTaperAngleDeg &&
     a.tenonToleranceMm === b.tenonToleranceMm &&
     sameAnchor(a.tenonAnchor, b.tenonAnchor) &&
     a.tenonUniformScale === b.tenonUniformScale &&
     a.tenonSwapSides === b.tenonSwapSides &&
+    a.tenonBothSides === b.tenonBothSides &&
     a.tenonTiltRad === b.tenonTiltRad &&
     a.tenonRollRad === b.tenonRollRad
   );
@@ -197,12 +219,43 @@ function tenonToSpec(k: LoopTenonSettings) {
     tenonDepthMm: k.tenonDepthMm,
     tenonShape: k.tenonShape,
     tenonFilletMm: k.tenonFilletMm,
+    tenonChamferSizeMm: k.tenonChamferSizeMm,
+    tenonChamferDepthMm: k.tenonChamferDepthMm,
+    tenonTaperAngleDeg: k.tenonTaperAngleDeg,
     tenonToleranceMm: k.tenonToleranceMm,
     tenonAnchor: k.tenonAnchor,
     tenonSwapSides: k.tenonSwapSides,
     tenonTiltRad: k.tenonTiltRad,
     tenonRollRad: k.tenonRollRad,
   };
+}
+
+/** Wire form for an independently positioned plug (the `generateTenon` toggle is UI-only). */
+function plugToSpec(k: LoopTenonSettings): OrganicCutPlugSpec {
+  return {
+    tenonWidthMm: k.tenonWidthMm,
+    tenonDepthMm: k.tenonDepthMm,
+    tenonShape: k.tenonShape,
+    tenonFilletMm: k.tenonFilletMm,
+    tenonChamferSizeMm: k.tenonChamferSizeMm,
+    tenonChamferDepthMm: k.tenonChamferDepthMm,
+    tenonTaperAngleDeg: k.tenonTaperAngleDeg,
+    tenonToleranceMm: k.tenonToleranceMm,
+    tenonAnchor: k.tenonAnchor,
+    tenonSwapSides: k.tenonSwapSides,
+    tenonTiltRad: k.tenonTiltRad,
+    tenonRollRad: k.tenonRollRad,
+  };
+}
+
+/** Expand the persistent BOTH side mode into the backend's two directional plugs. */
+function plugToSpecs(k: LoopTenonSettings): OrganicCutPlugSpec[] {
+  const plug = plugToSpec(k);
+  if (!k.tenonBothSides) return [plug];
+  return [
+    { ...plug, tenonSwapSides: false },
+    { ...plug, tenonSwapSides: true },
+  ];
 }
 
 /**
@@ -217,11 +270,19 @@ interface SessionLoop {
   points: OrganicCutLoopPoint[];
   polyline: Float32Array | null;
   tenon: LoopTenonSettings;
+  /** Additional plugs; index zero remains `tenon` for legacy/session compatibility. */
+  plugs: LoopTenonSettings[];
 }
 
-/** A fresh empty loop slot carrying the given tenon settings. */
-function emptyLoop(tenon: LoopTenonSettings): SessionLoop {
-  return { points: [], polyline: null, tenon };
+/** All plugs in order, with the legacy tenon occupying index zero. */
+function loopPlugs(loop: SessionLoop): LoopTenonSettings[] {
+  return [loop.tenon, ...loop.plugs];
+}
+
+/** A fresh empty loop slot carrying the given plug settings. */
+function emptyLoop(plugs: LoopTenonSettings[]): SessionLoop {
+  const [tenon = DEFAULT_LOOP_TENON, ...extraPlugs] = plugs;
+  return { points: [], polyline: null, tenon: { ...tenon }, plugs: extraPlugs.map((plug) => ({ ...plug })) };
 }
 
 /**
@@ -344,6 +405,16 @@ export interface OrganicCutSession extends OrganicCutInteraction {
   removeLoop: (index: number) => void;
   /** True when there's more than one loop, so removing one is allowed. */
   canRemoveLoop: boolean;
+  /** Plugs on the active loop. The first is the legacy registration tenon. */
+  plugCount: number;
+  /** Index of the plug whose settings and placement gizmo are active. */
+  activePlugIndex: number;
+  selectPlug: (index: number) => void;
+  addPlug: () => void;
+  addOppositeSidePlug: () => void;
+  canAddPlug: boolean;
+  removePlug: () => void;
+  canRemovePlug: boolean;
   /** Seam polylines of the INACTIVE loops (flat xyz, model-local) for the tool. */
   inactiveLoopPolylines: Float32Array[];
   // Apply
@@ -390,7 +461,7 @@ export interface OrganicCutSession extends OrganicCutInteraction {
    * followed by the mortise, and the tool splits it here to colour them apart.
    */
   tenonTriangleCount: number;
-  /** Which tenon the preview placed: 'frustum', 'dome' (fallback), or 'none'. */
+  /** Which registration shape the preview built. */
   tenonKind: TenonPreviewKind;
   /**
    * Whether the previewed tenon fits where it sits. False draws it in the won't-fit
@@ -431,6 +502,10 @@ const DEFAULT_PANEL_STATE: OrganicCutPanelState = {
   tenonShape: 'frustum',
   // Edge fillet 0.2mm by default (lightly rounded corners + tip); user tunes live.
   tenonFilletMm: 0.2,
+  // A zero size preserves the established fit; users can add a lead-in chamfer.
+  tenonChamferSizeMm: 0,
+  tenonChamferDepthMm: 0.5,
+  tenonTaperAngleDeg: null,
   // Tenon/mortise fit tolerance: the mortise is carved this much larger than the tenon
   // on every face. 0.1mm is a print-scale slide fit; 0 is a press fit.
   tenonToleranceMm: 0.1,
@@ -441,6 +516,7 @@ const DEFAULT_PANEL_STATE: OrganicCutPanelState = {
   tenonUniformScale: true,
   // Tenon on the +normal side (part A) by default; the Flip button swaps it.
   tenonSwapSides: false,
+  tenonBothSides: false,
   // Tenon points straight out of the cut by default; the in-viewport aim gizmo
   // (drag the tip) leans it, the roll ring spins it. All measured in radians.
   tenonTiltRad: 0,
@@ -495,8 +571,9 @@ export function useOrganicCutSession({
   // All loops of the current cut, plus which one is active (editable). The active
   // loop gets the full waypoint UI + membrane preview; the rest render as dimmed
   // seams the user can switch to and edit. There is always ≥1 loop.
-  const [loops, setLoops] = React.useState<SessionLoop[]>([emptyLoop(DEFAULT_LOOP_TENON)]);
+  const [loops, setLoops] = React.useState<SessionLoop[]>([emptyLoop([DEFAULT_LOOP_TENON])]);
   const [activeLoopIndex, setActiveLoopIndex] = React.useState(0);
+  const [activePlugIndex, setActivePlugIndex] = React.useState(0);
   const [isApplying, setIsApplying] = React.useState(false);
   const [lastResult, setLastResult] = React.useState<OrganicCutResult | null>(null);
   const [cutError, setCutError] = React.useState<string | null>(null);
@@ -558,7 +635,9 @@ export function useOrganicCutSession({
   // The active loop's points (the "loop" the rest of the tool edits/renders). A
   // stable reference until that slot's points actually change, so it's safe in
   // effect deps (caching a polyline into the slot keeps this reference intact).
-  const loop = (loops[activeLoopIndex] ?? loops[0] ?? emptyLoop(DEFAULT_LOOP_TENON)).points;
+  const activeLoop = loops[activeLoopIndex] ?? loops[0] ?? emptyLoop([DEFAULT_LOOP_TENON]);
+  const loop = activeLoop.points;
+  const activePlugSettings = React.useMemo(() => loopPlugs(activeLoop), [activeLoop]);
 
   // Mirror loops + active index in refs so the stable `apply` / callbacks read the
   // CURRENT values regardless of any stale memoized closures (this is the fix for
@@ -567,6 +646,8 @@ export function useOrganicCutSession({
   React.useEffect(() => { loopsRef.current = loops; }, [loops]);
   const activeLoopIndexRef = React.useRef(activeLoopIndex);
   React.useEffect(() => { activeLoopIndexRef.current = activeLoopIndex; }, [activeLoopIndex]);
+  const activePlugIndexRef = React.useRef(activePlugIndex);
+  React.useEffect(() => { activePlugIndexRef.current = activePlugIndex; }, [activePlugIndex]);
   const loopRef = React.useRef(loop);
   React.useEffect(() => { loopRef.current = loop; }, [loop]);
   // The cut-wide settings, mirrored for the same reason — and written SYNCHRONOUSLY
@@ -665,7 +746,12 @@ export function useOrganicCutSession({
           settingsRef.current = settings;
           setLoops(restored);
           setActiveLoopIndex(active);
-          setPanelState((ps) => ({ ...withTenon(ps, restored[active]?.tenon ?? DEFAULT_LOOP_TENON), ...settings }));
+          setActivePlugIndex(0);
+          activePlugIndexRef.current = 0;
+          setPanelState((ps) => ({
+            ...withTenon(ps, restored[active] ? loopPlugs(restored[active])[0] : DEFAULT_LOOP_TENON),
+            ...settings,
+          }));
           setSelectedIndex(null);
         }
         return true;
@@ -850,7 +936,7 @@ export function useOrganicCutSession({
         const nextPoints = updater(cur.points);
         if (nextPoints === cur.points) return prev;
         const next = prev.slice();
-        next[idx] = { points: nextPoints, polyline: cur.polyline, tenon: cur.tenon };
+        next[idx] = { points: nextPoints, polyline: cur.polyline, tenon: cur.tenon, plugs: cur.plugs };
         return next;
       });
     },
@@ -873,16 +959,103 @@ export function useOrganicCutSession({
       commitLoops(CUT_EDIT_LABELS.settings, (prev) => prev, undefined, true, settings);
     }
     const tenon = extractTenon(next);
+    const plugIndex = activePlugIndexRef.current;
     // Tenon settings are part of the loop, so changing them — width, shape, or the
     // gizmo's aim — is an edit and goes through the same recorded path.
     commitLoops(CUT_EDIT_LABELS.tenonSettings, (prev) => {
       const idx = activeLoopIndexRef.current;
       if (idx < 0 || idx >= prev.length) return prev;
-      if (tenonsEqual(prev[idx].tenon, tenon)) return prev;
+      const currentPlugs = loopPlugs(prev[idx]);
+      if (plugIndex < 0 || plugIndex >= currentPlugs.length || tenonsEqual(currentPlugs[plugIndex], tenon)) return prev;
       const nextLoops = prev.slice();
-      nextLoops[idx] = { ...nextLoops[idx], tenon };
+      if (plugIndex === 0) {
+        nextLoops[idx] = { ...nextLoops[idx], tenon };
+      } else {
+        const plugs = nextLoops[idx].plugs.slice();
+        plugs[plugIndex - 1] = tenon;
+        nextLoops[idx] = { ...nextLoops[idx], plugs };
+      }
       return nextLoops;
     }, undefined, true);
+  }, [commitLoops]);
+
+  const selectPlug = React.useCallback((index: number) => {
+    const loopAtIndex = loopsRef.current[activeLoopIndexRef.current];
+    if (!loopAtIndex) return;
+    const plugs = loopPlugs(loopAtIndex);
+    if (index < 0 || index >= plugs.length) return;
+    activePlugIndexRef.current = index;
+    setActivePlugIndex(index);
+    setPanelState((ps) => withTenon(ps, plugs[index]));
+  }, []);
+
+  const addPlug = React.useCallback(() => {
+    const loopIndex = activeLoopIndexRef.current;
+    const current = loopsRef.current[loopIndex];
+    if (!current) return;
+    const source = extractTenon(panelStateRef.current);
+    const spacingMm = Math.max(source.tenonWidthMm * 1.5, 4);
+    const anchor = tenonFrame
+      ? [0, 1, 2].map((axis) => tenonFrame.anchor[axis] + tenonFrame.u[axis] * spacingMm) as [number, number, number]
+      : null;
+    const plug: LoopTenonSettings = { ...source, generateTenon: true, tenonAnchor: anchor };
+    const newIndex = loopPlugs(current).length;
+    commitLoops(CUT_EDIT_LABELS.addPlug, (prev) => {
+      if (loopIndex < 0 || loopIndex >= prev.length) return prev;
+      const next = prev.slice();
+      next[loopIndex] = { ...next[loopIndex], plugs: [...next[loopIndex].plugs, plug] };
+      return next;
+    });
+    activePlugIndexRef.current = newIndex;
+    setActivePlugIndex(newIndex);
+    setPanelState((ps) => withTenon(ps, plug));
+  }, [commitLoops, tenonFrame]);
+
+  const addOppositeSidePlug = React.useCallback(() => {
+    const loopIndex = activeLoopIndexRef.current;
+    const current = loopsRef.current[loopIndex];
+    if (!current) return;
+    const source = extractTenon(panelStateRef.current);
+    const spacingMm = Math.max(source.tenonWidthMm * 1.5, 4);
+    const anchor = tenonFrame
+      ? [0, 1, 2].map((axis) => tenonFrame.anchor[axis] + tenonFrame.u[axis] * spacingMm) as [number, number, number]
+      : null;
+    const plug: LoopTenonSettings = {
+      ...source,
+      generateTenon: true,
+      tenonAnchor: anchor,
+      tenonSwapSides: !source.tenonSwapSides,
+      tenonBothSides: false,
+    };
+    const newIndex = loopPlugs(current).length;
+    commitLoops(CUT_EDIT_LABELS.addOppositeSidePlug, (prev) => {
+      if (loopIndex < 0 || loopIndex >= prev.length) return prev;
+      const next = prev.slice();
+      next[loopIndex] = { ...next[loopIndex], plugs: [...next[loopIndex].plugs, plug] };
+      return next;
+    });
+    activePlugIndexRef.current = newIndex;
+    setActivePlugIndex(newIndex);
+    setPanelState((ps) => withTenon(ps, plug));
+  }, [commitLoops, tenonFrame]);
+
+  const removePlug = React.useCallback(() => {
+    const loopIndex = activeLoopIndexRef.current;
+    const current = loopsRef.current[loopIndex];
+    const plugs = current ? loopPlugs(current) : [];
+    const removeIndex = activePlugIndexRef.current;
+    if (!current || plugs.length <= 1 || removeIndex < 0 || removeIndex >= plugs.length) return;
+    const remainingPlugs = plugs.filter((_, index) => index !== removeIndex);
+    const nextIndex = Math.min(removeIndex, remainingPlugs.length - 1);
+    commitLoops(CUT_EDIT_LABELS.removePlug, (prev) => {
+      if (loopIndex < 0 || loopIndex >= prev.length) return prev;
+      const next = prev.slice();
+      next[loopIndex] = { ...next[loopIndex], tenon: remainingPlugs[0], plugs: remainingPlugs.slice(1) };
+      return next;
+    });
+    activePlugIndexRef.current = nextIndex;
+    setActivePlugIndex(nextIndex);
+    setPanelState((ps) => withTenon(ps, remainingPlugs[nextIndex]));
   }, [commitLoops]);
 
   // Everything derived from the ACTIVE model's geometry. These are all computed
@@ -919,8 +1092,10 @@ export function useOrganicCutSession({
       }
       // Reset to one empty loop carrying the current panel tenon, so panelState and
       // the (now sole) active loop's tenon stay consistent.
-      setLoops([emptyLoop(extractTenon(panelStateRef.current))]);
+      setLoops([emptyLoop([extractTenon(panelStateRef.current)])]);
       setActiveLoopIndex(0);
+      setActivePlugIndex(0);
+      activePlugIndexRef.current = 0;
       setLastResult(null);
       setCutError(null);
     setCutLeakPoints([]);
@@ -948,12 +1123,14 @@ export function useOrganicCutSession({
     // Restore the incoming model's saved loops, or start with one empty loop
     // carrying the current panel tenon.
     const restored = activeGeometryKey ? savedLoopsRef.current.get(activeGeometryKey) : undefined;
-    const restoredLoops = restored?.loops ?? [emptyLoop(extractTenon(panelStateRef.current))];
+    const restoredLoops = restored?.loops ?? [emptyLoop([extractTenon(panelStateRef.current)])];
     const nextActive = restored ? Math.min(restored.activeIndex, restoredLoops.length - 1) : 0;
     setLoops(restoredLoops);
     setActiveLoopIndex(nextActive);
+    setActivePlugIndex(0);
+    activePlugIndexRef.current = 0;
     // Sync the panel's tenon editor to the now-active loop's tenon.
-    setPanelState((ps) => withTenon(ps, restoredLoops[nextActive]?.tenon ?? DEFAULT_LOOP_TENON));
+    setPanelState((ps) => withTenon(ps, restoredLoops[nextActive] ? loopPlugs(restoredLoops[nextActive])[0] : DEFAULT_LOOP_TENON));
     setLastResult(null);
     setCutError(null);
     setCutLeakPoints([]);
@@ -1003,7 +1180,9 @@ export function useOrganicCutSession({
       const nextActive = Math.min(pending.activeIndex, pending.loops.length - 1);
       setLoops(pending.loops);
       setActiveLoopIndex(nextActive);
-      setPanelState((ps) => withTenon(ps, pending.loops[nextActive]?.tenon ?? DEFAULT_LOOP_TENON));
+      setActivePlugIndex(0);
+      activePlugIndexRef.current = 0;
+      setPanelState((ps) => withTenon(ps, pending.loops[nextActive] ? loopPlugs(pending.loops[nextActive])[0] : DEFAULT_LOOP_TENON));
       setSelectedIndex(null);
       return;
     }
@@ -1028,8 +1207,10 @@ export function useOrganicCutSession({
         activeIndex: activeLoopIndexRef.current,
       });
       savedLoopsRef.current.delete(previousKey);
-      setLoops([emptyLoop(extractTenon(panelStateRef.current))]);
+      setLoops([emptyLoop([extractTenon(panelStateRef.current)])]);
       setActiveLoopIndex(0);
+      setActivePlugIndex(0);
+      activePlugIndexRef.current = 0;
       setSelectedIndex(null);
       clearModelDerivedPreviews();
     }
@@ -1117,6 +1298,12 @@ export function useOrganicCutSession({
     const request = ((): (() => Promise<MembranePreviewResult>) | null => {
       if (!toolActive || isDraggingPoint || isDraggingTenon || !activeGeometry || !activeGeometryKey) return null;
       const ps = panelState;
+      const previewPlugs = activePlugSettings.flatMap((plug) =>
+        plugToSpecs(plug).map((spec) => ({ ...spec, generateTenon: plug.generateTenon })),
+      );
+      const selectedPreviewPlugIndex = activePlugSettings
+        .slice(0, activePlugIndex)
+        .reduce((index, plug) => index + (plug.tenonBothSides ? 2 : 1), 0);
       if (cutMode === 'contour') {
         if (loop.length < MIN_CONTOUR_POINTS) return null;
         // Prefer the surface-following geodesic — the same dense loop the cut uses.
@@ -1140,9 +1327,14 @@ export function useOrganicCutSession({
             ps.tenonAnchor,
             ps.tenonTiltRad,
             ps.tenonRollRad,
+            previewPlugs,
+            selectedPreviewPlugIndex,
+            ps.tenonChamferSizeMm,
+            ps.tenonChamferDepthMm,
+            ps.tenonTaperAngleDeg,
           );
       }
-      if (!ps.generateTenon || loop.length < MIN_LOOP_POINTS) return null;
+      if (!activePlugSettings.some((plug) => plug.generateTenon) || loop.length < MIN_LOOP_POINTS) return null;
       const plane = cutPlaneFromPoints(loop);
       if (!plane) return null;
       return () =>
@@ -1157,6 +1349,11 @@ export function useOrganicCutSession({
           ps.tenonToleranceMm,
           ps.tenonSwapSides,
           ps.tenonAnchor,
+          previewPlugs,
+          selectedPreviewPlugIndex,
+          ps.tenonChamferSizeMm,
+          ps.tenonChamferDepthMm,
+          ps.tenonTaperAngleDeg,
         );
     })();
 
@@ -1190,11 +1387,16 @@ export function useOrganicCutSession({
       panelState.tenonDepthMm,
       panelState.tenonShape,
       panelState.tenonFilletMm,
+      panelState.tenonChamferSizeMm,
+      panelState.tenonChamferDepthMm,
+      panelState.tenonTaperAngleDeg,
       panelState.tenonToleranceMm,
       panelState.tenonSwapSides,
       panelState.tenonAnchor,
       panelState.tenonTiltRad,
       panelState.tenonRollRad,
+      activePlugSettings,
+      activePlugIndex,
     ]);
     const cached = previewCacheRef.current.get(cacheKey);
     if (cached && cached.geometry === geometry) {
@@ -1252,6 +1454,8 @@ export function useOrganicCutSession({
     panelState.tenonAnchor,
     panelState.tenonTiltRad,
     panelState.tenonRollRad,
+      activePlugSettings,
+      activePlugIndex,
   ]);
 
   const addPoint = React.useCallback((point: OrganicCutLoopPoint) => {
@@ -1345,7 +1549,9 @@ export function useOrganicCutSession({
     const key = activeGeometryKeyRef.current;
     if (key) savedLoopsRef.current.delete(key);
     // Keep the panel's current tenon on the fresh loop (don't reset the user's prefs).
-    commitLoops(CUT_EDIT_LABELS.clearAll, () => [emptyLoop(extractTenon(panelStateRef.current))], 0);
+    commitLoops(CUT_EDIT_LABELS.clearAll, () => [emptyLoop([extractTenon(panelStateRef.current)])], 0);
+    activePlugIndexRef.current = 0;
+    setActivePlugIndex(0);
     setLastResult(null);
     setCutError(null);
     setCutLeakPoints([]);
@@ -1362,7 +1568,9 @@ export function useOrganicCutSession({
     setActiveLoopIndex(index);
     setSelectedIndex(null);
     setGeodesicPolyline(all[index].polyline ?? null);
-    setPanelState((ps) => withTenon(ps, all[index].tenon));
+    activePlugIndexRef.current = 0;
+    setActivePlugIndex(0);
+    setPanelState((ps) => withTenon(ps, loopPlugs(all[index])[0]));
   }, []);
 
   // Append a fresh empty loop and make it active (multi-loop cut). The new loop
@@ -1373,8 +1581,13 @@ export function useOrganicCutSession({
   const addLoop = React.useCallback(() => {
     const all = loopsRef.current;
     const newIndex = all.length; // index of the appended loop
-    const inheritTenon = all[activeLoopIndexRef.current]?.tenon ?? extractTenon(panelStateRef.current);
-    commitLoops(CUT_EDIT_LABELS.addLoop, (prev) => [...prev, emptyLoop(inheritTenon)], newIndex);
+    const inheritPlugs = all[activeLoopIndexRef.current]
+      ? loopPlugs(all[activeLoopIndexRef.current]).map((plug) => ({ ...plug, tenonAnchor: null }))
+      : [extractTenon(panelStateRef.current)];
+    commitLoops(CUT_EDIT_LABELS.addLoop, (prev) => [...prev, emptyLoop(inheritPlugs)], newIndex);
+    activePlugIndexRef.current = 0;
+    setActivePlugIndex(0);
+    setPanelState((ps) => withTenon(ps, inheritPlugs[0] ?? DEFAULT_LOOP_TENON));
     setSelectedIndex(null);
     setGeodesicPolyline(null);
     setMembranePreview(null);
@@ -1408,7 +1621,9 @@ export function useOrganicCutSession({
     // Load the new active loop's tenon into the panel editor (compute from the
     // pre-removal snapshot minus the removed loop).
     const remaining = before.filter((_, i) => i !== index);
-    setPanelState((ps) => withTenon(ps, remaining[newActive]?.tenon ?? DEFAULT_LOOP_TENON));
+    activePlugIndexRef.current = 0;
+    setActivePlugIndex(0);
+    setPanelState((ps) => withTenon(ps, remaining[newActive] ? loopPlugs(remaining[newActive])[0] : DEFAULT_LOOP_TENON));
     setSelectedIndex(null);
     setGeodesicPolyline(null);
   }, [commitLoops]);
@@ -1434,6 +1649,7 @@ export function useOrganicCutSession({
       points: l.points.slice(),
       polyline: l.polyline,
       tenon: l.tenon,
+      plugs: l.plugs.map((plug) => ({ ...plug })),
     }));
     const geodesic = geodesicPolylineRef.current;
     let cancelled = false;
@@ -1461,7 +1677,7 @@ export function useOrganicCutSession({
         if (isContour) {
           // Each kept loop carries its OWN tenon, kept aligned with its points so the
           // backend places per-loop tenons (loopTenons[i] ↔ the i-th loop).
-          const kept: { points: OrganicCutLoopPoint[]; tenon: LoopTenonSettings }[] = [];
+          const kept: { points: OrganicCutLoopPoint[]; tenon: LoopTenonSettings; plugs: LoopTenonSettings[] }[] = [];
           for (const [i, l] of allLoopsState.entries()) {
             let pts: OrganicCutLoopPoint[] | null = null;
             if (i === activeIdx && geodesic && geodesic.length >= MIN_CONTOUR_POINTS * 3) {
@@ -1481,7 +1697,7 @@ export function useOrganicCutSession({
                 pts = geodesicPolylineToLoopPoints(poly);
               }
             }
-            if (pts) kept.push({ points: pts, tenon: l.tenon });
+            if (pts) kept.push({ points: pts, tenon: l.tenon, plugs: l.plugs });
           }
           if (kept.length === 0) return; // nothing to cut
           const allLoops = kept.map((k) => k.points);
@@ -1490,7 +1706,12 @@ export function useOrganicCutSession({
             extraLoops: allLoops.length > 1 ? allLoops.slice(1) : undefined,
             // Per-loop tenon settings, aligned with the loops above (loopPoints +
             // extraLoops). The backend tenons each seam with its own tenon/mortise.
-            loopTenons: kept.map((k) => tenonToSpec(k.tenon)),
+            loopTenons: kept.map((k) => ({
+              ...tenonToSpec(k.tenon),
+              plugs: [k.tenon, ...k.plugs]
+                .filter((plug) => plug.generateTenon)
+                .flatMap(plugToSpecs),
+            })),
             // `smoothing` = seam-line smoothing (the geodesic was already computed
             // with it, but send it so the cut's loop matches). `membraneSmoothing`
             // = cutter-surface relaxation. Both 0..1.
@@ -1513,6 +1734,7 @@ export function useOrganicCutSession({
             tenonDepthMm: ps.tenonDepthMm,
             tenonShape: ps.tenonShape,
             tenonFilletMm: ps.tenonFilletMm,
+            tenonTaperAngleDeg: ps.tenonTaperAngleDeg,
             tenonToleranceMm: ps.tenonToleranceMm,
             tenonAnchor: ps.tenonAnchor,
             tenonSwapSides: ps.tenonSwapSides,
@@ -1541,10 +1763,14 @@ export function useOrganicCutSession({
             tenonDepthMm: ps.tenonDepthMm,
             tenonShape: ps.tenonShape,
             tenonFilletMm: ps.tenonFilletMm,
+            tenonTaperAngleDeg: ps.tenonTaperAngleDeg,
             tenonToleranceMm: ps.tenonToleranceMm,
             tenonSwapSides: ps.tenonSwapSides,
             tenonTiltRad: ps.tenonTiltRad,
             tenonRollRad: ps.tenonRollRad,
+            tenonPlugs: loopPlugs(allLoopsState[activeIdx] ?? emptyLoop([extractTenon(ps)]))
+              .filter((plug) => plug.generateTenon)
+              .flatMap(plugToSpecs),
           };
         }
         const result = await cutFromCapturedSource({ cut: cutSpec });
@@ -1603,8 +1829,10 @@ export function useOrganicCutSession({
           // is what puts this model's loops back if the cut is undone.
           savedLoopsRef.current.clear();
           // Reset to one empty loop carrying the current panel tenon.
-          setLoops([emptyLoop(extractTenon(panelStateRef.current))]);
+          setLoops([emptyLoop([extractTenon(panelStateRef.current)])]);
           setActiveLoopIndex(0);
+          activePlugIndexRef.current = 0;
+          setActivePlugIndex(0);
           setSelectedIndex(null);
           clearModelDerivedPreviews();
         }
@@ -1640,6 +1868,9 @@ export function useOrganicCutSession({
   // Can add a loop: contour mode with the active loop already a real loop.
   const canAddLoop = isContourMode && activeLoopReady && !isApplying;
   const canRemoveLoop = loops.length > 1 && !isApplying;
+  const plugCount = activePlugSettings.length;
+  const canAddPlug = canApply && !isApplying;
+  const canRemovePlug = plugCount > 1 && !isApplying;
   const canSnapToEdges = !!activeGeometry && pointCount > 0 && !isApplying;
 
   // The pointer/keyboard half of the tool. Declared last because it is built on
@@ -1685,6 +1916,14 @@ export function useOrganicCutSession({
     canAddLoop,
     removeLoop,
     canRemoveLoop,
+    plugCount,
+    activePlugIndex,
+    selectPlug,
+    addPlug,
+    addOppositeSidePlug,
+    canAddPlug,
+    removePlug,
+    canRemovePlug,
     inactiveLoopPolylines,
     apply,
     isApplying,

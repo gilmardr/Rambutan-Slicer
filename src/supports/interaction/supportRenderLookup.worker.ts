@@ -1,6 +1,7 @@
 import { computeSupportRenderLookup, type SupportRenderLookupInput, type SupportRenderLookupSnapshot } from './supportRenderLookupMath';
 import type { RecordDelta, SupportRenderLookupWorkerRequestMessage, SupportRenderLookupWorkerResponseMessage } from './supportRenderLookup.worker.shared';
 import { createEmptySupportCollections, SUPPORT_COLLECTION_KEYS } from '../supportTypeRegistry';
+import { applyRecordDeltaInPlace } from './recordDelta';
 
 type MutableRecord<T> = Record<string, T>;
 
@@ -21,18 +22,6 @@ const cachedInput: SupportRenderLookupInput = {
   activePreviewSupport: null,
 };
 
-function applyRecordDelta<T>(target: MutableRecord<T>, delta?: RecordDelta<T>) {
-  if (!delta) return;
-
-  for (const deleteId of delta.deleteIds) {
-    delete target[deleteId];
-  }
-
-  for (const [id, value] of Object.entries(delta.upserts)) {
-    target[id] = value;
-  }
-}
-
 function applyInputDelta(msg: SupportRenderLookupWorkerRequestMessage) {
   const delta = msg.delta;
   if (!delta) return;
@@ -40,7 +29,7 @@ function applyInputDelta(msg: SupportRenderLookupWorkerRequestMessage) {
   const stateDelta = delta.state;
   if (stateDelta) {
     for (const key of SUPPORT_COLLECTION_KEYS) {
-      applyRecordDelta(
+      applyRecordDeltaInPlace(
         cachedInput.state[key] as MutableRecord<unknown>,
         stateDelta[key] as RecordDelta<unknown> | undefined,
       );

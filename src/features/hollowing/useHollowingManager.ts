@@ -13,7 +13,7 @@ import { SCENE_MODELS_SNAPSHOT_APPLY, type useSceneCollectionManager } from '@/f
 import { subscribeHistoryOperations } from '@/history/historyStore';
 import type { useTransformManager } from '@/features/transform/useTransformManager';
 import type { HollowingPanelState } from '@/features/hollowing';
-import type { ModelMeshModifiers, ModelMeshModifiersHistoryOptions, ModelHollowingModifier } from '@/features/mesh-modifiers/types';
+import type { ModelMeshModifiers, ModelMeshModifiersHistoryOptions, ModelHollowing2DModifier, ModelHollowingModifier } from '@/features/mesh-modifiers/types';
 import type { HolePunchPanelState } from '@/features/hole-punching/HolePunchPanel';
 import type { HolePunchPlacementState } from '@/features/hole-punching/holePunchGeometry';
 import { snapshotGeometryPositions, geometryFromSnapshot } from '@/utils/geometrySnapshot';
@@ -30,6 +30,7 @@ import {
   hollowPreviewFromCapturedSource,
   selectRemovedVoxelsInPolygon,
   stageHollowPreviewSource,
+  type DrainHoleSpec,
   type HollowOptions,
   type HollowReport,
 } from '@/utils/meshHollowing';
@@ -57,6 +58,7 @@ import {
   CAVITY_HOLLOWING_LABEL,
   CLEAR_HOLLOWING_LABEL,
   HOLLOWING_SETTINGS_LABEL,
+  HOLLOWING_2D_SETTINGS_LABEL,
   INFILL_HOLLOWING_LABEL,
   RESET_HOLLOWING_LABEL,
   SHELL_HOLLOWING_LABEL,
@@ -66,6 +68,10 @@ type SceneManager = ReturnType<typeof useSceneCollectionManager>;
 type TransformManager = ReturnType<typeof useTransformManager>;
 
 const HOLLOW_PREVIEW_THICKNESS_QUANTUM_MM = 0.2;
+const DEFAULT_HOLLOWING_2D_STATE: ModelHollowing2DModifier = {
+  enabled: false,
+  wallThicknessMm: 1,
+};
 
 function areSortedNumberArraysEqual(a: readonly number[], b: readonly number[]): boolean {
   if (a === b) return true;
@@ -120,6 +126,33 @@ export type UseHollowingManagerOptions = {
   deps: React.MutableRefObject<HollowingManagerDeps>;
 };
 
+function buildPocketDetectionVents(
+  modelId: string,
+  geometry: THREE.BufferGeometry,
+  modelScale: THREE.Vector3,
+  placements: HolePunchPlacementState[],
+): DrainHoleSpec[] {
+  const bbox = geometry.boundingBox ?? new THREE.Box3().setFromBufferAttribute(
+    geometry.getAttribute('position') as THREE.BufferAttribute,
+  );
+  const size = bbox.getSize(new THREE.Vector3());
+  const scaleFactor = getUniformScaleFactorForThickness(modelScale);
+  const normalize = (value: number, min: number, span: number) => span > 1e-9 ? (value - min) / span : 0.5;
+
+  return placements
+    .filter((placement) => placement.modelId === modelId)
+    .map((placement) => ({
+      centerNorm: [
+        normalize(placement.localPoint.x, bbox.min.x, size.x),
+        normalize(placement.localPoint.y, bbox.min.y, size.y),
+        normalize(placement.localPoint.z, bbox.min.z, size.z),
+      ] as [number, number, number],
+      radiusMm: worldMmToLocalMm(placement.radiusMm, scaleFactor),
+      direction: [placement.localNormal.x, placement.localNormal.y, placement.localNormal.z],
+      lengthMm: worldMmToLocalMm(placement.depthMm, scaleFactor),
+    }));
+}
+
 export function useHollowingManager({
   scene,
   transformMgr,
@@ -135,8 +168,11 @@ export function useHollowingManager({
     infillMode: 'lattice',
     infillCellMm: 4.2426,
     infillBeamRadiusMm: 0.35,
+    detectResinTraps: false,
+    detectInteriorSuctionCups: false,
     openFace: 'z_max',
   });
+  const [hollowing2DState, setHollowing2DState] = React.useState<ModelHollowing2DModifier>(DEFAULT_HOLLOWING_2D_STATE);
   const [isShellOpenFaceSelected, setIsShellOpenFaceSelected] = React.useState(true);
   const [hollowingDraftEnabled, setHollowingDraftEnabled] = React.useState(false);
   const [hollowingEditMode, setHollowingEditMode] = React.useState(false);
@@ -180,6 +216,8 @@ export function useHollowingManager({
     infillMode: 'lattice',
     infillCellMm: 4.2426,
     infillBeamRadiusMm: 0.35,
+    detectResinTraps: false,
+    detectInteriorSuctionCups: false,
     openFace: 'z_max',
   }), []);
   const clearPendingHollowPreviewDebounce = React.useCallback(() => {
@@ -280,6 +318,14 @@ export function useHollowingManager({
           infillBeamRadiusMm: worldMmToLocalMm(hollowingState.infillBeamRadiusMm, shellScaleFactor),
           openFace: hollowingState.openFace,
           drainHoles: [],
+          pocketDetectionVents: buildPocketDetectionVents(
+            activeModel.id,
+            sourceGeometry,
+            activeModel.transform.scale,
+            deps.current.holePunchPlacementsRef.current,
+          ),
+          detectResinTraps: hollowingState.detectResinTraps ?? false,
+          detectInteriorSuctionCups: hollowingState.detectInteriorSuctionCups ?? false,
           previewCavityOnly: false,
           smoothInternalSurfaces: true,
           internalChamferPasses: 2,
@@ -404,6 +450,8 @@ export function useHollowingManager({
             infillMode: hollowingState.infillMode,
             infillCellMm: hollowingState.infillCellMm,
             infillBeamRadiusMm: hollowingState.infillBeamRadiusMm,
+            detectResinTraps: hollowingState.detectResinTraps ?? false,
+            detectInteriorSuctionCups: hollowingState.detectInteriorSuctionCups ?? false,
             openFace: hollowingState.openFace,
             openFaceSelected: hollowingState.mode === 'shell_open_face'
               ? isShellOpenFaceSelected
@@ -571,6 +619,34 @@ export function useHollowingManager({
     setIsShellOpenFaceSelected(true);
   }, [defaultHollowingState]);
 
+  const hollowing2DActiveModelId = scene.activeModelId;
+  const getModelMeshModifiers = scene.getModelMeshModifiers;
+  const hollowing2DSceneModels = scene.models;
+
+  React.useEffect(() => {
+    const activeModel = hollowing2DSceneModels.find((model) => model.id === hollowing2DActiveModelId);
+    const persisted = activeModel
+      ? getModelMeshModifiers(activeModel.id)?.hollowing2D
+      : undefined;
+    setHollowing2DState(persisted ? { ...DEFAULT_HOLLOWING_2D_STATE, ...persisted } : DEFAULT_HOLLOWING_2D_STATE);
+  }, [getModelMeshModifiers, hollowing2DActiveModelId, hollowing2DSceneModels]);
+
+  const handleHollowing2DChange = React.useCallback((next: ModelHollowing2DModifier) => {
+    if (!hollowing2DActiveModelId) return;
+    const normalized = {
+      enabled: next.enabled,
+      wallThicknessMm: Number(Math.min(10, Math.max(0.5, next.wallThicknessMm)).toFixed(1)),
+    };
+    setHollowing2DState(normalized);
+    deps.current.persistActiveModelModifiers({
+      ...(getModelMeshModifiers(hollowing2DActiveModelId) ?? {}),
+      hollowing2D: normalized,
+    }, {
+      historyDescription: HOLLOWING_2D_SETTINGS_LABEL,
+      merge: true,
+    });
+  }, [deps, getModelMeshModifiers, hollowing2DActiveModelId]);
+
   const handleHollowingStateChange = React.useCallback((next: HollowingPanelState) => {
     const openFaceChanged = next.openFace !== hollowingState.openFace;
     const resolutionChanged = Math.abs(next.voxelSizeMm - hollowingState.voxelSizeMm) > 1e-6;
@@ -627,6 +703,8 @@ export function useHollowingManager({
         infillMode: next.infillMode,
         infillCellMm: next.infillCellMm,
         infillBeamRadiusMm: next.infillBeamRadiusMm,
+        detectResinTraps: next.detectResinTraps ?? false,
+        detectInteriorSuctionCups: next.detectInteriorSuctionCups ?? false,
         openFace: next.openFace,
         openFaceSelected: nextShellOpenFaceSelected,
       },
@@ -653,6 +731,8 @@ export function useHollowingManager({
       infillMode: hollowingState.infillMode,
       infillCellMm: hollowingState.infillCellMm,
       infillBeamRadiusMm: hollowingState.infillBeamRadiusMm,
+      detectResinTraps: hollowingState.detectResinTraps ?? false,
+      detectInteriorSuctionCups: hollowingState.detectInteriorSuctionCups ?? false,
       openFace: hollowingState.openFace,
       openFaceSelected: hollowingState.mode === 'shell_open_face'
         ? isShellOpenFaceSelected
@@ -666,6 +746,8 @@ export function useHollowingManager({
       hollowingState.infillMode,
       hollowingState.shellThicknessMm,
       hollowingState.infillBeamRadiusMm,
+      hollowingState.detectResinTraps,
+      hollowingState.detectInteriorSuctionCups,
       hollowingState.infillCellMm,
       hollowingState.voxelSizeMm,
       isShellOpenFaceSelected,
@@ -849,6 +931,8 @@ export function useHollowingManager({
         infillMode: hollowingState.infillMode,
         infillCellMm: hollowingState.infillCellMm,
         infillBeamRadiusMm: hollowingState.infillBeamRadiusMm,
+        detectResinTraps: hollowingState.detectResinTraps ?? false,
+        detectInteriorSuctionCups: hollowingState.detectInteriorSuctionCups ?? false,
         openFace: hollowingState.openFace,
         openFaceSelected: hollowingState.mode === 'shell_open_face'
           ? isShellOpenFaceSelected
@@ -959,6 +1043,8 @@ export function useHollowingManager({
       ),
       openFace: state.openFace,
       drainHoles: [],
+      detectResinTraps: state.detectResinTraps ?? false,
+      detectInteriorSuctionCups: state.detectInteriorSuctionCups ?? false,
       previewCavityOnly: false,
       smoothInternalSurfaces: !preview || hasCommittedBlockedVoxels,
       internalChamferPasses: !preview || hasCommittedBlockedVoxels ? 2 : 0,
@@ -968,6 +1054,8 @@ export function useHollowingManager({
     hollowingState.openFace,
     hollowingState.infillMode,
     hollowingState.infillBeamRadiusMm,
+    hollowingState.detectResinTraps,
+    hollowingState.detectInteriorSuctionCups,
     hollowingState.infillCellMm,
     hollowingState.shellThicknessMm,
     hollowingState.voxelSizeMm,
@@ -994,6 +1082,14 @@ export function useHollowingManager({
         previewShellThicknessMm,
       }, previewState),
       drainHoles: [],
+      pocketDetectionVents: (previewState.detectResinTraps || previewState.detectInteriorSuctionCups)
+        ? buildPocketDetectionVents(
+            activeModel.id,
+            sourceGeometry,
+            activeModel.transform.scale,
+            deps.current.holePunchPlacementsRef.current,
+          )
+        : [],
       previewCavityOnly: true,
       previewVoxelSpheres: true,
       rotationQuat: [previewQuat.x, previewQuat.y, previewQuat.z, previewQuat.w],
@@ -1009,6 +1105,7 @@ export function useHollowingManager({
     };
   }, [
     buildHollowingOptions,
+    deps,
     hollowingState.shellThicknessMm,
     hollowingState.voxelSizeMm,
     resolveHollowPreviewSourceGeometry,
@@ -1657,6 +1754,8 @@ export function useHollowingManager({
           infillMode: persistedHollowing.infillMode ?? defaultHollowingState.infillMode,
           infillCellMm: persistedHollowing.infillCellMm ?? defaultHollowingState.infillCellMm,
           infillBeamRadiusMm: persistedHollowing.infillBeamRadiusMm ?? defaultHollowingState.infillBeamRadiusMm,
+          detectResinTraps: persistedHollowing.detectResinTraps ?? false,
+          detectInteriorSuctionCups: persistedHollowing.detectInteriorSuctionCups ?? false,
           openFace: persistedHollowing.openFace,
         }
       : defaultHollowingState;
@@ -1684,6 +1783,8 @@ export function useHollowingManager({
     setHollowPreview,
     hollowingState,
     setHollowingState,
+    hollowing2DState,
+    handleHollowing2DChange,
     isShellOpenFaceSelected,
     setIsShellOpenFaceSelected,
     hollowingDraftEnabled,

@@ -28,6 +28,7 @@ import {
   resolveSliceLayerCount,
   resolveSliceRasterSettings,
   type SliceJobManifestModel,
+  type ModelSliceRangeV1,
   type SliceRasterSettings,
 } from '@/features/slicing/sliceJobAssembly';
 import { quaternionFromGlobalEuler } from '@/utils/rotation';
@@ -141,6 +142,7 @@ export type SolidSliceMeshForWasm = {
   mirrorX: boolean;
   mirrorY: boolean;
   modelTriangleCount: number;
+  modelSliceRanges: ModelSliceRangeV1[];
   buildWidthMm: number;
   buildDepthMm: number;
   layerHeightMm: number;
@@ -2114,10 +2116,20 @@ export async function buildSolidSliceMeshForWasm(options: RasterLayerZipExportOp
 
   // Push model-only triangles first (across all models), then support-only.
   // This produces the same collector layout as manually splitting before slicing.
+  const modelSliceRanges: ModelSliceRangeV1[] = [];
   for (const model of visibleModels) {
     const modelTriCount = effectiveModelTriangleCount(model);
     if (modelTriCount > 0) {
+      const startTriangle = collector.triangleCount;
       appendModelTrianglesInRange(model, collector, 0, modelTriCount);
+      const hollowing2D = model.meshModifiers?.hollowing2D;
+      if (hollowing2D?.enabled && hollowing2D.wallThicknessMm > 0) {
+        modelSliceRanges.push({
+          startTriangle,
+          triangleCount: collector.triangleCount - startTriangle,
+          wallThicknessMm: hollowing2D.wallThicknessMm,
+        });
+      }
     }
   }
   // The native side splits the buffer here, before support-classified meshes
@@ -2202,6 +2214,7 @@ export async function buildSolidSliceMeshForWasm(options: RasterLayerZipExportOp
     mirrorX: settings.mirrorX,
     mirrorY: settings.mirrorY,
     modelTriangleCount,
+    modelSliceRanges,
     buildWidthMm: Math.max(1, options.printerProfile.buildVolumeMm.width),
     buildDepthMm: Math.max(1, options.printerProfile.buildVolumeMm.depth),
     layerHeightMm: settings.layerHeightMm,

@@ -60,10 +60,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 1,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 240
@@ -73,9 +85,12 @@
         "heightPx": 5120,
         "sourceResolutionX": 11520,
         "sourceResolutionY": 5120,
+        "buildWidthMm": 218.88,
+        "buildDepthMm": 122.88,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": true,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -192,10 +207,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 1,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 240
@@ -205,9 +232,12 @@
         "heightPx": 5120,
         "sourceResolutionX": 11520,
         "sourceResolutionY": 5120,
+        "buildWidthMm": 218.88,
+        "buildDepthMm": 122.88,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": true,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -324,10 +354,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.04,
         "normalExposureSec": 3.3,
         "bottomExposureSec": 41,
         "bottomLayerCount": 7,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 1,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 240
@@ -337,9 +379,12 @@
         "heightPx": 5120,
         "sourceResolutionX": 11520,
         "sourceResolutionY": 5120,
+        "buildWidthMm": 218.88,
+        "buildDepthMm": 122.88,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": true,
+        "rotateScreen": false,
         "layerHeightMm": 0.04,
         "totalLayers": 250,
         "tallestObjectHeightMm": 10
@@ -457,10 +502,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 1,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 240
@@ -470,9 +527,12 @@
         "heightPx": 5120,
         "sourceResolutionX": 11520,
         "sourceResolutionY": 5120,
+        "buildWidthMm": 218.88,
+        "buildDepthMm": 122.88,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": true,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -590,10 +650,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 1,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 240
@@ -603,9 +675,12 @@
         "heightPx": 5120,
         "sourceResolutionX": 11520,
         "sourceResolutionY": 5120,
+        "buildWidthMm": 218.88,
+        "buildDepthMm": 122.88,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": true,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -723,10 +798,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.04,
         "normalExposureSec": 3.3,
         "bottomExposureSec": 41,
         "bottomLayerCount": 7,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 1,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 240
@@ -736,9 +823,12 @@
         "heightPx": 5120,
         "sourceResolutionX": 11520,
         "sourceResolutionY": 5120,
+        "buildWidthMm": 218.88,
+        "buildDepthMm": 122.88,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": true,
+        "rotateScreen": false,
         "layerHeightMm": 0.04,
         "totalLayers": 250,
         "tallestObjectHeightMm": 10
@@ -860,10 +950,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -873,9 +975,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": true,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -910,7 +1015,7 @@
         }
       },
       "ctb": {
-        "transitionLayerCount": 5,
+        "transitionLayerCount": 0,
         "waitTimeBeforeCureSec": 0,
         "waitTimeAfterCureSec": 0,
         "waitTimeAfterLiftSec": 0,
@@ -987,10 +1092,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -1000,9 +1117,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": true,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -1037,7 +1157,7 @@
         }
       },
       "ctb": {
-        "transitionLayerCount": 5,
+        "transitionLayerCount": 0,
         "waitTimeBeforeCureSec": 0,
         "waitTimeAfterCureSec": 0,
         "waitTimeAfterLiftSec": 0,
@@ -1114,10 +1234,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.04,
         "normalExposureSec": 3.3,
         "bottomExposureSec": 41,
         "bottomLayerCount": 7,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -1127,9 +1259,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": true,
+        "rotateScreen": false,
         "layerHeightMm": 0.04,
         "totalLayers": 250,
         "tallestObjectHeightMm": 10
@@ -1164,7 +1299,7 @@
         }
       },
       "ctb": {
-        "transitionLayerCount": 5,
+        "transitionLayerCount": 0,
         "waitTimeBeforeCureSec": 0,
         "waitTimeAfterCureSec": 0,
         "waitTimeAfterLiftSec": 0,
@@ -1241,10 +1376,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150,
@@ -1257,9 +1404,12 @@
         "heightPx": 1620,
         "sourceResolutionX": 2560,
         "sourceResolutionY": 1620,
+        "buildWidthMm": 130.56,
+        "buildDepthMm": 82.62,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -1294,7 +1444,7 @@
         }
       },
       "ctb": {
-        "transitionLayerCount": 5,
+        "transitionLayerCount": 0,
         "waitTimeBeforeCureSec": 0,
         "waitTimeAfterCureSec": 0,
         "waitTimeAfterLiftSec": 0,
@@ -1371,10 +1521,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150,
@@ -1387,9 +1549,12 @@
         "heightPx": 1620,
         "sourceResolutionX": 2560,
         "sourceResolutionY": 1620,
+        "buildWidthMm": 130.56,
+        "buildDepthMm": 82.62,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -1424,7 +1589,7 @@
         }
       },
       "ctb": {
-        "transitionLayerCount": 5,
+        "transitionLayerCount": 0,
         "waitTimeBeforeCureSec": 0,
         "waitTimeAfterCureSec": 0,
         "waitTimeAfterLiftSec": 0,
@@ -1501,10 +1666,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.04,
         "normalExposureSec": 3.3,
         "bottomExposureSec": 41,
         "bottomLayerCount": 7,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150,
@@ -1517,9 +1694,12 @@
         "heightPx": 1620,
         "sourceResolutionX": 2560,
         "sourceResolutionY": 1620,
+        "buildWidthMm": 130.56,
+        "buildDepthMm": 82.62,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.04,
         "totalLayers": 250,
         "tallestObjectHeightMm": 10
@@ -1554,7 +1734,7 @@
         }
       },
       "ctb": {
-        "transitionLayerCount": 5,
+        "transitionLayerCount": 0,
         "waitTimeBeforeCureSec": 0,
         "waitTimeAfterCureSec": 0,
         "waitTimeAfterLiftSec": 0,
@@ -1630,10 +1810,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 1,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 240,
@@ -1644,9 +1836,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "none",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -1778,10 +1973,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 1,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 240,
@@ -1792,9 +1999,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "none",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -1926,10 +2136,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.04,
         "normalExposureSec": 3.3,
         "bottomExposureSec": 41,
         "bottomLayerCount": 7,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 1,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 240,
@@ -1940,9 +2162,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "none",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.04,
         "totalLayers": 250,
         "tallestObjectHeightMm": 10
@@ -2073,10 +2298,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.03,
         "normalExposureSec": 2.3,
         "bottomExposureSec": 31,
         "bottomLayerCount": 6,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -2086,9 +2323,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "rgb8_div3",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -2186,10 +2426,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.03,
         "normalExposureSec": 2.3,
         "bottomExposureSec": 31,
         "bottomLayerCount": 6,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -2199,9 +2451,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "rgb8_div3",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -2299,10 +2554,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.03,
         "normalExposureSec": 2.3,
         "bottomExposureSec": 31,
         "bottomLayerCount": 6,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -2312,9 +2579,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "rgb8_div3",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -2412,10 +2682,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.03,
         "normalExposureSec": 2.3,
         "bottomExposureSec": 31,
         "bottomLayerCount": 6,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -2425,9 +2707,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15136,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.904,
+        "buildDepthMm": 118.37,
         "xPackingMode": "gray3_div2",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -2525,10 +2810,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.03,
         "normalExposureSec": 2.3,
         "bottomExposureSec": 31,
         "bottomLayerCount": 6,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -2538,9 +2835,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15136,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.904,
+        "buildDepthMm": 118.37,
         "xPackingMode": "gray3_div2",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -2638,10 +2938,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.03,
         "normalExposureSec": 2.3,
         "bottomExposureSec": 31,
         "bottomLayerCount": 6,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -2651,9 +2963,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15136,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.904,
+        "buildDepthMm": 118.37,
         "xPackingMode": "gray3_div2",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -2753,10 +3068,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -2766,9 +3093,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "none",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -2880,10 +3210,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -2893,9 +3235,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "none",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -3007,10 +3352,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.04,
         "normalExposureSec": 3.3,
         "bottomExposureSec": 41,
         "bottomLayerCount": 7,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -3020,9 +3377,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "none",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.04,
         "totalLayers": 250,
         "tallestObjectHeightMm": 10
@@ -3395,10 +3755,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -3408,9 +3780,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": true,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -3445,7 +3820,7 @@
         }
       },
       "ctb": {
-        "transitionLayerCount": 5,
+        "transitionLayerCount": 0,
         "waitTimeBeforeCureSec": 0,
         "waitTimeAfterCureSec": 0,
         "waitTimeAfterLiftSec": 0,
@@ -3778,10 +4153,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.03,
         "normalExposureSec": 2.3,
         "bottomExposureSec": 31,
         "bottomLayerCount": 6,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 6,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 150
@@ -3791,9 +4178,12 @@
         "heightPx": 6230,
         "sourceResolutionX": 15120,
         "sourceResolutionY": 6230,
+        "buildWidthMm": 211.68,
+        "buildDepthMm": 118.37,
         "xPackingMode": "rgb8_div3",
         "mirrorX": true,
         "mirrorY": false,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10
@@ -3888,10 +4278,22 @@
       },
       "material": {
         "name": "Parity resin",
+        "scaleCompensationPct": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
         "layerHeightMm": 0.05,
         "normalExposureSec": 2,
         "bottomExposureSec": 25,
         "bottomLayerCount": 5,
+        "toleranceCompensation": {
+          "innerDiameterMm": 0,
+          "outerDiameterMm": 0,
+          "bottomEnabled": false,
+          "bottomInnerDiameterMm": 0,
+          "bottomOuterDiameterMm": 0
+        },
         "liftDistanceMm": 1,
         "liftSpeedMmMin": 60,
         "retractSpeedMmMin": 240
@@ -3901,9 +4303,12 @@
         "heightPx": 5120,
         "sourceResolutionX": 11520,
         "sourceResolutionY": 5120,
+        "buildWidthMm": 218.88,
+        "buildDepthMm": 122.88,
         "xPackingMode": "none",
         "mirrorX": false,
         "mirrorY": true,
+        "rotateScreen": false,
         "layerHeightMm": 0.03,
         "totalLayers": 334,
         "tallestObjectHeightMm": 10

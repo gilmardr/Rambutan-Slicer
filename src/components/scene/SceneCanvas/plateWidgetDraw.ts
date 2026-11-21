@@ -47,7 +47,7 @@ export type PlateWidgetColors = {
 
 /** The dark theme's values, for a document that is not there to read them from. */
 const FALLBACK_COLORS: PlateWidgetColors = {
-  accent: '#ec2a77',
+  accent: '#3bd2c6',
   textStrong: '#f8f8fb',
   textMuted: '#c3c7cf',
   surface0: '#111216',

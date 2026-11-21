@@ -23,6 +23,7 @@ import path from 'node:path';
 
 const projectRoot = process.cwd();
 const LIST_FILE = 'scripts/lint-clean-dirs.json';
+const ESLINT_CLI = path.join(projectRoot, 'node_modules', 'eslint', 'bin', 'eslint.js');
 
 async function readDirectories() {
       const raw = await fs.readFile(path.join(projectRoot, LIST_FILE), 'utf8');
@@ -93,8 +94,8 @@ async function uninitializedSubmodules(directories) {
 function runEslint(directories) {
       return new Promise((resolve, reject) => {
             const child = spawn(
-                  'npx',
-                  ['eslint', '--max-warnings', '0', ...directories],
+                  process.execPath,
+                  [ESLINT_CLI, '--max-warnings', '0', ...directories],
                   { cwd: projectRoot, stdio: 'inherit' },
             );
             child.on('error', reject);

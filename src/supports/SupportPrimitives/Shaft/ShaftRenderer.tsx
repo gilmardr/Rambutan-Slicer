@@ -34,15 +34,15 @@ interface ShaftRendererProps {
     radialSegments?: number;
 }
 
-export function ShaftRenderer({ 
+export function ShaftRenderer({
     id,
     start, 
     end, 
     diameter, 
     diameterStart,
     diameterEnd,
-    color = '#c8752a', 
-    emissive = '#000000', 
+    color = '#78c63f',
+    emissive = '#000000',
     emissiveIntensity = 0,
     transparent = false,
     opacity = 1,

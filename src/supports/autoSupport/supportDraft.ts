@@ -15,7 +15,8 @@ import type { Knot, Roots, SupportState } from '../types';
  */
 
 /**
- * Add one support entity to a draft, stamped with its type.
+ * Add one auto-generated support entity to a draft, stamped with its type and
+ * generating tool.
  *
  * The plan phase commits with a single `setSnapshot`, so an entity entering
  * the draft unstamped reaches the store unstamped.
@@ -28,7 +29,7 @@ export function draftAddEntity(
     const key = getSupportTypeDescriptor(typeId).location.key;
     return {
         ...draft,
-        [key]: { ...draft[key], [entity.id]: { ...entity, typeId } },
+        [key]: { ...draft[key], [entity.id]: { ...entity, typeId, generatedBy: 'autoSupport' } },
     };
 }
 

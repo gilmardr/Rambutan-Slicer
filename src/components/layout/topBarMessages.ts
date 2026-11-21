@@ -25,6 +25,17 @@ export function formatTopbarPrinterTitle(
   }));
 }
 
+/** Tooltip on the topbar printer badge when one profile is selected. */
+export function formatTopbarProfileTitle(
+  profileName: string,
+  translate: Translate,
+): string {
+  return translate(msg({
+    message: `Printer profile: ${profileName}. Click to review or change.`,
+    comment: 'Tooltip on the selected printer profile in the topbar. The button opens printer profile settings.',
+  }));
+}
+
 /** Screen-reader label for the same badge, without the bullet separator. */
 export function formatTopbarPrinterAriaLabel(
   profileName: string,

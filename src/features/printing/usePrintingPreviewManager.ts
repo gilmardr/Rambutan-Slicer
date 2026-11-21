@@ -594,7 +594,8 @@ export function usePrintingPreviewManager({
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.scale(dpr, dpr);
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.translate(viewportWidth * 0.5 + printingPreviewPan.x, viewportHeight * 0.5 + printingPreviewPan.y);
       ctx.scale(printingPreviewZoom, printingPreviewZoom);
       ctx.scale(printingPreviewMirrorScale.x, printingPreviewMirrorScale.y);

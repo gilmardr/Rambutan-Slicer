@@ -14,10 +14,16 @@ Internals of DragonFruit, for people changing them. Start with [Architecture Ove
 | Build a button, field, row or badge | [UI Atoms](ui-atoms.md) |
 | Bind a key | [Hotkeys](hotkeys.md), [Support Placement Modifiers](../reference/support-placement-modifiers.md) |
 | Move or frame the 3D camera | [Camera Navigation](camera-navigation.md) |
+| Change the build-plate measurement ruler | [Build-Plate Millimeter Ruler](build-plate-millimeter-ruler.md) |
+| Change point and plane distance measurement | [Distance Measurement](measurement.md) |
 | Call native code | [Tauri IPC and Native Bridge](tauri-ipc-bridge.md) |
 | Ship something unfinished | [Experiments Framework](experiments-framework.md) |
 | Support a new printer or format | [Plugin Framework](plugins-framework.md), [Complex Plugin Contributing](plugins-complex-contributing.md), [Formats](formats.md) |
 | Change automatic support placement | [Auto-Supports](auto-supports.md) |
+| Change painted support placement | [Support Painting](support-painting.md) |
+| Change two-point inline supports | [Support Inline](support-inline.md) |
+| Add or change projected support placement | [Support Projection](support-projection.md) |
+| Change Organic Cut registration plugs and tenons | [Organic Cut registration shapes](organic-cut-registration.md) |
 | Add a support type | [Adding a New Support Type](support-type-extension.md), [Support System](support-system.md) |
 | Change support hover, selection or snapping | [Support Interaction](support-interaction.md) |
 | Work on island detection | [Island Detection](island-detection.md) |
@@ -29,6 +35,12 @@ Internals of DragonFruit, for people changing them. Start with [Architecture Ove
 | Persist something | [Data Storage](data-storage.md), [VOXL Format Spec](voxl-format-spec.md) |
 | Cut a release | [Release Process](releases.md), [Flatpak Packaging](flatpak.md) |
 | Change how new issues get their area labels | [Issue Guts Labels](issue-guts.md), [Retuning Issue Guts](issue-guts-tuning.md) |
+| Change hollowing infill geometry | [Hollowing Infill](hollowing-infill.md), [Voxel Hollowing Architecture](../adr/0029-voxel-hollowing-architecture.md) |
+| Verify drain holes against a hollow shell | [Drain Hole Verification](drain-hole-verification.md) |
+| Analyze collisions between models | [Model Collision Analysis](model-collision.md) |
+| Analyze support clearance from models | [Support Proximity Analysis](support-proximity.md) |
+| Find resin suction cups | [Suction Cup Detection](suction-cup-detection.md) |
+| Engrave text or images on model surfaces | [Text and Image Engraving](text-surface-tags.md) |
 | Change OS file thumbnails | [OS Thumbnails](voxl-thumbnail/index.md) |
 | Add or translate a string | [Localization](localization.md) |
 | Write or change docs | [Contributing](contributing.md) |

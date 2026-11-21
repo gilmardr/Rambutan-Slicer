@@ -139,8 +139,12 @@ export function RendererCrashDiagnostics() {
       addBreadcrumb('event', event.kind, event.message);
       persist();
 
-      originalError('[RendererCrashDiagnostics]', event.kind, event.message, event.extra ?? '');
-      if (event.stack) {
+      // A delayed animation frame is a performance signal, not proof of a
+      // fatal renderer error. In Next dev, console.error opens the full-screen
+      // error overlay and hides the app while it is still usable.
+      const report = event.kind === 'raf-stall' ? originalWarn : originalError;
+      report('[RendererCrashDiagnostics]', event.kind, event.message, event.extra ?? '');
+      if (event.stack && event.kind !== 'raf-stall') {
         originalError('[RendererCrashDiagnostics:stack]', event.stack);
       }
     };

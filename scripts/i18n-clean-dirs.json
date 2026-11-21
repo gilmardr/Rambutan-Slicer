@@ -78,7 +78,6 @@
             "src/components/scene/SupportPathfindingDebugOverlay.tsx",
             "src/components/scene/camera",
             "src/components/selection",
-            "src/components/settings/BackupsSettingsTab.tsx",
             "src/components/settings/ExperimentsSettingsTab.tsx",
             "src/components/settings/FleetManagement.tsx",
             "src/components/settings/LocalBackupsSettingsTab.tsx",

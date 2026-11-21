@@ -9,7 +9,7 @@ import {
 let stagedHollowPreviewSourceKey: string | null = null;
 
 export type HollowMode = 'cavity' | 'infill' | 'shell_open_face';
-export type InfillMode = 'lattice' | 'pillar';
+export type InfillMode = 'lattice' | 'double_lattice' | 'pillar';
 export type OpenFace = 'x_min' | 'x_max' | 'y_min' | 'y_max' | 'z_min' | 'z_max';
 
 export interface DrainHoleSpec {
@@ -29,6 +29,10 @@ export interface HollowOptions {
   infillBeamRadiusMm: number;
   openFace: OpenFace;
   drainHoles: DrainHoleSpec[];
+  /** Hole punches used only as vent paths while classifying trapped pockets. */
+  pocketDetectionVents?: DrainHoleSpec[];
+  detectResinTraps?: boolean;
+  detectInteriorSuctionCups?: boolean;
   previewCavityOnly?: boolean;
   smoothInternalSurfaces?: boolean;
   internalChamferPasses?: number;

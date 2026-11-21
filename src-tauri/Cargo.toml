@@ -1,5 +1,5 @@
 [package]
-name = "dragonfruit-desktop"
+name = "rambutan-slicer"
 version = "0.2.1"
 edition = "2021"
 
@@ -148,5 +148,5 @@ opt-level = 3
 
 # The desktop shell crate contains IPC/glue hot paths (mesh staging/decoding).
 # Keep it optimized in dev so bridge overhead measurements are representative.
-[profile.dev.package.dragonfruit-desktop]
+[profile.dev.package.rambutan-slicer]
 opt-level = 3

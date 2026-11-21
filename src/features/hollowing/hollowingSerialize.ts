@@ -12,6 +12,8 @@ export function serializeHollowingModifier(modifier: ModelHollowingModifier | nu
     infillMode: modifier.infillMode ?? 'lattice',
     infillCellMm: Number((modifier.infillCellMm ?? 4.2426).toFixed(4)),
     infillBeamRadiusMm: Number((modifier.infillBeamRadiusMm ?? 0.25).toFixed(4)),
+    detectResinTraps: modifier.detectResinTraps ?? false,
+    detectInteriorSuctionCups: modifier.detectInteriorSuctionCups ?? false,
     openFace: modifier.openFace,
     openFaceSelected: modifier.mode === 'shell_open_face'
       ? (modifier.openFaceSelected ?? true)

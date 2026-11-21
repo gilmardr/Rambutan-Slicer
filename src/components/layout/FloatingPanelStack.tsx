@@ -132,6 +132,7 @@ const PANEL_WIDTH_OVERRIDES: Record<string, number> = {
 const LOCKED_PANELS: Record<string, 'always' | 'rail-column'> = {
     'visual-settings': 'always',
     'prepare-models': 'rail-column',
+    'prepare-text-label': 'always',
     'support-models': 'rail-column',
 };
 

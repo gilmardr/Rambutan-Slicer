@@ -568,6 +568,7 @@ export async function runSliceExportOrchestrator(options: SliceExportOrchestrato
             pngCompressionMode: solidMesh.pngCompressionStrategy,
             aaOnSupportsFallback: perfSettings.aaOnSupportsExperimental === true,
             modelTriangleCount: solidMesh.modelTriangleCount,
+            modelSliceRanges: solidMesh.modelSliceRanges,
         }),
         exportThumbnailPngBase64: options.exportThumbnailPng && options.exportThumbnailPng.length > 0
             ? encodeBytesToBase64(options.exportThumbnailPng)

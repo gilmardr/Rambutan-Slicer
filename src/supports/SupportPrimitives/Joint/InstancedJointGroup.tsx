@@ -53,7 +53,7 @@ interface InstancedJointGroupProps {
 
 export function InstancedJointGroup({
     joints,
-    color = '#ff8800',
+    color = '#78c63f',
     emissive = '#000000',
     emissiveIntensity = 0,
     transparent = false,

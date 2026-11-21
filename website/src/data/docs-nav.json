@@ -36,6 +36,14 @@
           "slug": "workflows/model-preparation"
         },
         {
+          "label": "Surface Engraving: Text and Images",
+          "slug": "workflows/text-labels"
+        },
+        {
+          "label": "Model Collision Analysis",
+          "slug": "dev/model-collision"
+        },
+        {
           "label": "Transform and Positioning",
           "slug": "workflows/transform-and-positioning"
         },
@@ -278,8 +286,16 @@
               "slug": "dev/state-and-stores"
             },
             {
+              "label": "Distance Measurement",
+              "slug": "dev/measurement"
+            },
+            {
               "label": "Camera Navigation",
               "slug": "dev/camera-navigation"
+            },
+            {
+              "label": "Build-Plate Millimeter Ruler",
+              "slug": "dev/build-plate-millimeter-ruler"
             },
             {
               "label": "Config Schemas",
@@ -314,12 +330,48 @@
               "slug": "dev/support-system"
             },
             {
+              "label": "Hollowing Infill",
+              "slug": "dev/hollowing-infill"
+            },
+            {
+              "label": "Surface Engraving: Text and Images",
+              "slug": "dev/text-surface-tags"
+            },
+            {
+              "label": "Drain Hole Verification",
+              "slug": "dev/drain-hole-verification"
+            },
+            {
+              "label": "Support Proximity Analysis",
+              "slug": "dev/support-proximity"
+            },
+            {
+              "label": "Suction Cup Detection",
+              "slug": "dev/suction-cup-detection"
+            },
+            {
               "label": "Support Interaction",
               "slug": "dev/support-interaction"
             },
             {
               "label": "Auto-Supports",
               "slug": "dev/auto-supports"
+            },
+            {
+              "label": "Support Projection",
+              "slug": "dev/support-projection"
+            },
+            {
+              "label": "Support Painting",
+              "slug": "dev/support-painting"
+            },
+            {
+              "label": "Support Inline",
+              "slug": "dev/support-inline"
+            },
+            {
+              "label": "Organic Cut Registration Shapes",
+              "slug": "dev/organic-cut-registration"
             },
             {
               "label": "Auto-Support Presets",

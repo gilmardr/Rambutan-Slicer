@@ -278,7 +278,7 @@ export function MeshSettingsTab({
                 value={activeHexColor}
                 onChange={(e) => onActiveHexChange(e.target.value)}
                 className="flex-1 !h-7 min-w-0"
-                placeholder="#a3a3a3"
+                placeholder="#ed0921"
               />
             </div>
 
@@ -535,7 +535,7 @@ export function MeshSettingsTab({
                       value={meshSelectionColor}
                       onChange={(e) => onMeshSelectionColorChange(e.target.value)}
                       className="ui-input h-8 w-[7.5rem] min-w-0"
-                      placeholder="#ec2a77"
+                      placeholder="#ffb45d"
                     />
                   </div>
                 </div>
@@ -552,7 +552,7 @@ export function MeshSettingsTab({
                       value={meshHoverColor}
                       onChange={(e) => onMeshHoverColorChange(e.target.value)}
                       className="ui-input h-8 w-[7.5rem] min-w-0"
-                      placeholder="#ec2a77"
+                      placeholder="#3bd2c6"
                     />
                   </div>
                 </div>
@@ -638,7 +638,7 @@ export function MeshSettingsTab({
                 matcapVariant="neutral"
                 flatUseVertexColors={true}
                 useVertexColors={false}
-                meshColor="#a3a3a3"
+                meshColor="#ed0921"
                 materialRoughness={0.55}
                 previewModel="knot"
                 ambientIntensity={0.28}

@@ -20,7 +20,7 @@ export function WireframeMaterial({
   selectedTintStrength?: number;
   clippingPlanes: THREE.Plane[];
 }) {
-  const baseWireColor = meshColor ?? '#a3a3a3';
+  const baseWireColor = meshColor ?? '#f3f0e8';
   const selectedStrength = clampTintStrength(selectedTintStrength, 0.70);
   const hoverStrength = clampTintStrength(hoverTintStrength, 0.5);
   const wireColor = isSelected

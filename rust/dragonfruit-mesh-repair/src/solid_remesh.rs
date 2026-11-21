@@ -486,6 +486,7 @@ mod tests {
     /// A closed solid is already a solid, so resolving it returns it. This is worth pinning: it is
     /// the reason a rebuild is not a resample, and the reason it is the wrong tool for a clean mesh
     /// and the right one for a mesh that is not one solid.
+    #[cfg(feature = "manifold")]
     #[test]
     fn a_closed_solid_comes_back_a_closed_solid() {
         let outcome = solid_remesh(&cube(), &SolidRemeshOptions::default());
@@ -499,6 +500,7 @@ mod tests {
 
     /// An open surface is closed before the boolean sees it, which is the order the reference uses
     /// too - it fills every hole first for the same reason: a boolean cannot resolve a boundary.
+    #[cfg(feature = "manifold")]
     #[test]
     fn an_open_solid_is_closed_and_then_resolved() {
         let mut open = cube();

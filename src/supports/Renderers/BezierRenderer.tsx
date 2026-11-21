@@ -56,7 +56,7 @@ export function BezierRenderer({
     diameterStart,
     diameterEnd,
     resolution = 16,
-    color = '#c8752a',
+    color = '#78c63f',
     emissive = '#000000',
     emissiveIntensity = 0,
     transparent = false,

@@ -17,6 +17,15 @@ type ModelDimsMm = { width: number; depth: number; height: number };
 type SupportAwareDimsFn = (model: SceneModel, rotationZOverride?: number, transformOverride?: SceneModel['transform']) => ModelDimsMm;
 type FootprintPolygonFn = (model: SceneModel, rotationZOverride?: number, transformOverride?: SceneModel['transform']) => THREE.Vector2[];
 
+async function waitForMinimumSpinnerDuration(
+  startedAt: number,
+  minimumDurationMs: number,
+  sleep: (ms: number) => Promise<void>,
+): Promise<void> {
+  const remainingMs = minimumDurationMs - (performance.now() - startedAt);
+  if (remainingMs > 0) await sleep(remainingMs);
+}
+
 /**
  * How many beds an arrange run will pack before giving up and setting the rest beside
  * the last one. A run adds a bed only when a full pass placed nothing new, so this is a
@@ -1184,10 +1193,7 @@ export function useArrangeManager({
           : undefined,
       );
     } finally {
-      const elapsed = performance.now() - startedAt;
-      if (elapsed < minSpinnerMs) {
-        await sleep(minSpinnerMs - elapsed);
-      }
+      await waitForMinimumSpinnerDuration(startedAt, minSpinnerMs, sleep);
       setIsAutoArranging(false);
       setActiveArrangeOperation(null);
       setArrangeOverlayModelCount(null);
@@ -1457,10 +1463,7 @@ export function useArrangeManager({
         );
       }
     } finally {
-      const elapsed = performance.now() - startedAt;
-      if (elapsed < minSpinnerMs) {
-        await sleep(minSpinnerMs - elapsed);
-      }
+      await waitForMinimumSpinnerDuration(startedAt, minSpinnerMs, sleep);
       setIsAutoArranging(false);
       setActiveArrangeOperation(null);
       setArrangeOverlayModelCount(null);
@@ -1639,10 +1642,7 @@ export function useArrangeManager({
 
       applyArrangeTransforms(updates);
     } finally {
-      const elapsed = performance.now() - startedAt;
-      if (elapsed < minSpinnerMs) {
-        await sleep(minSpinnerMs - elapsed);
-      }
+      await waitForMinimumSpinnerDuration(startedAt, minSpinnerMs, sleep);
       setIsAutoArranging(false);
       setActiveArrangeOperation(null);
       setArrangeOverlayModelCount(null);
@@ -1795,10 +1795,7 @@ export function useArrangeManager({
       setDuplicateSourcePreviewTransform(null);
       setDuplicatePreviewTransforms([]);
     } finally {
-      const elapsed = performance.now() - startedAt;
-      if (elapsed < minSpinnerMs) {
-        await sleep(minSpinnerMs - elapsed);
-      }
+      await waitForMinimumSpinnerDuration(startedAt, minSpinnerMs, sleep);
       setIsDuplicating(false);
       setDuplicateApplySourceModel(null);
       setDuplicateApplySourceTransform(null);
@@ -1926,10 +1923,7 @@ export function useArrangeManager({
       } catch (error) {
         console.warn('[Duplicate][HighPrecision] Failed applying fill-plate duplicate.', error);
       } finally {
-        const elapsed = performance.now() - startedAt;
-        if (elapsed < minSpinnerMs) {
-          await sleep(minSpinnerMs - elapsed);
-        }
+        await waitForMinimumSpinnerDuration(startedAt, minSpinnerMs, sleep);
         setIsDuplicating(false);
         setIsAutoArranging(false);
         setActiveArrangeOperation(null);

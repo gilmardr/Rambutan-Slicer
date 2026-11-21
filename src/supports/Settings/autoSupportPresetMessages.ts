@@ -28,6 +28,7 @@ const BUILT_IN_NAMES: Record<string, MessageDescriptor> = {
   light: msg({ message: 'Light', context: 'auto-support preset', comment: "Built-in auto-support preset for sparse supports — the Light tier in the Auto Support panel's preset selector." }),
   medium: msg({ message: 'Medium', context: 'auto-support preset', comment: "Built-in auto-support preset for balanced supports — the Medium tier in the Auto Support panel's preset selector." }),
   heavy: msg({ message: 'Heavy', context: 'auto-support preset', comment: "Built-in auto-support preset for dense supports — the Heavy tier in the Auto Support panel's preset selector." }),
+  'interior-pillar': msg({ message: 'Interior Pillar', context: 'auto-support preset', comment: 'Built-in profile for generating large, sparse supports inside hollow models.' }),
 };
 
 export function translateAutoSupportPresetName(preset: AutoSupportPreset, translate: Translate): string {

@@ -48,7 +48,7 @@ export const KickstandRenderer = React.memo(function KickstandRenderer({
     deferStraightShaftsToSceneBatch = false,
     deferInteractionToSceneBatch = false,
     hidePlateContactPrimitives = false,
-    baseColor = '#ff8800',
+    baseColor = '#78c63f',
     hoverColor,
     selectedColor = '#80fffd',
 }: KickstandRendererProps) {

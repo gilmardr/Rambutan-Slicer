@@ -297,6 +297,37 @@ struct GeodesicWaypointDto {
     position: [f32; 3],
 }
 
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct GeodesicPlugDto {
+    #[serde(default)]
+    generate_tenon: bool,
+    #[serde(default = "default_tenon_width")]
+    tenon_width_mm: f32,
+    #[serde(default = "default_tenon_depth")]
+    tenon_depth_mm: f32,
+    #[serde(default = "default_tenon_shape")]
+    tenon_shape: String,
+    #[serde(default)]
+    tenon_fillet_mm: f32,
+    #[serde(default = "default_tenon_tolerance")]
+    tenon_tolerance_mm: f32,
+    #[serde(default)]
+    tenon_anchor: Option<[f32; 3]>,
+    #[serde(default)]
+    tenon_swap_sides: bool,
+    #[serde(default)]
+    tenon_tilt_rad: f32,
+    #[serde(default)]
+    tenon_roll_rad: f32,
+    #[serde(default)]
+    tenon_chamfer_size_mm: f32,
+    #[serde(default)]
+    tenon_chamfer_depth_mm: f32,
+    #[serde(default)]
+    tenon_taper_angle_deg: Option<f32>,
+}
+
 fn default_smoothing_half() -> f32 {
     0.5
 }
@@ -365,6 +396,19 @@ struct GeodesicRequestDto {
     /// Tenon roll (radians) — spin about the tenon's own axis. Default 0.
     #[serde(default)]
     tenon_roll_rad: f32,
+    /// Mortise-mouth chamfer dimensions in mm. A zero size disables it.
+    #[serde(default)]
+    tenon_chamfer_size_mm: f32,
+    #[serde(default)]
+    tenon_chamfer_depth_mm: f32,
+    /// Optional frustum side angle from vertical in degrees.
+    #[serde(default)]
+    tenon_taper_angle_deg: Option<f32>,
+    /// Per-plug preview settings. When absent, the legacy single-tenon fields apply.
+    #[serde(default)]
+    plugs: Option<Vec<GeodesicPlugDto>>,
+    #[serde(default)]
+    selected_plug_index: usize,
 }
 
 fn default_density_one() -> f32 {
@@ -401,6 +445,9 @@ impl Default for GeodesicRequestDto {
             tenon_depth_mm: 2.5,
             tenon_shape: "frustum".to_string(),
             tenon_fillet_mm: 0.0,
+            tenon_chamfer_size_mm: 0.0,
+            tenon_chamfer_depth_mm: 0.0,
+            tenon_taper_angle_deg: None,
             tenon_tolerance_mm: 0.1,
             tenon_anchor: None,
             plane_normal: [0.0; 3],
@@ -408,6 +455,8 @@ impl Default for GeodesicRequestDto {
             tenon_swap_sides: false,
             tenon_tilt_rad: 0.0,
             tenon_roll_rad: 0.0,
+            plugs: None,
+            selected_plug_index: 0,
         }
     }
 }
@@ -1570,17 +1619,22 @@ pub async fn mesh_organic_cut_membrane_preview(request_json: String) -> Result<S
     // no thickness at all.
     let thickness_mm = dragonfruit_organic_cut::membrane::DEFAULT_CUTTER_THICKNESS_MM;
     let joint_clearance_mm = req.joint_clearance_mm.max(0.0);
-    let generate_tenon = req.generate_tenon;
-    let tenon_width_mm = req.tenon_width_mm;
-    let tenon_depth_mm = req.tenon_depth_mm;
-    let tenon_shape = dragonfruit_organic_cut::TenonShape::from_str_or_default(&req.tenon_shape);
-    let tenon_fillet_mm = req.tenon_fillet_mm;
-    let tenon_tolerance_mm = req.tenon_tolerance_mm;
-    let tenon_at: dragonfruit_organic_cut::TenonAnchor = req
-        .tenon_anchor
-        .map(|p| Vec3::new(p[0], p[1], p[2]));
-    let tenon_swap_sides = req.tenon_swap_sides;
-    let tenon_tilt = dragonfruit_organic_cut::TenonTilt::new(req.tenon_tilt_rad, req.tenon_roll_rad);
+    let plugs = req.plugs.unwrap_or_else(|| vec![GeodesicPlugDto {
+        generate_tenon: req.generate_tenon,
+        tenon_width_mm: req.tenon_width_mm,
+        tenon_depth_mm: req.tenon_depth_mm,
+        tenon_shape: req.tenon_shape.clone(),
+        tenon_fillet_mm: req.tenon_fillet_mm,
+        tenon_tolerance_mm: req.tenon_tolerance_mm,
+        tenon_anchor: req.tenon_anchor,
+        tenon_swap_sides: req.tenon_swap_sides,
+        tenon_tilt_rad: req.tenon_tilt_rad,
+        tenon_roll_rad: req.tenon_roll_rad,
+        tenon_chamfer_size_mm: req.tenon_chamfer_size_mm,
+        tenon_chamfer_depth_mm: req.tenon_chamfer_depth_mm,
+        tenon_taper_angle_deg: req.tenon_taper_angle_deg,
+    }]);
+    let selected_plug_index = req.selected_plug_index;
 
     // Use the captured cut SOURCE mesh so the preview can apply the real loop
     // offset (needs surface normals) and show the REAL cutter slab — exactly what
@@ -1595,6 +1649,8 @@ pub async fn mesh_organic_cut_membrane_preview(request_json: String) -> Result<S
         // it's only available once the source is captured. Returns (soup, kind,
         // detail) — empty soup when no tenon (too thin / degenerate / no source).
         let mut tenon_soup: Vec<f32> = Vec::new();
+        let mut tenon_bodies: Vec<f32> = Vec::new();
+        let mut mortise_bodies: Vec<f32> = Vec::new();
         // How many of tenon_soup's triangles are the TENON (the rest are the mortise),
         // so the frontend can colour the two apart.
         let mut tenon_tris = 0usize;
@@ -1611,32 +1667,45 @@ pub async fn mesh_organic_cut_membrane_preview(request_json: String) -> Result<S
 
         let soup = if let Some(bytes) = source_bytes {
             let mesh = io::staged::load_positions_le(&bytes).map_err(|e| e.to_string())?;
-            if generate_tenon {
-                if let Some(preview) =
-                    dragonfruit_organic_cut::build_tenon_preview_soup(
-                        &mesh,
-                        &loop_pts,
-                        membrane_smoothing,
-                        density,
-                        tenon_shape,
-                        tenon_swap_sides,
-                        tenon_tilt,
-                        tenon_width_mm,
-                        tenon_depth_mm,
-                        tenon_fillet_mm,
-                        // Same sum the cut spends, so the previewed fit is the real one.
-                        tenon_tolerance_mm + joint_clearance_mm,
-                        tenon_at,
-                    )
-                {
-                    tenon_tris = preview.tenon_triangles;
-                    tenon_soup = preview.soup;
-                    tenon_kind = preview.kind.as_str().to_string();
-                    tenon_fits = preview.fits;
-                    tenon_detail = preview.detail;
-                    tenon_frame = preview.frame;
+            for (index, plug) in plugs.iter().enumerate().filter(|(_, plug)| plug.generate_tenon) {
+                let shape = dragonfruit_organic_cut::TenonShape::from_str_or_default(&plug.tenon_shape);
+                let tilt = dragonfruit_organic_cut::TenonTilt::new(plug.tenon_tilt_rad, plug.tenon_roll_rad);
+                let at = plug.tenon_anchor.map(|p| Vec3::new(p[0], p[1], p[2]));
+                if let Some(preview) = dragonfruit_organic_cut::build_tenon_preview_soup_with_chamfer_and_taper(
+                    &mesh,
+                    &loop_pts,
+                    membrane_smoothing,
+                    density,
+                    shape,
+                    plug.tenon_swap_sides,
+                    tilt,
+                    plug.tenon_width_mm,
+                    plug.tenon_depth_mm,
+                    plug.tenon_fillet_mm,
+                    plug.tenon_tolerance_mm + joint_clearance_mm,
+                    plug.tenon_chamfer_size_mm,
+                    plug.tenon_chamfer_depth_mm,
+                    plug.tenon_taper_angle_deg,
+                    at,
+                ) {
+                    let body_end = preview.tenon_triangles * 9;
+                    tenon_bodies.extend_from_slice(&preview.soup[..body_end.min(preview.soup.len())]);
+                    mortise_bodies.extend_from_slice(&preview.soup[body_end.min(preview.soup.len())..]);
+                    tenon_tris += preview.tenon_triangles;
+                    tenon_fits &= preview.fits;
+                    if !preview.fits && !preview.detail.is_empty() {
+                        if !tenon_detail.is_empty() { tenon_detail.push_str("; "); }
+                        tenon_detail.push_str(&format!("Plug {}: {}", index + 1, preview.detail));
+                    }
+                    if index == selected_plug_index {
+                        tenon_kind = preview.kind.as_str().to_string();
+                        tenon_frame = preview.frame;
+                    }
                 }
             }
+            tenon_soup.reserve(tenon_bodies.len() + mortise_bodies.len());
+            tenon_soup.extend(tenon_bodies);
+            tenon_soup.extend(mortise_bodies);
             dragonfruit_organic_cut::membrane::build_cutter_preview_soup(
                 &mesh,
                 &loop_pts,
@@ -1706,19 +1775,22 @@ pub async fn mesh_organic_cut_plane_tenon_preview(request_json: String) -> Resul
     let req = parse_geodesic_request(&request_json);
     let normal = Vec3::new(req.plane_normal[0], req.plane_normal[1], req.plane_normal[2]);
     let offset = req.plane_offset;
-    let generate_tenon = req.generate_tenon;
-    let tenon_shape = dragonfruit_organic_cut::TenonShape::from_str_or_default(&req.tenon_shape);
-    let tenon_tilt = dragonfruit_organic_cut::TenonTilt::new(req.tenon_tilt_rad, req.tenon_roll_rad);
-    let tenon_at: dragonfruit_organic_cut::TenonAnchor = req
-        .tenon_anchor
-        .map(|p| Vec3::new(p[0], p[1], p[2]));
-    let (tenon_width_mm, tenon_depth_mm, tenon_fillet_mm, tenon_tolerance_mm, tenon_swap_sides) = (
-        req.tenon_width_mm,
-        req.tenon_depth_mm,
-        req.tenon_fillet_mm,
-        req.tenon_tolerance_mm,
-        req.tenon_swap_sides,
-    );
+    let plugs = req.plugs.unwrap_or_else(|| vec![GeodesicPlugDto {
+        generate_tenon: req.generate_tenon,
+        tenon_width_mm: req.tenon_width_mm,
+        tenon_depth_mm: req.tenon_depth_mm,
+        tenon_shape: req.tenon_shape.clone(),
+        tenon_fillet_mm: req.tenon_fillet_mm,
+        tenon_tolerance_mm: req.tenon_tolerance_mm,
+        tenon_anchor: req.tenon_anchor,
+        tenon_swap_sides: req.tenon_swap_sides,
+        tenon_tilt_rad: req.tenon_tilt_rad,
+        tenon_roll_rad: req.tenon_roll_rad,
+        tenon_chamfer_size_mm: req.tenon_chamfer_size_mm,
+        tenon_chamfer_depth_mm: req.tenon_chamfer_depth_mm,
+        tenon_taper_angle_deg: req.tenon_taper_angle_deg,
+    }]);
+    let selected_plug_index = req.selected_plug_index;
 
     let source_bytes = organic_cut_source_bytes()
         .lock()
@@ -1727,35 +1799,57 @@ pub async fn mesh_organic_cut_plane_tenon_preview(request_json: String) -> Resul
     let Some(bytes) = source_bytes else {
         return Ok(NO_TENON_PREVIEW_JSON.to_string());
     };
-    if !generate_tenon || normal.length() < 1e-6 {
+    if !plugs.iter().any(|plug| plug.generate_tenon) || normal.length() < 1e-6 {
         return Ok(NO_TENON_PREVIEW_JSON.to_string());
     }
 
     let result = tauri::async_runtime::spawn_blocking(move || {
         let mesh = io::staged::load_positions_le(&bytes).map_err(|e| e.to_string())?;
-        let Some(frame) = dragonfruit_organic_cut::frame_from_plane(&mesh, normal, offset, tenon_at)
-        else {
-            return Ok::<_, String>(None);
-        };
-        let preview = dragonfruit_organic_cut::build_tenon_preview_at_frame(
-            &mesh,
-            frame,
-            tenon_shape,
-            tenon_swap_sides,
-            tenon_tilt,
-            tenon_width_mm,
-            tenon_depth_mm,
-            tenon_fillet_mm,
-            tenon_tolerance_mm,
-        );
-        Ok(Some((
-            preview.soup,
-            preview.tenon_triangles,
-            preview.kind.as_str().to_string(),
-            preview.fits,
-            preview.detail,
-            preview.frame,
-        )))
+        let mut tenon_bodies = Vec::new();
+        let mut mortise_bodies = Vec::new();
+        let mut tenon_tris = 0usize;
+        let mut tenon_kind = "none".to_string();
+        let mut tenon_fits = true;
+        let mut tenon_detail = String::new();
+        let mut tenon_frame = None;
+        for (index, plug) in plugs.iter().enumerate().filter(|(_, plug)| plug.generate_tenon) {
+            let at = plug.tenon_anchor.map(|p| Vec3::new(p[0], p[1], p[2]));
+            let Some(frame) = dragonfruit_organic_cut::frame_from_plane(&mesh, normal, offset, at) else {
+                if !tenon_detail.is_empty() { tenon_detail.push_str("; "); }
+                tenon_detail.push_str(&format!("Plug {}: no usable plane section", index + 1));
+                continue;
+            };
+            let preview = dragonfruit_organic_cut::build_tenon_preview_at_frame_with_chamfer_and_taper(
+                &mesh,
+                frame,
+                dragonfruit_organic_cut::TenonShape::from_str_or_default(&plug.tenon_shape),
+                plug.tenon_swap_sides,
+                dragonfruit_organic_cut::TenonTilt::new(plug.tenon_tilt_rad, plug.tenon_roll_rad),
+                plug.tenon_width_mm,
+                plug.tenon_depth_mm,
+                plug.tenon_fillet_mm,
+                plug.tenon_tolerance_mm,
+                plug.tenon_chamfer_size_mm,
+                plug.tenon_chamfer_depth_mm,
+                plug.tenon_taper_angle_deg,
+            );
+            let split = (preview.tenon_triangles * 9).min(preview.soup.len());
+            tenon_bodies.extend_from_slice(&preview.soup[..split]);
+            mortise_bodies.extend_from_slice(&preview.soup[split..]);
+            tenon_tris += preview.tenon_triangles;
+            tenon_fits &= preview.fits;
+            if !preview.fits && !preview.detail.is_empty() {
+                if !tenon_detail.is_empty() { tenon_detail.push_str("; "); }
+                tenon_detail.push_str(&format!("Plug {}: {}", index + 1, preview.detail));
+            }
+            if index == selected_plug_index {
+                tenon_kind = preview.kind.as_str().to_string();
+                tenon_frame = preview.frame;
+            }
+        }
+        let mut soup = tenon_bodies;
+        soup.extend(mortise_bodies);
+        Ok::<_, String>(Some((soup, tenon_tris, tenon_kind, tenon_fits, tenon_detail, tenon_frame)))
     })
     .await
     .map_err(|e| format!("plane tenon preview task panicked: {e}"))??;

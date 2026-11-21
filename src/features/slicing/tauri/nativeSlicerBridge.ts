@@ -1,4 +1,5 @@
 import { isTauriRuntime } from '@/utils/tauriRuntime';
+import type { PreparedModelLibraryEntry } from '@/features/backups/modelLibraryTypes';
 import { clampSliceJobNumber } from '../sliceJobLimits';
 
 type TauriCoreModule = {
@@ -955,6 +956,19 @@ export async function readPrintArtifactBytesFromPath(sourcePath: string): Promis
   });
 
   return new Uint8Array(result);
+}
+
+export async function listLocalBackupModelLibrary(
+  directoryPath: string,
+): Promise<PreparedModelLibraryEntry[]> {
+  const core = await loadTauriCore();
+  if (!core) {
+    throw new Error('Local model library is only available in DragonFruit Desktop.');
+  }
+
+  return core.invoke<PreparedModelLibraryEntry[]>('local_backup_list_model_library', {
+    directoryPath,
+  });
 }
 
 export async function readPrintLayerPreviewPngFromPath(

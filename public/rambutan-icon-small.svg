@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Rambutan-Slicer simplified app icon">
+<defs>
+<linearGradient id="bg" x1=".12" y1="0" x2=".88" y2="1"><stop stop-color="#23232b"/><stop offset=".6" stop-color="#0e1018"/><stop offset="1" stop-color="#090b12"/></linearGradient>
+<linearGradient id="edge" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff6865"/><stop offset=".47" stop-color="#ed0921"/><stop offset="1" stop-color="#8a0619"/></linearGradient>
+<linearGradient id="skin" x1="0" y1="0" x2="1" y2=".85"><stop stop-color="#fe4949"/><stop offset=".55" stop-color="#e40c29"/><stop offset="1" stop-color="#a90224"/></linearGradient>
+<linearGradient id="spine" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffdf5d"/><stop offset=".36" stop-color="#ed3b28"/><stop offset="1" stop-color="#b70025"/></linearGradient>
+<radialGradient id="flesh" cx=".37" cy=".25" r=".8"><stop stop-color="#ffffff"/><stop offset=".54" stop-color="#ffdfd2"/><stop offset="1" stop-color="#ff9875"/></radialGradient>
+<linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b9e93b"/><stop offset=".5" stop-color="#408d22"/><stop offset="1" stop-color="#13542e"/></linearGradient>
+<linearGradient id="layer" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffb69f" stop-opacity=".86"/><stop offset=".42" stop-color="#ff4d45" stop-opacity=".92"/><stop offset="1" stop-color="#d90228" stop-opacity=".96"/></linearGradient>
+</defs>
+<rect x="24" y="24" width="976" height="976" rx="202" fill="url(#bg)" stroke="url(#edge)" stroke-width="28"/>
+<!-- Crisp enclosing hexagonal contour -->
+<path d="M 505 138 L 830 325 L 830 696 L 505 884 L 181 696 L 181 325 Z" fill="none" stroke="url(#edge)" stroke-width="51" stroke-linejoin="round"/>
+<!-- One simplified leaf, deliberately kept as a distinct green patch -->
+<path d="M 276 395 Q 218 298 119 316 Q 191 209 351 261 Q 420 281 463 343 Q 378 355 276 395 Z" fill="url(#leaf)" stroke="#8ed43d" stroke-width="9"/>
+<path d="M 172 300 Q 264 309 397 335" fill="none" stroke="#c9e96b" stroke-width="9" stroke-linecap="round" opacity=".7"/>
+<!-- Rambutan shell and recognizable spikes -->
+<circle cx="492" cy="502" r="209" fill="url(#skin)" stroke="#f9473c" stroke-width="10"/>
+<path d="M 428.6 686.4 Q 393.2 720.7 387.4 666.6 Q 409.6 678.7 428.6 686.4 Z" fill="url(#spine)" stroke="#ff554b" stroke-width="8" stroke-linejoin="round"/><path d="M 364.1 649.2 Q 297.5 687.8 333.3 615.4 Q 349.4 635.0 364.1 649.2 Z" fill="url(#spine)" stroke="#ff554b" stroke-width="8" stroke-linejoin="round"/><path d="M 319.9 593.6 Q 243.8 605.8 303.3 551.0 Q 311.2 575.0 319.9 593.6 Z" fill="url(#spine)" stroke="#ff554b" stroke-width="8" stroke-linejoin="round"/><path d="M 298.1 522.4 Q 223.0 505.2 298.6 476.7 Q 297.0 502.0 298.1 522.4 Z" fill="url(#spine)" stroke="#ff554b" stroke-width="8" stroke-linejoin="round"/><path d="M 304.5 448.3 Q 241.4 404.2 322.2 406.1 Q 311.2 429.0 304.5 448.3 Z" fill="url(#spine)" stroke="#ff554b" stroke-width="8" stroke-linejoin="round"/><path d="M 336.2 384.7 Q 293.1 320.9 367.8 351.6 Q 349.4 369.0 336.2 384.7 Z" fill="url(#spine)" stroke="#ff554b" stroke-width="8" stroke-linejoin="round"/><path d="M 391.5 334.9 Q 375.4 259.6 433.2 316.1 Q 409.6 325.3 391.5 334.9 Z" fill="url(#spine)" stroke="#ff554b" stroke-width="8" stroke-linejoin="round"/><path d="M 458.1 310.0 Q 470.0 233.9 503.7 307.4 Q 478.4 307.5 458.1 310.0 Z" fill="url(#spine)" stroke="#ff554b" stroke-width="8" stroke-linejoin="round"/><path d="M 525.8 310.0 Q 555.4 270.5 569.6 323.1 Q 545.7 314.6 525.8 310.0 Z" fill="url(#spine)" stroke="#ff554b" stroke-width="8" stroke-linejoin="round"/>
+<!-- Exposed, glossy fruit flesh -->
+<path d="M 480 321 C 625 292 752 371 754 508 C 758 649 641 732 506 697 C 436 648 420 576 420 504 C 420 411 440 361 480 321 Z" fill="url(#flesh)" stroke="#ffb95f" stroke-width="19"/>
+<path d="M 514 366 Q 622 339 680 424" fill="none" stroke="#fffaf4" stroke-width="21" stroke-linecap="round" opacity=".72"/>
+<!-- Three clear parallel planar print slices -->
+<path d="M 413 522 L 760 468 L 866 527 L 524 587 Z" fill="url(#layer)" stroke="#ffe4de" stroke-width="14" stroke-linejoin="round"/>
+<path d="M 413 622 L 760 568 L 866 627 L 524 687 Z" fill="url(#layer)" stroke="#ffe4de" stroke-width="14" stroke-linejoin="round"/>
+<path d="M 413 722 L 760 668 L 866 727 L 524 787 Z" fill="url(#layer)" stroke="#ffe4de" stroke-width="14" stroke-linejoin="round"/>
+</svg>

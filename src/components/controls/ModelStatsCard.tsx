@@ -6,7 +6,9 @@ import { Trans } from '@lingui/react/macro';
 import type { LoadedModel } from '@/features/scene/useSceneCollectionManager';
 import { useIsLinux } from '@/hooks/usePlatform';
 import { formatFileSize, formatPolygonCountCompact } from '@/utils/meshStatsFormatting';
+import { countConnectedMeshComponents } from '@/utils/geometry';
 import { useLocaleFormat } from '@/hooks/useLocaleFormat';
+import { splitDurationSeconds } from '@/utils/durationParts';
 import { resolveCompositeMaterialLabel } from '@/utils/materialLabel';
 import {
   getActiveMaterialProfile,
@@ -32,6 +34,9 @@ interface ModelStatsCardProps {
   heightMm: number;
   estimatedPrintTimeLabelOverride?: string | null;
   estimatedResinLabelOverride?: string | null;
+  estimatedModelResinLabelOverride?: string | null;
+  estimatedSupportsResinLabelOverride?: string | null;
+  estimatedRaftResinLabelOverride?: string | null;
   /**
    * The plate's layer count, as text. Distinct from `numLayers` because a plate
    * with nothing on it has zero layers, and zero must not fall back to the
@@ -51,11 +56,22 @@ export function ModelStatsCard({
   heightMm,
   estimatedPrintTimeLabelOverride,
   estimatedResinLabelOverride,
+  estimatedModelResinLabelOverride,
+  estimatedSupportsResinLabelOverride,
+  estimatedRaftResinLabelOverride,
   estimatedLayerCountLabelOverride,
   estimatedResinTotalLabel,
 }: ModelStatsCardProps) {
   const { _ } = useLingui();
   const fmt = useLocaleFormat();
+  const selectedGeometry = model?.geometry;
+  const shellCount = React.useMemo(() => {
+    if (!selectedGeometry) return null;
+    const reportedCount = selectedGeometry.meshDefects?.nativeRepairReport?.post.component_count;
+    return typeof reportedCount === 'number' && Number.isFinite(reportedCount)
+      ? reportedCount
+      : countConnectedMeshComponents(selectedGeometry.geometry);
+  }, [selectedGeometry]);
   const [isFlipped, setIsFlipped] = React.useState(false);
   // The app forces WebKitGTK's SHM software renderer on Linux
   // (WEBKIT_DISABLE_DMABUF_RENDERER=1 in main.rs, issue #83), and that path
@@ -202,9 +218,7 @@ export function ModelStatsCard({
   // form is one whole string so locales can set their own spacing and units.
   const formatDuration = (totalSeconds: number) => {
     const safeSeconds = Number.isFinite(totalSeconds) ? Math.max(0, Math.round(totalSeconds)) : 0;
-    const hours = Math.floor(safeSeconds / 3600);
-    const minutes = Math.floor((safeSeconds % 3600) / 60);
-    const seconds = safeSeconds % 60;
+    const { hours, minutes, seconds } = splitDurationSeconds(safeSeconds);
 
     if (hours > 0) return _(msg`${hours} h ${minutes} min`);
     if (minutes > 0) return _(msg`${minutes} min ${seconds} s`);
@@ -481,7 +495,8 @@ export function ModelStatsCard({
           <div
             className="[grid-area:1/1] w-full min-w-0 ui-panel rounded-md px-3 py-2.5 shadow-md space-y-1.5 flex flex-col"
             style={{
-              background: 'color-mix(in srgb, var(--surface-0), transparent 8%)',
+              background: 'linear-gradient(135deg, color-mix(in srgb, #ec4899 18%, var(--surface-0)), color-mix(in srgb, #8b5cf6 9%, var(--surface-0)) 60%, var(--surface-0))',
+              borderColor: 'color-mix(in srgb, #ec4899 45%, var(--border))',
               ...(useFlatFlip
                 ? { visibility: flatFlipShownFace === 'front' ? ('visible' as const) : ('hidden' as const) }
                 // The explicit identity transform forces Blink to backface-cull
@@ -490,7 +505,7 @@ export function ModelStatsCard({
                 : { backfaceVisibility: 'hidden' as const, transform: 'rotateY(0deg)' }),
             }}
           >
-            <div className="font-semibold text-[12px] truncate" style={{ color: frontHeaderColor }}>
+            <div className="font-semibold text-[12px] truncate border-b pb-1.5" style={{ color: frontHeaderColor, borderColor: 'color-mix(in srgb, #ec4899 30%, transparent)' }}>
               {frontHeader}
             </div>
 
@@ -548,8 +563,18 @@ export function ModelStatsCard({
                 {estimatedPrintTimeLabelOverride ?? (estimatedExposureOnlySeconds != null ? formatDuration(estimatedExposureOnlySeconds) : '-')}
               </span>
 
-              <span><Trans comment='Row label on the printer card: estimated resin volume. Keep it terse — the label column is narrow.'>Est. resin:</Trans></span>
-              <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>
+              {estimatedModelResinLabelOverride != null && (
+                <>
+                  <span><Trans>Model resin:</Trans></span>
+                  <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>{estimatedModelResinLabelOverride}</span>
+                  <span><Trans>Supports resin:</Trans></span>
+                  <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>{estimatedSupportsResinLabelOverride ?? '—'}</span>
+                  <span><Trans>Raft resin:</Trans></span>
+                  <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>{estimatedRaftResinLabelOverride ?? '—'}</span>
+                </>
+              )}
+              <span style={{ color: '#f9a8d4' }}><Trans comment='Row label on the printer card: estimated resin volume including models, supports, and rafts. Keep it terse — the label column is narrow.'>Total resin:</Trans></span>
+              <span className="min-w-0 truncate font-semibold" style={{ color: 'var(--text-strong)' }}>
                 {estimatedResinLabelOverride ?? (estimatedResinMl != null
                   ? `${fmt.quantity(estimatedResinMl, 2, 'ml')}${estimatedResinCost ? ` (${estimatedResinCost})` : ''}`
                   : '-')}
@@ -588,10 +613,10 @@ export function ModelStatsCard({
               <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>{model?.fileSizeBytes != null ? formatFileSize(model.fileSizeBytes, fmt) : '-'}</span>
 
               <span><Trans>Triangles:</Trans></span>
-              <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>{model ? formatPolygonCountCompact(model.polygonCount, fmt) : '-'}</span>
+              <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>{model ? formatPolygonCountCompact(model.geometry.sourceTriangleCount ?? model.polygonCount, fmt) : '-'}</span>
 
               <span><Trans comment='Row label on the model details card: number of separate connected surfaces ("shells"/bodies) in the mesh.'>Shells:</Trans></span>
-              <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>{model?.geometry.meshDefects?.nativeRepairReport?.post.component_count ?? '-'}</span>
+              <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>{shellCount != null ? fmt.fixed(shellCount, 0) : '-'}</span>
 
               <span><Trans>Height:</Trans></span>
               <span className="min-w-0 truncate" style={{ color: 'var(--text-strong)' }}>{model ? fmt.quantity(heightMm, 2, 'mm') : '-'}</span>

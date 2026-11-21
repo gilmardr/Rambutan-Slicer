@@ -32,10 +32,10 @@ interface JointRendererProps {
     attachedToDiskId?: string;
 }
 
-export function JointRenderer({ 
-    joint, 
-    color: propColor = '#c8752a', 
-    emissive: propEmissive = '#000000', 
+export function JointRenderer({
+    joint,
+    color: propColor = '#78c63f',
+    emissive: propEmissive = '#000000',
     emissiveIntensity: propEmissiveIntensity = 0,
     selectedColor: _selectedColor,
     onClick,

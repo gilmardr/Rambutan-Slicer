@@ -140,7 +140,7 @@ export function PrintingLayerGpuPreview({
     >
       <Canvas
         frameloop="demand"
-        dpr={[1, 1]}
+        dpr={[1, 2]}
         orthographic
         camera={{
           position: cameraPosition,
@@ -153,7 +153,7 @@ export function PrintingLayerGpuPreview({
           far: 2000,
         }}
         gl={{
-          antialias: false,
+          antialias: true,
           stencil: true,
           alpha: false,
           powerPreference: 'high-performance',

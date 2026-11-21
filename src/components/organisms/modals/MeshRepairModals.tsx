@@ -233,7 +233,7 @@ export function MeshRepairModals({
             <Trans>
               We recommend repairing the mesh in a dedicated 3D modeling
               program such as <strong>Blender</strong> or{' '}
-              <strong>Netfabb</strong> before importing it into DragonFruit.
+              <strong>Netfabb</strong> before importing it into 3DRESIN.
             </Trans>
           </p>
         </div>

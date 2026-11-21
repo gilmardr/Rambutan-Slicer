@@ -91,6 +91,6 @@ export const ANATOMY_CONFIG = {
     colors: {
         highlight: '#FD5290', // Pink for Active Focus
         dim: '#999999',       // Light Grey for Context
-        normal: '#c8752a',    // Standard Support Orange (Default)
+        normal: '#78c63f',    // Standard support color
     }
 };

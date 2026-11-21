@@ -52,7 +52,7 @@ export const BranchRenderer = React.memo(function BranchRenderer({
   deferStraightShaftsToSceneBatch = false,
   deferInteractionToSceneBatch = false,
   deferContactConesToSceneBatch = false,
-  baseColor = '#ff8800',
+  baseColor = '#78c63f',
   hoverColor,
   selectedColor = '#80fffd',
   onContactDiskHudHoverChange,

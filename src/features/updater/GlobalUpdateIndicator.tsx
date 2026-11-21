@@ -25,7 +25,7 @@ type IndicatorState =
 
 const STARTUP_CHECK_DELAY_MS = 5_000;
 const RE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
-const STORAGE_KEY_SUPPRESSED = 'dragonfruit-update-suppressed-version';
+const STORAGE_KEY_SUPPRESSED = '3dresin-update-suppressed-version';
 
 // ---------------------------------------------------------------------------
 // Component
@@ -59,7 +59,7 @@ export function GlobalUpdateIndicator() {
 
   // ── Silent background check ──────────────────────────────────────────
   useEffect(() => {
-    // Linux installs updates through Flatpak — nothing to check or offer here.
+    // Do not contact a release feed until Rambutan Slicer has its own signed channel.
     if (updatesAreExternal()) return;
 
     let channel: UpdateChannel = 'stable';
@@ -69,17 +69,7 @@ export function GlobalUpdateIndicator() {
       setState({ status: 'checking' });
 
       fetchUpdateInfo(channel, allowSame)
-        .then(async (info) => {
-          if (info && !info.body) {
-            try {
-              const ghRes = await fetch(`https://api.github.com/repos/Open-Resin-Alliance/DragonFruit/releases/tags/v${info.version}`);
-              if (ghRes.ok) {
-                const gh = await ghRes.json() as { body?: string; published_at?: string };
-                if (gh.body) info.body = gh.body as string;
-                if (gh.published_at && !info.date) info.date = gh.published_at as string;
-              }
-            } catch {}
-          }
+        .then((info) => {
           if (info) {
             const suppressed = (() => {
               try {

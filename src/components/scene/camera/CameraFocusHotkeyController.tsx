@@ -42,6 +42,8 @@ type CameraFocusHotkeyControllerProps = {
   cameraRef: React.MutableRefObject<THREE.Camera | null>;
   orbitControlsRef: React.MutableRefObject<{ target: THREE.Vector3; update: () => void } | null>;
   perspectiveFov?: number;
+  /** A one-shot world-space focus request emitted by analysis results. */
+  focusPointRequest?: { runId: number; center: [number, number, number]; radiusMm: number } | null;
   /**
    * A request to move the view to the plate being worked on, bumped when one is clicked:
    * a click on a bed picks what to work on, and the plate you picked may be off screen.
@@ -107,11 +109,13 @@ export function CameraFocusHotkeyController({
   cameraRef,
   orbitControlsRef,
   perspectiveFov = 50,
+  focusPointRequest,
 }: CameraFocusHotkeyControllerProps) {
   const { size } = useThree();
   const sizeRef = React.useRef(size);
   React.useEffect(() => { sizeRef.current = size; }, [size]);
   const transitionRef = React.useRef<FocusTransition | null>(null);
+  const lastFocusPointRunIdRef = React.useRef(0);
 
   useFrame(() => {
     const transition = transitionRef.current;
@@ -221,6 +225,13 @@ export function CameraFocusHotkeyController({
       prevEnabled,
     };
   }, [cameraRef, orbitControlsRef, perspectiveFov, setOrbitTargetFromPoint]);
+
+  React.useEffect(() => {
+    const request = focusPointRequest;
+    if (!request || request.runId === lastFocusPointRunIdRef.current) return;
+    lastFocusPointRunIdRef.current = request.runId;
+    snapCameraToPoint(new THREE.Vector3(...request.center), request.radiusMm);
+  }, [focusPointRequest, snapCameraToPoint]);
 
   // A clicked plate brings the view with it. The run id and the new active plate's centre
   // arrive in the same commit, so the pan reads the plate that was picked.

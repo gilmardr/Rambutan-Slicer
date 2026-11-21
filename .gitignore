@@ -20,6 +20,7 @@
 **/target/
 # per-variant build dirs from scripts/bench/run-slicing-bench.sh --codegen
 **/target-codegen-*/
+**/target-support-paint/
 src-tauri/frontend-dist/**
 src-tauri/gen/
 
@@ -102,6 +103,13 @@ src-tauri/binaries/dragonfruit-voxl-thumbnailer*
 
 # Local-only refactor scaffolding (golden masters + harness). Never commit.
 /local-only/
+
+# Copied from the installed manifold-3d package before dev/build.
+/public/vendor/manifold.wasm
+
+# Creality printer photos: redistribution permission not confirmed
+# (see plugins/creality/README.md). Kept local only; UI falls back to "No image".
+/plugins/creality/assets/
 
 # Directory-scoped agent notes: local working aids, not project docs.
 src/**/AGENTS.md

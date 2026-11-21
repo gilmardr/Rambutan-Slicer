@@ -6,8 +6,7 @@ import type {
   JointDragPreviewWorkerResponseMessage,
   RecordDelta,
 } from './jointDragPreview.worker.shared';
-
-type MutableRecord<T> = Record<string, T>;
+import { applyRecordDeltaInPlace } from './recordDelta';
 
 const cachedCollections: JointDragPreviewWorkerCollectionsRef = {
   roots: {},
@@ -16,26 +15,14 @@ const cachedCollections: JointDragPreviewWorkerCollectionsRef = {
   candidateKnots: {},
 };
 
-function applyRecordDelta<T>(target: MutableRecord<T>, delta?: RecordDelta<T>) {
-  if (!delta) return;
-
-  for (const id of delta.deleteIds) {
-    delete target[id];
-  }
-
-  for (const [id, value] of Object.entries(delta.upserts)) {
-    target[id] = value;
-  }
-}
-
 function applyInputDelta(msg: JointDragPreviewWorkerRequestMessage) {
   const delta = msg.delta;
   if (!delta) return;
 
-  applyRecordDelta(cachedCollections.roots, delta.roots);
-  applyRecordDelta(cachedCollections.knots, delta.knots);
-  applyRecordDelta(cachedCollections.kickstandKnots, delta.kickstandKnots);
-  applyRecordDelta(cachedCollections.candidateKnots, delta.candidateKnots);
+  applyRecordDeltaInPlace(cachedCollections.roots, delta.roots);
+  applyRecordDeltaInPlace(cachedCollections.knots, delta.knots);
+  applyRecordDeltaInPlace(cachedCollections.kickstandKnots, delta.kickstandKnots);
+  applyRecordDeltaInPlace(cachedCollections.candidateKnots, delta.candidateKnots);
 }
 
 function resolveContext(msg: JointDragPreviewWorkerRequestMessage) {

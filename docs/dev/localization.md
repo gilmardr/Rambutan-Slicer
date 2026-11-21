@@ -5,7 +5,9 @@ UI translations. Strings are marked in the source with the Lingui macros
 (`` t`…` ``, `` msg`…` `` resolved via `useLingui()`, or `<Trans>`), and the SWC
 plugin transforms them at build time.
 
-**Supported locales:** English (source), Spanish, German, French.
+**Supported locales:** English (source), Spanish, German, French, Slovak, Czech,
+and Brazilian Portuguese. The pt-BR catalog is wired into the app and language
+switcher; its translations are supplied through Crowdin.
 
 ## Catalogs
 
@@ -41,6 +43,10 @@ via the Crowdin GitHub Integration, which natively understands the gettext PO
 format used by Lingui. The integration watches the `dev` branch and handles
 everything automatically — no local tokens or CLI needed.
 
+The repo exports `pt-BR.po` for Brazilian Portuguese. `crowdin.yml` maps
+Crowdin's `pt` two-letter export name to that BCP 47 filename; the Crowdin
+project must also have Portuguese (Brazil) enabled as a target language.
+
 ### How it works
 
 When `en.po` changes on `dev`, Crowdin picks up the new source strings. When
@@ -59,8 +65,8 @@ git push               # Crowdin picks up the source changes
 ### Help translate
 
 Head to **[translate.dragonfruit-slicer.com](https://translate.dragonfruit-slicer.com/)**
-to contribute translations for Spanish, German, French, or request a new
-locale.
+to contribute translations for Spanish, German, French, Slovak, Czech, and
+Brazilian Portuguese, or request a new locale.
 
 ### Promoting a language to the app
 

@@ -52,6 +52,16 @@ const TENON_LENGTH_TO_WIDTH: f32 = 1.25;
 
 /// Top face linear scale relative to the base (taper): top is 50% of the base.
 const TENON_TOP_SCALE: f32 = 0.5;
+const CYLINDER_SEGMENTS: usize = 32;
+
+fn sanitize_mortise_chamfer(size_mm: f32, depth_mm: f32, dims: FrustumDims) -> (f32, f32) {
+    if !size_mm.is_finite() || !depth_mm.is_finite() || size_mm <= 0.0 || depth_mm <= 0.0 {
+        return (0.0, 0.0);
+    }
+    let size = size_mm.clamp(0.0, dims.width.min(dims.length) * 0.4);
+    let depth = depth_mm.clamp(0.0, dims.depth * 0.45);
+    if size < 1e-4 || depth < 1e-3 { (0.0, 0.0) } else { (size, depth) }
+}
 
 /// How far the tenon's base extends PAST the cut plane into the other half (mm), so
 /// the tenon overlaps part_a's solid for a clean boolean union (not a fragile flush
@@ -88,22 +98,28 @@ const TENON_DEPTH_MAX_MM: f32 = 50.0;
 pub const DEFAULT_TENON_WIDTH_MM: f32 = 2.0;
 pub const DEFAULT_TENON_DEPTH_MM: f32 = 2.5;
 
-/// The tenon SHAPE the user requested. Drives which rung the fit ladder starts on.
-/// (Distinct from [`TenonKind`], which is what actually got PLACED after the ladder.)
+/// The registration shape the user requested. Distinct from [`TenonKind`], which
+/// reports what the preview or cut actually built.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TenonShape {
     /// Tapered rectangular frustum (the default — rotation-locking).
     #[default]
     Frustum,
+    /// Straight-sided rectangular prism.
+    Rectangular,
+    /// Straight-sided circular prism.
+    Cylinder,
     /// Half-sphere dome (round, locates but does not lock rotation).
     Dome,
 }
 
 impl TenonShape {
-    /// Parse the camelCase string the frontend sends; unknown → Frustum.
+    /// Parse the lowercase string the frontend sends; unknown → Frustum.
     pub fn from_str_or_default(s: &str) -> Self {
         match s {
             "dome" => TenonShape::Dome,
+            "rectangular" => TenonShape::Rectangular,
+            "cylinder" => TenonShape::Cylinder,
             _ => TenonShape::Frustum,
         }
     }
@@ -112,9 +128,13 @@ impl TenonShape {
 /// Which kind of tenon actually got placed — drives the preview and the user alert.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TenonKind {
-    /// The primary tapered frustum (possibly shrunk to fit).
+    /// Tapered rectangular body.
     Frustum,
-    /// Half-sphere dome (chosen explicitly, OR the thin-part frustum fallback).
+    /// Straight-sided rectangular tenon.
+    Rectangular,
+    /// Straight-sided circular tenon.
+    Cylinder,
+    /// Half-sphere dome.
     Dome,
     /// No tenon placed (the part was too thin for any tenon).
     None,
@@ -124,6 +144,8 @@ impl TenonKind {
     pub fn as_str(self) -> &'static str {
         match self {
             TenonKind::Frustum => "frustum",
+            TenonKind::Rectangular => "rectangular",
+            TenonKind::Cylinder => "cylinder",
             TenonKind::Dome => "dome",
             TenonKind::None => "none",
         }
@@ -152,6 +174,10 @@ pub struct FrustumDims {
     pub length: f32,
     /// Depth into the body (along `axis`).
     pub depth: f32,
+    /// Top scale along the width axis. Defaults to the historical 50% tip.
+    pub top_width_scale: f32,
+    /// Top scale along the length axis. Defaults to the historical 50% tip.
+    pub top_length_scale: f32,
 }
 
 impl FrustumDims {
@@ -164,7 +190,25 @@ impl FrustumDims {
         let width = width_mm.clamp(TENON_WIDTH_MIN_MM, TENON_WIDTH_MAX_MM);
         let depth = depth_mm.clamp(TENON_DEPTH_MIN_MM, TENON_DEPTH_MAX_MM);
         let length = TENON_LENGTH_TO_WIDTH * width;
-        FrustumDims { width, length, depth }
+        FrustumDims {
+            width,
+            length,
+            depth,
+            top_width_scale: TENON_TOP_SCALE,
+            top_length_scale: TENON_TOP_SCALE,
+        }
+    }
+
+    /// Apply a side angle measured from the tenon's vertical walls. `None` keeps
+    /// the historical half-size tip; an explicit zero makes vertical walls.
+    pub fn with_taper_angle_degrees(mut self, angle_degrees: Option<f32>) -> Self {
+        let Some(angle) = angle_degrees.filter(|angle| angle.is_finite()) else {
+            return self;
+        };
+        let inset = self.depth * angle.clamp(0.0, 45.0).to_radians().tan();
+        self.top_width_scale = ((self.width - 2.0 * inset) / self.width).clamp(0.05, 1.0);
+        self.top_length_scale = ((self.length - 2.0 * inset) / self.length).clamp(0.05, 1.0);
+        self
     }
 }
 
@@ -176,6 +220,22 @@ pub struct DomeDims {
     pub half_w: f32,
     pub half_l: f32,
     pub depth: f32,
+}
+
+/// Circular tenon dimensions, in millimeters.
+#[derive(Debug, Clone, Copy)]
+pub struct CylinderDims {
+    pub diameter: f32,
+    pub depth: f32,
+}
+
+impl CylinderDims {
+    pub fn from_diameter_depth(diameter_mm: f32, depth_mm: f32) -> Self {
+        CylinderDims {
+            diameter: diameter_mm.clamp(TENON_WIDTH_MIN_MM, TENON_WIDTH_MAX_MM),
+            depth: depth_mm.clamp(TENON_DEPTH_MIN_MM, TENON_DEPTH_MAX_MM),
+        }
+    }
 }
 
 impl DomeDims {
@@ -199,7 +259,7 @@ pub struct TenonOutcome {
     pub part_a: IndexedMesh,
     pub part_b: IndexedMesh,
     pub kind: TenonKind,
-    /// Empty on a clean nominal frustum; otherwise WHY we shrank / fell back.
+    /// Empty on success; otherwise why placement or the boolean was refused.
     pub detail: String,
 }
 
@@ -597,12 +657,32 @@ fn build_frustum_leaned(
     fillet: f32,
     lean: LeanXform,
 ) -> IndexedMesh {
+    build_rectangular_leaned(
+        frame,
+        dims,
+        grow,
+        fillet,
+        (dims.top_width_scale, dims.top_length_scale),
+        lean,
+    )
+}
+
+/// Build the rectangular registration body with a configurable top scale. A scale
+/// of 1 keeps vertical walls; the frustum uses [`TENON_TOP_SCALE`].
+fn build_rectangular_leaned(
+    frame: &TenonFrame,
+    dims: FrustumDims,
+    grow: f32,
+    fillet: f32,
+    top_scale: (f32, f32),
+    lean: LeanXform,
+) -> IndexedMesh {
     let g = grow.max(0.0);
     // Half-extents at base and top, dilated by `grow`.
     let bw = dims.width * 0.5 + g; // base half-width
     let bl = dims.length * 0.5 + g; // base half-length
-    let tw = dims.width * TENON_TOP_SCALE * 0.5 + g; // top half-width
-    let tl = dims.length * TENON_TOP_SCALE * 0.5 + g; // top half-length
+    let tw = dims.width * top_scale.0 * 0.5 + g; // top half-width
+    let tl = dims.length * top_scale.1 * 0.5 + g; // top half-length
     // Base/mouth: behind the cut plane by `grow` (mortise clearance) PLUS the fixed
     // overlap that pushes the base into the other half for a solid boolean.
     // Base/mouth: behind the cut plane by `grow` (mortise clearance) PLUS the fixed
@@ -752,6 +832,151 @@ fn build_frustum_leaned(
     IndexedMesh { positions, triangles }
 }
 
+/// Build the circular tenon and its tolerance-expanded mortise.
+fn build_cylinder_leaned(
+    frame: &TenonFrame,
+    dims: CylinderDims,
+    grow: f32,
+    lean: LeanXform,
+) -> IndexedMesh {
+    let grow = grow.max(0.0);
+    let radius = (dims.diameter * 0.5 + grow).max(1e-4);
+    let z0 = -grow - TENON_BASE_OVERLAP_MM - lean.base_sink;
+    let z1 = dims.depth + grow;
+    let local = |x: f32, y: f32, z: f32| -> Vec3 {
+        let (x, y, z) = lean.apply(x, y, z);
+        frame
+            .anchor
+            .add(frame.u.scale(x))
+            .add(frame.v.scale(y))
+            .add(frame.axis.scale(z))
+    };
+
+    let mut positions = Vec::with_capacity(CYLINDER_SEGMENTS * 2 + 2);
+    for z in [z0, z1] {
+        for i in 0..CYLINDER_SEGMENTS {
+            let angle = std::f32::consts::TAU * i as f32 / CYLINDER_SEGMENTS as f32;
+            positions.push(local(radius * angle.cos(), radius * angle.sin(), z));
+        }
+    }
+    let base_center = positions.len() as u32;
+    positions.push(local(0.0, 0.0, z0));
+    let top_center = positions.len() as u32;
+    positions.push(local(0.0, 0.0, z1));
+
+    let mut triangles = Vec::with_capacity(CYLINDER_SEGMENTS * 4);
+    for i in 0..CYLINDER_SEGMENTS {
+        let next = (i + 1) % CYLINDER_SEGMENTS;
+        let b0 = i as u32;
+        let b1 = next as u32;
+        let t0 = (i + CYLINDER_SEGMENTS) as u32;
+        let t1 = (next + CYLINDER_SEGMENTS) as u32;
+        triangles.push([b0, b1, t1]);
+        triangles.push([b0, t1, t0]);
+        triangles.push([top_center, t0, t1]);
+        triangles.push([base_center, b1, b0]);
+    }
+    IndexedMesh { positions, triangles }
+}
+
+fn build_rectangular_chamfer_mouth(
+    frame: &TenonFrame,
+    dims: FrustumDims,
+    grow: f32,
+    top_scale: (f32, f32),
+    size: f32,
+    depth: f32,
+    lean: LeanXform,
+) -> IndexedMesh {
+    let grow = grow.max(0.0);
+    let mouth_depth = (depth + 0.02).min(dims.depth * 0.5);
+    let cut_z = -grow - TENON_BASE_OVERLAP_MM;
+    let base_z = cut_z - lean.base_sink;
+    let tip_z = dims.depth + grow;
+    let end_z = mouth_depth + grow;
+    let fraction = ((end_z - base_z) / (tip_z - base_z).max(1e-4)).clamp(0.0, 1.0);
+    let nominal_w = dims.width * 0.5 + grow;
+    let nominal_l = dims.length * 0.5 + grow;
+    let tip_w = dims.width * top_scale.0 * 0.5 + grow;
+    let tip_l = dims.length * top_scale.1 * 0.5 + grow;
+    let sink_ratio = if lean.base_sink > 0.0 {
+        (tip_z - base_z) / (tip_z - cut_z).max(1e-4)
+    } else {
+        1.0
+    };
+    let base_w = tip_w + (nominal_w - tip_w) * sink_ratio;
+    let base_l = tip_l + (nominal_l - tip_l) * sink_ratio;
+    let target_w = base_w + (tip_w - base_w) * fraction;
+    let target_l = base_l + (tip_l - base_l) * fraction;
+    let mouth_fraction = ((cut_z - base_z) / (end_z - base_z).max(1e-4)).clamp(0.0, 0.95);
+    let mouth_base_w = ((nominal_w + size - target_w * mouth_fraction) / (1.0 - mouth_fraction))
+        .max(target_w);
+    let mouth_base_l = ((nominal_l + size - target_l * mouth_fraction) / (1.0 - mouth_fraction))
+        .max(target_l);
+    build_sharp_frustum(frame, mouth_base_w, mouth_base_l, target_w, target_l, base_z, end_z, lean)
+}
+
+fn build_cylinder_chamfer_mouth(
+    frame: &TenonFrame,
+    dims: CylinderDims,
+    grow: f32,
+    size: f32,
+    depth: f32,
+    lean: LeanXform,
+) -> IndexedMesh {
+    let grow = grow.max(0.0);
+    let radius = (dims.diameter * 0.5 + grow).max(1e-4);
+    let mouth_depth = (depth + 0.02).min(dims.depth * 0.5);
+    let z0 = -grow - TENON_BASE_OVERLAP_MM - lean.base_sink;
+    let z1 = mouth_depth + grow;
+    let cut_z = -grow - TENON_BASE_OVERLAP_MM;
+    let cut_fraction = ((cut_z - z0) / (z1 - z0).max(1e-4)).clamp(0.0, 0.95);
+    let mouth_radius = ((radius + size - radius * cut_fraction) / (1.0 - cut_fraction))
+        .max(radius);
+    let local = |x: f32, y: f32, z: f32| -> Vec3 {
+        let (x, y, z) = lean.apply(x, y, z);
+        frame
+            .anchor
+            .add(frame.u.scale(x))
+            .add(frame.v.scale(y))
+            .add(frame.axis.scale(z))
+    };
+
+    let mut positions = Vec::with_capacity(CYLINDER_SEGMENTS * 2 + 2);
+    for (z, ring_radius) in [(z0, mouth_radius), (z1, radius)] {
+        for i in 0..CYLINDER_SEGMENTS {
+            let angle = std::f32::consts::TAU * i as f32 / CYLINDER_SEGMENTS as f32;
+            positions.push(local(ring_radius * angle.cos(), ring_radius * angle.sin(), z));
+        }
+    }
+    let base_center = positions.len() as u32;
+    positions.push(local(0.0, 0.0, z0));
+    let top_center = positions.len() as u32;
+    positions.push(local(0.0, 0.0, z1));
+
+    let mut triangles = Vec::with_capacity(CYLINDER_SEGMENTS * 4);
+    for i in 0..CYLINDER_SEGMENTS {
+        let next = (i + 1) % CYLINDER_SEGMENTS;
+        let b0 = i as u32;
+        let b1 = next as u32;
+        let t0 = (i + CYLINDER_SEGMENTS) as u32;
+        let t1 = (next + CYLINDER_SEGMENTS) as u32;
+        triangles.push([b0, b1, t1]);
+        triangles.push([b0, t1, t0]);
+        triangles.push([top_center, t0, t1]);
+        triangles.push([base_center, b1, b0]);
+    }
+    IndexedMesh { positions, triangles }
+}
+
+fn union_mortise_mouth(core: &IndexedMesh, mouth: Option<&IndexedMesh>) -> Result<IndexedMesh, String> {
+    let Some(mouth) = mouth else { return Ok(core.clone()) };
+    let core_solid = to_manifold(core).map_err(|e| format!("mortise invalid: {e}"))?;
+    let mouth_solid = to_manifold(mouth).map_err(|e| format!("mortise chamfer invalid: {e}"))?;
+    crate::membrane::manifold_to_indexed(&core_solid.union(&mouth_solid))
+        .ok_or_else(|| "mortise chamfer union produced empty result".to_string())
+}
+
 /// The sharp tapered box (the `fillet = 0` path), factored out so both the filleted
 /// and sharp builds share the half-extent / z math above.
 ///
@@ -832,6 +1057,8 @@ pub struct TenonPlan {
 #[derive(Debug, Clone, Copy)]
 pub enum TenonBody {
     Frustum(FrustumDims),
+    Rectangular(FrustumDims),
+    Cylinder(CylinderDims),
     Dome(DomeDims),
 }
 
@@ -885,6 +1112,8 @@ impl TenonPlan {
     pub fn kind(&self) -> TenonKind {
         match self.body {
             TenonBody::Frustum(_) => TenonKind::Frustum,
+            TenonBody::Rectangular(_) => TenonKind::Rectangular,
+            TenonBody::Cylinder(_) => TenonKind::Cylinder,
             TenonBody::Dome(_) => TenonKind::Dome,
         }
     }
@@ -902,6 +1131,8 @@ impl TenonPlan {
     fn depth(&self) -> f32 {
         match self.body {
             TenonBody::Frustum(d) => d.depth,
+            TenonBody::Rectangular(d) => d.depth,
+            TenonBody::Cylinder(d) => d.depth,
             TenonBody::Dome(d) => d.depth,
         }
     }
@@ -910,17 +1141,14 @@ impl TenonPlan {
     fn half_diag(&self, tolerance: f32) -> f32 {
         match self.body {
             TenonBody::Frustum(d) => 0.5 * d.width.hypot(d.length) + tolerance,
+            TenonBody::Rectangular(d) => 0.5 * d.width.hypot(d.length) + tolerance,
+            TenonBody::Cylinder(d) => d.diameter * 0.5 + tolerance,
             TenonBody::Dome(d) => d.half_w.max(d.half_l) + tolerance,
         }
     }
 }
 
-/// Decide the tenon: build what was asked for, and say whether it fits.
-///
-/// This used to be a **fit ladder** that shrank the frustum to whatever the walls
-/// allowed, then swapped it for a half-sphere, then gave up. All three rungs are
-/// gone. The user picks the shape and the size; this only measures. The dome is
-/// still a shape they can choose — it is no longer something we choose for them.
+/// Decide the registration body: build what was asked for, and say whether it fits.
 ///
 /// Clearance is measured against the **mortise** (the larger of tenon/mortise) so both
 /// halves keep ≥`TENON_WALL_MARGIN_MM` of material.
@@ -932,16 +1160,26 @@ fn decide_tenon(
     tolerance: f32,
     tilt: f32,
 ) -> TenonPlan {
-    let (body, fit) = if shape == TenonShape::Frustum {
-        (
+    let (body, fit) = match shape {
+        TenonShape::Frustum => (
             TenonBody::Frustum(nominal),
-            clearance.check_frustum(nominal, tolerance),
-        )
-    } else {
-        (
+            clearance.check_rectangular(nominal, tolerance),
+        ),
+        TenonShape::Rectangular => (
+            TenonBody::Rectangular(nominal),
+            clearance.check_rectangular(nominal, tolerance),
+        ),
+        TenonShape::Cylinder => {
+            let cylinder = CylinderDims::from_diameter_depth(nominal.width, nominal.depth);
+            (
+                TenonBody::Cylinder(cylinder),
+                clearance.check_cylinder(cylinder, tolerance),
+            )
+        }
+        TenonShape::Dome => (
             TenonBody::Dome(nominal_dome),
             clearance.check_dome(nominal_dome, tolerance),
-        )
+        ),
     };
     // Standing straight is only half the question: a tenon that fits upright can
     // still swing out through a wall once it leans.
@@ -1005,7 +1243,7 @@ fn check_lean(
     Ok(())
 }
 
-/// Place a tenon across the cut, honoring the fit ladder via [`decide_tenon`]. The
+/// Place a tenon across the cut, honoring the fit decision from [`decide_tenon`]. The
 /// chosen rung + reason ride back on the [`TenonOutcome`] so the report and the user
 /// alert agree with the preview.
 ///
@@ -1026,6 +1264,56 @@ pub fn apply_tenon(
     tolerance: f32,
     at: TenonAnchor,
 ) -> TenonOutcome {
+    apply_tenon_with_chamfer(
+        model, part_a, part_b, membrane, shape, swap_sides, tilt, width_mm, depth_mm, fillet_mm,
+        tolerance, 0.0, 0.0, at,
+    )
+}
+
+/// [`apply_tenon`] with an optional lead-in chamfer around the mortise mouth.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_tenon_with_chamfer(
+    model: &IndexedMesh,
+    part_a: IndexedMesh,
+    part_b: IndexedMesh,
+    membrane: &Membrane,
+    shape: TenonShape,
+    swap_sides: bool,
+    tilt: TenonTilt,
+    width_mm: f32,
+    depth_mm: f32,
+    fillet_mm: f32,
+    tolerance: f32,
+    chamfer_size_mm: f32,
+    chamfer_depth_mm: f32,
+    at: TenonAnchor,
+) -> TenonOutcome {
+    apply_tenon_with_chamfer_and_taper(
+        model, part_a, part_b, membrane, shape, swap_sides, tilt, width_mm, depth_mm, fillet_mm,
+        tolerance, chamfer_size_mm, chamfer_depth_mm, None, at,
+    )
+}
+
+/// [`apply_tenon_with_chamfer`] with an optional frustum side angle in degrees.
+/// `None` preserves the historical half-size tip.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_tenon_with_chamfer_and_taper(
+    model: &IndexedMesh,
+    part_a: IndexedMesh,
+    part_b: IndexedMesh,
+    membrane: &Membrane,
+    shape: TenonShape,
+    swap_sides: bool,
+    tilt: TenonTilt,
+    width_mm: f32,
+    depth_mm: f32,
+    fillet_mm: f32,
+    tolerance: f32,
+    chamfer_size_mm: f32,
+    chamfer_depth_mm: f32,
+    taper_angle_degrees: Option<f32>,
+    at: TenonAnchor,
+) -> TenonOutcome {
     let frame0 = match frame_from_membrane_at(membrane, at) {
         Some(f) => f,
         None => {
@@ -1038,9 +1326,9 @@ pub fn apply_tenon(
             };
         }
     };
-    apply_tenon_at_frame(
+    apply_tenon_at_frame_with_chamfer_and_taper(
         model, part_a, part_b, frame0, shape, swap_sides, tilt, width_mm, depth_mm, fillet_mm,
-        tolerance,
+        tolerance, chamfer_size_mm, chamfer_depth_mm, taper_angle_degrees,
     )
 }
 
@@ -1060,6 +1348,53 @@ pub fn apply_tenon_at_frame(
     depth_mm: f32,
     fillet_mm: f32,
     tolerance: f32,
+) -> TenonOutcome {
+    apply_tenon_at_frame_with_chamfer(
+        model, part_a, part_b, frame0, shape, swap_sides, tilt, width_mm, depth_mm, fillet_mm,
+        tolerance, 0.0, 0.0,
+    )
+}
+
+/// [`apply_tenon_at_frame`] with an optional mortise-mouth chamfer.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_tenon_at_frame_with_chamfer(
+    model: &IndexedMesh,
+    part_a: IndexedMesh,
+    part_b: IndexedMesh,
+    frame0: TenonFrame,
+    shape: TenonShape,
+    swap_sides: bool,
+    tilt: TenonTilt,
+    width_mm: f32,
+    depth_mm: f32,
+    fillet_mm: f32,
+    tolerance: f32,
+    chamfer_size_mm: f32,
+    chamfer_depth_mm: f32,
+) -> TenonOutcome {
+    apply_tenon_at_frame_with_chamfer_and_taper(
+        model, part_a, part_b, frame0, shape, swap_sides, tilt, width_mm, depth_mm, fillet_mm,
+        tolerance, chamfer_size_mm, chamfer_depth_mm, None,
+    )
+}
+
+/// [`apply_tenon_at_frame_with_chamfer`] with an optional frustum side angle.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_tenon_at_frame_with_chamfer_and_taper(
+    model: &IndexedMesh,
+    part_a: IndexedMesh,
+    part_b: IndexedMesh,
+    frame0: TenonFrame,
+    shape: TenonShape,
+    swap_sides: bool,
+    tilt: TenonTilt,
+    width_mm: f32,
+    depth_mm: f32,
+    fillet_mm: f32,
+    tolerance: f32,
+    chamfer_size_mm: f32,
+    chamfer_depth_mm: f32,
+    taper_angle_degrees: Option<f32>,
 ) -> TenonOutcome {
     let tolerance = sanitize_tolerance(tolerance);
     // Half the cutter thickness — how far each half's cut face sits from the
@@ -1088,15 +1423,22 @@ pub fn apply_tenon_at_frame(
     // material through the anchor, so the rays travel to the true outer walls.
     // (This matches the preview, which probes the model and sizes correctly.)
     let clearance = Clearance::probe(&frame, model, model);
-    let nominal = FrustumDims::from_width_depth(width_mm, depth_mm);
+    let nominal = FrustumDims::from_width_depth(width_mm, depth_mm)
+        .with_taper_angle_degrees(taper_angle_degrees);
     let nominal_dome = DomeDims::from_width_depth(width_mm, depth_mm);
-    let plan = decide_tenon(&clearance, nominal, nominal_dome, shape, tolerance, tilt.tilt.abs());
+    let (chamfer_size_mm, chamfer_depth_mm) = if shape == TenonShape::Dome {
+        (0.0, 0.0)
+    } else {
+        sanitize_mortise_chamfer(chamfer_size_mm, chamfer_depth_mm, nominal)
+    };
+    let fit_tolerance = tolerance + chamfer_size_mm;
+    let plan = decide_tenon(&clearance, nominal, nominal_dome, shape, fit_tolerance, tilt.tilt.abs());
     // The same containment check the preview runs, on the same frame, so what the
     // user saw refused in red is what the cut refuses.
     let plan = {
         let build_frame =
             frame_extruding_toward_part_b(&frame);
-        let lean = LeanXform::for_build(&tilt, TENON_MAX_TILT_RAD, plan.half_diag(tolerance));
+        let lean = LeanXform::for_build(&tilt, TENON_MAX_TILT_RAD, plan.half_diag(fit_tolerance));
         confirm_tenon_stays_inside(plan, model, &build_frame, lean)
     };
     // How far this placement can lean before the tenon leaves the material. The cut
@@ -1106,7 +1448,7 @@ pub fn apply_tenon_at_frame(
     // gizmo silently refuses to do. Only the hard ceiling remains.
     let max_tilt = TENON_MAX_TILT_RAD;
 
-    // The TenonOutcome from apply_frustum/apply_dome holds (tenon-half, mortise-half) in
+    // The shape builders return (tenon-half, mortise-half) in
     // (part_a, part_b). When we swapped roles above, swap them back so the returned
     // part_a/part_b match the caller's original orientation.
     let unswap = |mut out: TenonOutcome| -> TenonOutcome {
@@ -1133,7 +1475,11 @@ pub fn apply_tenon_at_frame(
 
     match plan.body {
         TenonBody::Frustum(dims) => {
-            let out = unswap(apply_frustum(part_a, part_b, &frame, tilt, dims, fillet_mm, tolerance, max_tilt));
+            let out = unswap(apply_rectangular(
+                part_a, part_b, &frame, tilt, dims, fillet_mm,
+                (dims.top_width_scale, dims.top_length_scale),
+                TenonKind::Frustum, tolerance, chamfer_size_mm, chamfer_depth_mm, max_tilt,
+            ));
             if out.kind == TenonKind::Frustum {
                 out
             } else {
@@ -1141,6 +1487,36 @@ pub fn apply_tenon_at_frame(
                 TenonOutcome {
                     kind: TenonKind::None,
                     detail: format!("No tenon placed — frustum boolean failed: {}", out.detail),
+                    ..out
+                }
+            }
+        }
+        TenonBody::Rectangular(dims) => {
+            let out = unswap(apply_rectangular(
+                part_a, part_b, &frame, tilt, dims, fillet_mm, (1.0, 1.0),
+                TenonKind::Rectangular, tolerance, chamfer_size_mm, chamfer_depth_mm, max_tilt,
+            ));
+            if out.kind == TenonKind::Rectangular {
+                out
+            } else {
+                TenonOutcome {
+                    kind: TenonKind::None,
+                    detail: format!("No tenon placed — rectangular tenon boolean failed: {}", out.detail),
+                    ..out
+                }
+            }
+        }
+        TenonBody::Cylinder(dims) => {
+            let out = unswap(apply_cylinder(
+                part_a, part_b, &frame, tilt, dims, tolerance, chamfer_size_mm, chamfer_depth_mm,
+                max_tilt,
+            ));
+            if out.kind == TenonKind::Cylinder {
+                out
+            } else {
+                TenonOutcome {
+                    kind: TenonKind::None,
+                    detail: format!("No tenon placed — cylinder boolean failed: {}", out.detail),
                     ..out
                 }
             }
@@ -1185,6 +1561,55 @@ pub fn build_tenon_preview_soup(
     tolerance: f32,
     at: TenonAnchor,
 ) -> Option<TenonPreview> {
+    build_tenon_preview_soup_with_chamfer(
+        model, loop_pts, membrane_smoothing, density, shape, swap_sides, tilt, width_mm, depth_mm,
+        fillet_mm, tolerance, 0.0, 0.0, at,
+    )
+}
+
+/// [`build_tenon_preview_soup`] with an optional mortise-mouth chamfer.
+#[allow(clippy::too_many_arguments)]
+pub fn build_tenon_preview_soup_with_chamfer(
+    model: &IndexedMesh,
+    loop_pts: &[Vec3],
+    membrane_smoothing: f32,
+    density: f32,
+    shape: TenonShape,
+    swap_sides: bool,
+    tilt: TenonTilt,
+    width_mm: f32,
+    depth_mm: f32,
+    fillet_mm: f32,
+    tolerance: f32,
+    chamfer_size_mm: f32,
+    chamfer_depth_mm: f32,
+    at: TenonAnchor,
+) -> Option<TenonPreview> {
+    build_tenon_preview_soup_with_chamfer_and_taper(
+        model, loop_pts, membrane_smoothing, density, shape, swap_sides, tilt, width_mm, depth_mm,
+        fillet_mm, tolerance, chamfer_size_mm, chamfer_depth_mm, None, at,
+    )
+}
+
+/// [`build_tenon_preview_soup_with_chamfer`] with an optional frustum side angle.
+#[allow(clippy::too_many_arguments)]
+pub fn build_tenon_preview_soup_with_chamfer_and_taper(
+    model: &IndexedMesh,
+    loop_pts: &[Vec3],
+    membrane_smoothing: f32,
+    density: f32,
+    shape: TenonShape,
+    swap_sides: bool,
+    tilt: TenonTilt,
+    width_mm: f32,
+    depth_mm: f32,
+    fillet_mm: f32,
+    tolerance: f32,
+    chamfer_size_mm: f32,
+    chamfer_depth_mm: f32,
+    taper_angle_degrees: Option<f32>,
+    at: TenonAnchor,
+) -> Option<TenonPreview> {
     use crate::membrane::{build_membrane_full, CONTOUR_SUBDIVISIONS, DEFAULT_GRID_DIVISIONS};
 
     let grid = DEFAULT_GRID_DIVISIONS * (density.clamp(1.0, 4.0) as f64);
@@ -1203,8 +1628,9 @@ pub fn build_tenon_preview_soup(
             })
         }
     };
-    Some(build_tenon_preview_at_frame(
+    Some(build_tenon_preview_at_frame_with_chamfer_and_taper(
         model, frame, shape, swap_sides, tilt, width_mm, depth_mm, fillet_mm, tolerance,
+        chamfer_size_mm, chamfer_depth_mm, taper_angle_degrees,
     ))
 }
 
@@ -1223,6 +1649,48 @@ pub fn build_tenon_preview_at_frame(
     fillet_mm: f32,
     tolerance: f32,
 ) -> TenonPreview {
+    build_tenon_preview_at_frame_with_chamfer(
+        model, frame, shape, swap_sides, tilt, width_mm, depth_mm, fillet_mm, tolerance, 0.0, 0.0,
+    )
+}
+
+/// [`build_tenon_preview_at_frame`] with an optional mortise-mouth chamfer.
+#[allow(clippy::too_many_arguments)]
+pub fn build_tenon_preview_at_frame_with_chamfer(
+    model: &IndexedMesh,
+    frame: TenonFrame,
+    shape: TenonShape,
+    swap_sides: bool,
+    tilt: TenonTilt,
+    width_mm: f32,
+    depth_mm: f32,
+    fillet_mm: f32,
+    tolerance: f32,
+    chamfer_size_mm: f32,
+    chamfer_depth_mm: f32,
+) -> TenonPreview {
+    build_tenon_preview_at_frame_with_chamfer_and_taper(
+        model, frame, shape, swap_sides, tilt, width_mm, depth_mm, fillet_mm, tolerance,
+        chamfer_size_mm, chamfer_depth_mm, None,
+    )
+}
+
+/// [`build_tenon_preview_at_frame_with_chamfer`] with an optional frustum side angle.
+#[allow(clippy::too_many_arguments)]
+pub fn build_tenon_preview_at_frame_with_chamfer_and_taper(
+    model: &IndexedMesh,
+    frame: TenonFrame,
+    shape: TenonShape,
+    swap_sides: bool,
+    tilt: TenonTilt,
+    width_mm: f32,
+    depth_mm: f32,
+    fillet_mm: f32,
+    tolerance: f32,
+    chamfer_size_mm: f32,
+    chamfer_depth_mm: f32,
+    taper_angle_degrees: Option<f32>,
+) -> TenonPreview {
     let tolerance = sanitize_tolerance(tolerance);
 
     // At preview time the body isn't split yet; probe clearance against the whole
@@ -1231,15 +1699,22 @@ pub fn build_tenon_preview_at_frame(
     // a rigid rotation, not folded into the probe frame (matches `apply_tenon`).
     let placed = if swap_sides { flip_frame_sides(&frame) } else { frame };
     let clearance = Clearance::probe(&placed, model, model);
-    let nominal = FrustumDims::from_width_depth(width_mm, depth_mm);
+    let nominal = FrustumDims::from_width_depth(width_mm, depth_mm)
+        .with_taper_angle_degrees(taper_angle_degrees);
     let nominal_dome = DomeDims::from_width_depth(width_mm, depth_mm);
-    let plan = decide_tenon(&clearance, nominal, nominal_dome, shape, tolerance, tilt.tilt.abs());
+    let (chamfer_size_mm, chamfer_depth_mm) = if shape == TenonShape::Dome {
+        (0.0, 0.0)
+    } else {
+        sanitize_mortise_chamfer(chamfer_size_mm, chamfer_depth_mm, nominal)
+    };
+    let fit_tolerance = tolerance + chamfer_size_mm;
+    let plan = decide_tenon(&clearance, nominal, nominal_dome, shape, fit_tolerance, tilt.tilt.abs());
     // The build frame must MATCH what `apply_tenon` uses so the preview is exactly
     // what cuts: extrude the tenon toward part_b, with the rigid lean about the base.
     let build_frame = frame_extruding_toward_part_b(&placed);
     // Sink uses the base half-diagonal so the tilted base stays buried (matches
-    // apply_frustum/apply_dome; the mortise footprint is a hair larger).
-    let half_diag = plan.half_diag(tolerance);
+    // the shape builders; the mortise footprint is a hair larger).
+    let half_diag = plan.half_diag(fit_tolerance);
     // The lean is no longer capped by the room around the tenon — leaning it too
     // far is a thing the fit VERDICT reports (see `check_lean`), not a thing the
     // gizmo silently refuses to do. Only the hard ceiling remains.
@@ -1287,8 +1762,63 @@ pub fn build_tenon_preview_at_frame(
             // cuts (rigid lean applied identically, mortise fillet = tenon fillet + tol).
             append_soup(&mut soup, &build_frustum_leaned(&build_frame, dims, 0.0, fillet_mm, soup_lean));
             tenon_triangles = soup.len() / 9;
-            append_soup(&mut soup, &build_frustum_leaned(&build_frame, dims, tolerance, fillet_mm + tolerance, soup_lean));
+            let mortise_core = build_frustum_leaned(
+                &build_frame, dims, tolerance, fillet_mm + tolerance, soup_lean,
+            );
+            let mortise_mouth = (chamfer_size_mm > 0.0).then(|| {
+                build_rectangular_chamfer_mouth(
+                    &build_frame, dims, tolerance,
+                    (dims.top_width_scale, dims.top_length_scale), chamfer_size_mm,
+                    chamfer_depth_mm, soup_lean,
+                )
+            });
+            let mortise = union_mortise_mouth(&mortise_core, mortise_mouth.as_ref())
+                .unwrap_or(mortise_core);
+            append_soup(&mut soup, &mortise);
             TenonKind::Frustum
+        }
+        TenonBody::Rectangular(dims) => {
+            append_soup(
+                &mut soup,
+                &build_rectangular_leaned(&build_frame, dims, 0.0, fillet_mm, (1.0, 1.0), soup_lean),
+            );
+            tenon_triangles = soup.len() / 9;
+            let mortise_core = build_rectangular_leaned(
+                &build_frame, dims, tolerance, fillet_mm + tolerance, (1.0, 1.0), soup_lean,
+            );
+            let mortise_mouth = (chamfer_size_mm > 0.0).then(|| {
+                build_rectangular_chamfer_mouth(
+                    &build_frame, dims, tolerance, (1.0, 1.0), chamfer_size_mm,
+                    chamfer_depth_mm, soup_lean,
+                )
+            });
+            let mortise = union_mortise_mouth(&mortise_core, mortise_mouth.as_ref())
+                .unwrap_or(mortise_core);
+            append_soup(&mut soup, &mortise);
+            TenonKind::Rectangular
+        }
+        TenonBody::Cylinder(dims) => {
+            append_soup(&mut soup, &build_cylinder_leaned(&build_frame, dims, 0.0, soup_lean));
+            tenon_triangles = soup.len() / 9;
+            let mortise_core = build_cylinder_leaned(&build_frame, dims, tolerance, soup_lean);
+            let chamfer_dims = FrustumDims {
+                width: dims.diameter,
+                length: dims.diameter,
+                depth: dims.depth,
+                top_width_scale: 1.0,
+                top_length_scale: 1.0,
+            };
+            let (chamfer_size, chamfer_depth) =
+                sanitize_mortise_chamfer(chamfer_size_mm, chamfer_depth_mm, chamfer_dims);
+            let mortise_mouth = (chamfer_size > 0.0).then(|| {
+                build_cylinder_chamfer_mouth(
+                    &build_frame, dims, tolerance, chamfer_size, chamfer_depth, soup_lean,
+                )
+            });
+            let mortise = union_mortise_mouth(&mortise_core, mortise_mouth.as_ref())
+                .unwrap_or(mortise_core);
+            append_soup(&mut soup, &mortise);
+            TenonKind::Cylinder
         }
         TenonBody::Dome(dims) => {
             append_soup(&mut soup, &build_dome_leaned(&build_frame, dims.half_w, dims.half_l, dims.depth, 0.0, DOME_SEGMENTS, soup_lean));
@@ -1315,7 +1845,7 @@ pub struct TenonPreview {
     pub soup: Vec<f32>,
     /// How many of `soup`'s triangles belong to the TENON.
     pub tenon_triangles: usize,
-    /// Which shape is DRAWN (frustum / dome). Says nothing about whether it fits —
+    /// Which registration shape is drawn. Says nothing about whether it fits —
     /// see `fits`, which is what decides the colour and whether the cut is allowed.
     pub kind: TenonKind,
     /// Whether this tenon can actually be placed where the user put it. `false`
@@ -1412,14 +1942,18 @@ fn append_soup(soup: &mut Vec<f32>, mesh: &IndexedMesh) {
 /// whose body+tip extend toward part_b. The union with part_a bonds along the cut
 /// face; the difference carves the matching cavity from part_b in the same place.
 #[allow(clippy::too_many_arguments)]
-fn apply_frustum(
+fn apply_rectangular(
     part_a: IndexedMesh,
     part_b: IndexedMesh,
     frame: &TenonFrame,
     tilt: TenonTilt,
     dims: FrustumDims,
     fillet: f32,
+    top_scale: (f32, f32),
+    kind: TenonKind,
     tolerance: f32,
+    chamfer_size_mm: f32,
+    chamfer_depth_mm: f32,
     max_tilt: f32,
 ) -> TenonOutcome {
     // Base sunk half a kerf into part_a's material (`dims` already carries the
@@ -1430,19 +1964,29 @@ fn apply_frustum(
     // face. Tenon and mortise share the SAME lean so the mortise follows the tenon exactly.
     // The lean's sink depends on the base half-diagonal so the tilted base stays
     // buried. Use the MORTISE's footprint (slightly larger) so both share one sink.
-    let half_diag = 0.5 * ((dims.width).hypot(dims.length)) + tolerance;
+    let (chamfer_size, chamfer_depth) =
+        sanitize_mortise_chamfer(chamfer_size_mm, chamfer_depth_mm, dims);
+    let half_diag = 0.5 * ((dims.width).hypot(dims.length)) + tolerance + chamfer_size;
     let lean = LeanXform::for_build(&tilt, max_tilt, half_diag);
-    let tenon_mesh = build_frustum_leaned(&build_frame, dims, 0.0, fillet, lean);
+    let tenon_mesh = build_rectangular_leaned(&build_frame, dims, 0.0, fillet, top_scale, lean);
     // The mortise is the tenon offset outward by `tolerance`; a uniform offset of a
     // rounded-rect grows the corner radius by the same amount, so the mortise's fillet
     // is tenon fillet + tolerance. The lean is a rigid rotation applied identically to
     // both, so the dilated mortise provably contains the leaned tenon.
-    let mortise_mesh = build_frustum_leaned(&build_frame, dims, tolerance, fillet + tolerance, lean);
+    let mortise_core = build_rectangular_leaned(
+        &build_frame, dims, tolerance, fillet + tolerance, top_scale, lean,
+    );
+    let chamfer_mouth = (chamfer_size > 0.0).then(|| {
+        build_rectangular_chamfer_mouth(
+            &build_frame, dims, tolerance, top_scale, chamfer_size, chamfer_depth, lean,
+        )
+    });
 
     let result = (|| -> Result<(IndexedMesh, IndexedMesh), String> {
         let a = to_manifold(&part_a).map_err(|e| format!("part_a invalid: {e}"))?;
         let b = to_manifold(&part_b).map_err(|e| format!("part_b invalid: {e}"))?;
         let tenon = to_manifold(&tenon_mesh).map_err(|e| format!("tenon invalid: {e}"))?;
+        let mortise_mesh = union_mortise_mouth(&mortise_core, chamfer_mouth.as_ref())?;
         let mortise = to_manifold(&mortise_mesh).map_err(|e| format!("mortise invalid: {e}"))?;
 
         let a_tenoned = a.union(&tenon);
@@ -1459,7 +2003,69 @@ fn apply_frustum(
         Ok((a_out, b_out)) => TenonOutcome {
             part_a: a_out,
             part_b: b_out,
-            kind: TenonKind::Frustum,
+            kind,
+            detail: String::new(),
+        },
+        Err(reason) => TenonOutcome {
+            part_a,
+            part_b,
+            kind: TenonKind::None,
+            detail: format!("tenon skipped: {reason}"),
+        },
+    }
+}
+
+fn apply_cylinder(
+    part_a: IndexedMesh,
+    part_b: IndexedMesh,
+    frame: &TenonFrame,
+    tilt: TenonTilt,
+    dims: CylinderDims,
+    tolerance: f32,
+    chamfer_size_mm: f32,
+    chamfer_depth_mm: f32,
+    max_tilt: f32,
+) -> TenonOutcome {
+    let build_frame = frame_extruding_toward_part_b(frame);
+    let chamfer_dims = FrustumDims {
+        width: dims.diameter,
+        length: dims.diameter,
+        depth: dims.depth,
+        top_width_scale: 1.0,
+        top_length_scale: 1.0,
+    };
+    let (chamfer_size, chamfer_depth) =
+        sanitize_mortise_chamfer(chamfer_size_mm, chamfer_depth_mm, chamfer_dims);
+    let half_diag = dims.diameter * 0.5 + tolerance + chamfer_size;
+    let lean = LeanXform::for_build(&tilt, max_tilt, half_diag);
+    let tenon_mesh = build_cylinder_leaned(&build_frame, dims, 0.0, lean);
+    let mortise_core = build_cylinder_leaned(&build_frame, dims, tolerance, lean);
+    let chamfer_mouth = (chamfer_size > 0.0).then(|| {
+        build_cylinder_chamfer_mouth(
+            &build_frame, dims, tolerance, chamfer_size, chamfer_depth, lean,
+        )
+    });
+
+    let result = (|| -> Result<(IndexedMesh, IndexedMesh), String> {
+        let a = to_manifold(&part_a).map_err(|e| format!("part_a invalid: {e}"))?;
+        let b = to_manifold(&part_b).map_err(|e| format!("part_b invalid: {e}"))?;
+        let tenon = to_manifold(&tenon_mesh).map_err(|e| format!("tenon invalid: {e}"))?;
+        let mortise_mesh = union_mortise_mouth(&mortise_core, chamfer_mouth.as_ref())?;
+        let mortise = to_manifold(&mortise_mesh).map_err(|e| format!("mortise invalid: {e}"))?;
+        let a_tenoned = a.union(&tenon);
+        let b_tenoned = b.difference(&mortise);
+        let a_out = crate::membrane::manifold_to_indexed(&a_tenoned)
+            .ok_or("part_a union produced empty result")?;
+        let b_out = crate::membrane::manifold_to_indexed(&b_tenoned)
+            .ok_or("part_b difference produced empty result")?;
+        Ok((a_out, b_out))
+    })();
+
+    match result {
+        Ok((a_out, b_out)) => TenonOutcome {
+            part_a: a_out,
+            part_b: b_out,
+            kind: TenonKind::Cylinder,
             detail: String::new(),
         },
         Err(reason) => TenonOutcome {
@@ -1533,12 +2139,12 @@ impl Clearance {
         self.lat_v_neg.min(self.lat_v_pos)
     }
 
-    /// Does the requested frustum fit here? Measured against the MORTISE (tenon +
-    /// tolerance) plus the 1 mm wall margin, so both halves keep their material.
+    /// Does the requested rectangular footprint fit here? Measured against the
+    /// mortise (tenon + tolerance) plus the wall margin.
     ///
     /// Reports the tightest violation, in the user's units: the room there is and
     /// the room it needs, so the message can name a number they can act on.
-    fn check_frustum(
+    fn check_rectangular(
         &self,
         nominal: FrustumDims,
         tolerance: f32,
@@ -1578,7 +2184,7 @@ impl Clearance {
         Ok(())
     }
 
-    /// [`Clearance::check_frustum`] for the oblong dome: same margins, measured
+    /// Same wall-margin checks for the oblong dome, measured
     /// against the half-ellipsoid's semi-axes and bulge depth.
     fn check_dome(
         &self,
@@ -1606,6 +2212,31 @@ impl Clearance {
                     needed_mm: needed,
                 });
             }
+        }
+        Ok(())
+    }
+
+    fn check_cylinder(
+        &self,
+        nominal: CylinderDims,
+        tolerance: f32,
+    ) -> Result<(), TenonProblem> {
+        let m = TENON_WALL_MARGIN_MM;
+        let tol = tolerance.max(0.0);
+        let needed_depth = nominal.depth + tol + m;
+        if self.depth_b < needed_depth {
+            return Err(TenonProblem::TooShallow {
+                room_mm: self.depth_b,
+                needed_mm: needed_depth,
+            });
+        }
+        let room = self.half_room_u().min(self.half_room_v()) * 2.0;
+        let needed = nominal.diameter + 2.0 * (tol + m);
+        if room < needed {
+            return Err(TenonProblem::TooNarrow {
+                room_mm: room,
+                needed_mm: needed,
+            });
         }
         Ok(())
     }
@@ -1649,12 +2280,30 @@ fn confirm_tenon_stays_inside(
         return plan; // already refused, for a reason that is more use than this one
     }
     let depth = plan.depth();
-    let (hw, hl) = match plan.body {
-        TenonBody::Frustum(d) => (0.5 * d.width * TENON_TOP_SCALE, 0.5 * d.length * TENON_TOP_SCALE),
+    let cap: Vec<(f32, f32)> = match plan.body {
+        TenonBody::Frustum(d) => {
+            let (hw, hl) = (
+                0.5 * d.width * d.top_width_scale,
+                0.5 * d.length * d.top_length_scale,
+            );
+            vec![(0.0, 0.0), (hw, hl), (-hw, hl), (hw, -hl), (-hw, -hl)]
+        }
+        TenonBody::Rectangular(d) => {
+            let (hw, hl) = (0.5 * d.width, 0.5 * d.length);
+            vec![(0.0, 0.0), (hw, hl), (-hw, hl), (hw, -hl), (-hw, -hl)]
+        }
+        TenonBody::Cylinder(d) => {
+            let mut points = vec![(0.0, 0.0)];
+            points.extend((0..8).map(|i| {
+                let angle = std::f32::consts::TAU * i as f32 / 8.0;
+                let radius = d.diameter * 0.5;
+                (radius * angle.cos(), radius * angle.sin())
+            }));
+            points
+        }
         // A dome's cap is a point, so its corners are the point too.
-        TenonBody::Dome(_) => (0.0, 0.0),
+        TenonBody::Dome(_) => vec![(0.0, 0.0)],
     };
-    let cap = [(0.0, 0.0), (hw, hl), (-hw, hl), (hw, -hl), (-hw, -hl)];
     for (dx, dy) in cap {
         let (x, y, z) = lean.apply(dx, dy, depth);
         let p = build_frame

@@ -5,6 +5,7 @@ import { ScrollableNumberField } from '@/components/ui/scrollableNumberField';
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
+import type { HolePunchVerificationResult } from './holePunchVerification';
 
 export interface HolePunchPanelState {
   radiusMm: number;
@@ -25,6 +26,9 @@ interface HolePunchPanelProps {
   disabled?: boolean;
   interiorView?: boolean;
   interiorViewAvailable?: boolean;
+  verificationResults?: HolePunchVerificationResult[];
+  canVerify?: boolean;
+  onVerify?: () => void;
 }
 
 export function HolePunchPanel({
@@ -39,6 +43,9 @@ export function HolePunchPanel({
   disabled = false,
   interiorView = false,
   interiorViewAvailable = false,
+  verificationResults = [],
+  canVerify = false,
+  onVerify,
 }: HolePunchPanelProps) {
   const { _ } = useLingui();
   const [expanded, setExpanded] = React.useState(true);
@@ -105,7 +112,7 @@ export function HolePunchPanel({
               <div className="ui-meta text-xs" style={{ color: 'var(--accent-secondary-action-color)' }}><Trans>Interior View Mode</Trans></div>
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                  Press <kbd className="px-1 rounded text-xs font-medium" style={{ background: 'var(--surface-2)', color: '#baf72e' }}>X</kbd> for <strong style={{ color: 'var(--accent-secondary-action-color)' }}>{interiorView ? 'Exterior View' : 'Interior View'}</strong>
+                  Press <kbd className="px-1 rounded text-xs font-medium" style={{ background: 'var(--surface-2)', color: '#ffb45d' }}>X</kbd> for <strong style={{ color: 'var(--accent-secondary-action-color)' }}>{interiorView ? 'Exterior View' : 'Interior View'}</strong>
                 </span>
               </div>
             </div>
@@ -253,6 +260,46 @@ export function HolePunchPanel({
                 <span>{isApplying ? <Trans>Applying…</Trans> : <Trans>Apply</Trans>}</span>
               </span>
             </Button>
+          </div>
+
+          <div className="rounded-md border p-2 space-y-2" style={cardStyle}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="ui-meta" style={{ color: 'var(--text-muted)' }}><Trans>3D Hole Verification</Trans></div>
+              <Button
+                variant="secondary"
+                size="auto"
+                className="!h-7 px-2 text-[10px] sm:text-[11px]"
+                onClick={onVerify}
+                disabled={disabled || isApplying || !canVerify || !onVerify}
+              >
+                <Trans>Verify</Trans>
+              </Button>
+            </div>
+            {verificationResults.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  <Trans>Results are geometric estimates. Open or complex meshes may need manual review.</Trans>
+                </div>
+                {verificationResults.map((result) => {
+                  const statusColor = result.status === 'confirmed'
+                    ? 'var(--success)'
+                    : result.status === 'too-shallow'
+                      ? 'var(--danger)'
+                      : 'var(--accent-secondary)';
+                  return (
+                    <div
+                      key={result.placementId}
+                      className="rounded border px-2 py-1 text-[10px]"
+                      style={{ borderColor: 'var(--border-subtle)', color: statusColor }}
+                    >
+                      {result.status === 'confirmed' && <Trans>Connected to cavity</Trans>}
+                      {result.status === 'too-shallow' && <Trans>Increase the depth to reach the cavity</Trans>}
+                      {result.status === 'uncertain' && <Trans>Could not confirm a hollow path</Trans>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

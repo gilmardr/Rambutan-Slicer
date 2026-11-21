@@ -20,17 +20,20 @@ export interface SizingBand {
 }
 
 /**
- * The three factory Support Studio presets, whose bands `SIZING_BANDS` mirrors.
- * `presetForArea` still names the tier a supported area falls in for the forest
- * ledger, and the load budget weighs a support's cross-section against them.
+ * The three analytic sizing bands used to classify placed supports for the forest
+ * ledger and load budget. Other Support Studio profiles (such as Interior Pillar)
+ * can size a run without adding an analytic area tier.
  */
 export type SizingPreset = 'detail' | 'structure' | 'anchor';
 
+/** Which classified model surfaces an automatic support run may target. */
+export type AutoSupportScope = 'combined' | 'exterior' | 'interior';
+
 /**
- * The factory bands, mirroring what the three factory Support Studio presets
- * carry (detail / structure / anchor). Two consumers: the auto-support built-in
- * presets name these tiers, and the *fallback* `activeSizingBand()` uses when the
- * id in the settings names no preset at all (`structure` is the baseline).
+ * The factory bands, mirroring the analytic Detail / Structure / Anchor tiers.
+ * Auto-support built-ins name these tiers; Interior Pillar is resolved through its
+ * Support Studio profile. The fallback `activeSizingBand()` uses `structure` when
+ * the id in settings names no preset at all.
  */
 export const SIZING_BANDS: Record<SizingPreset, SizingBand> = {
     detail: {
@@ -106,6 +109,8 @@ export interface AutoSupportSettings {
      * structure band rather than failing the run.
      */
     sizingPreset: string;
+    /** Which classified model surfaces an automatic support run may target. */
+    supportScope: AutoSupportScope;
     /** Leaf fanning: max horizontal reach from a trunk shaft (mm). */
     leafFanRadiusMm: number;
     /** Leaf fanning: max angle from vertical for a fan leaf (deg). */
@@ -209,13 +214,13 @@ export const AUTO_SUPPORT_CONSTRAINTS = {
     minIslandAreaMm2: { min: 0.01, max: 10, step: 0.01, defaultValue: 0.02 },
     tipInfluenceRadiusMm: { min: 0.1, max: 10, step: 0.1, defaultValue: 0.5 },
     maxAttachmentsPerTrunk: { min: 2, max: 50, step: 1, defaultValue: 12, integer: true },
-    areaPerSupportMm2: { min: 1, max: 30, step: 0.5, defaultValue: 10 },
+    areaPerSupportMm2: { min: 1, max: 30, step: 0.5, defaultValue: 20 },
     gridAreaThresholdMm2: { min: 5, max: 200, step: 5, defaultValue: 25 },
     overhangSelfSupportAngleDeg: { min: 20, max: 75, step: 5, defaultValue: 45 },
     sizeScale: { min: 0.5, max: 2, step: 0.05, defaultValue: 1 },
-    flatDensityBoost: { min: 0.5, max: 1, step: 0.05, defaultValue: 0.7 },
+    flatDensityBoost: { min: 0.5, max: 1, step: 0.05, defaultValue: 0.95 },
     slopeRelaxFactor: { min: 1, max: 2, step: 0.1, defaultValue: 1.3 },
-    suctionAreaExponent: { min: 0, max: 0.4, step: 0.05, defaultValue: 0.15 },
+    suctionAreaExponent: { min: 0, max: 0.4, step: 0.05, defaultValue: 0.05 },
     coverageTargetPercent: { min: 75, max: 100, step: 5, defaultValue: 95, integer: true },
     leafFanRadiusMm: { min: MIN_LEAF_FAN_RADIUS_MM, max: 15, step: 0.5, defaultValue: MIN_LEAF_FAN_RADIUS_MM },
     leafFanMaxAngleDeg: { min: 20, max: 80, step: 5, defaultValue: 45, integer: true },
@@ -271,6 +276,7 @@ export function createDefaultAutoSupportSettings(): AutoSupportSettings {
         suctionAreaExponent: AUTO_SUPPORT_CONSTRAINTS.suctionAreaExponent.defaultValue,
         coverageTargetPercent: AUTO_SUPPORT_CONSTRAINTS.coverageTargetPercent.defaultValue,
         sizingPreset: 'structure',
+        supportScope: 'combined',
         leafFanRadiusMm: AUTO_SUPPORT_CONSTRAINTS.leafFanRadiusMm.defaultValue,
         leafFanMaxAngleDeg: AUTO_SUPPORT_CONSTRAINTS.leafFanMaxAngleDeg.defaultValue,
         tipContactMarginScale: AUTO_SUPPORT_CONSTRAINTS.tipContactMarginScale.defaultValue,
@@ -308,6 +314,7 @@ export function normalizeAutoSupportSettings(input?: Partial<AutoSupportSettings
         suctionAreaExponent: clampNumeric(source.suctionAreaExponent, AUTO_SUPPORT_CONSTRAINTS.suctionAreaExponent),
         coverageTargetPercent: clampNumeric(source.coverageTargetPercent, AUTO_SUPPORT_CONSTRAINTS.coverageTargetPercent),
         sizingPreset: normalizeSizingPreset(source.sizingPreset, defaults.sizingPreset),
+        supportScope: normalizeSupportScope(source.supportScope, defaults.supportScope),
         leafFanRadiusMm: clampNumeric(source.leafFanRadiusMm, AUTO_SUPPORT_CONSTRAINTS.leafFanRadiusMm),
         leafFanMaxAngleDeg: clampNumeric(source.leafFanMaxAngleDeg, AUTO_SUPPORT_CONSTRAINTS.leafFanMaxAngleDeg),
         tipContactMarginScale: clampNumeric(source.tipContactMarginScale, AUTO_SUPPORT_CONSTRAINTS.tipContactMarginScale),
@@ -324,6 +331,10 @@ export function normalizeAutoSupportSettings(input?: Partial<AutoSupportSettings
             defaults.minimaReinforcementEnabled,
         ),
     };
+}
+
+function normalizeSupportScope(value: unknown, fallback: AutoSupportScope): AutoSupportScope {
+    return value === 'combined' || value === 'exterior' || value === 'interior' ? value : fallback;
 }
 
 export function applyAutoSupportSettingsPatch(

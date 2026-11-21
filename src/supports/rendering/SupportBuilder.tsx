@@ -98,7 +98,7 @@ const PREVIEW_OPACITY = 0.5;
 const PREVIEW_ERROR_OPACITY = 0.15;
 
 // Normal material settings
-const NORMAL_COLOR = '#c8752a';
+const NORMAL_COLOR = '#78c63f';
 const SELECTED_COLOR = '#80fffd';
 
 /**

@@ -5,6 +5,11 @@
       "id": "sirayatech-material-profiles",
       "folder": "sirayatech",
       "manifestPath": "dragonfruit-plugin.json"
+    },
+    {
+      "id": "creality-printer-profiles",
+      "folder": "creality",
+      "manifestPath": "dragonfruit-plugin.json"
     }
   ]
 }

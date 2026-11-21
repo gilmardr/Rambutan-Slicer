@@ -361,7 +361,7 @@ test('the preset strip carries the reference actions, and the footer the commit 
   assert.ok(!visibleText.includes('unsaved changes'), 'the removed dirty strip is still rendered');
 
   const builtIns = getAutoSupportPresets().filter((preset) => preset.isBuiltIn);
-  assert.deepEqual(builtIns.map((preset) => preset.id), ['light', 'medium', 'heavy']);
+  assert.deepEqual(builtIns.map((preset) => preset.id), ['light', 'medium', 'heavy', 'interior-pillar']);
 });
 
 test('the modified marker rides on the dirty preset name, and only when it is dirty', () => {

@@ -20,6 +20,7 @@ pub mod metrics;
 pub mod pipeline;
 pub mod raster;
 pub mod rle;
+mod tolerance;
 pub mod types;
 pub mod zaa;
 

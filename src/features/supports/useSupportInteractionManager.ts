@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore, useRef } from 'react';
 import * as THREE from 'three';
 import type { SupportMode } from '@/supports/types';
+import type { SupportSettings } from '@/supports/Settings/types';
 import type { SupportPlacementActive, SupportPlacementPreviews } from '@/supports/rendering';
 import { useTrunkPlacementV2 } from '@/supports/SupportTypes/Trunk/useTrunkPlacement';
 import { useBranchPlacement } from '@/supports/SupportTypes/Branch/useBranchPlacement';
@@ -181,7 +182,7 @@ export function useSupportInteractionManager({ mode }: SupportInteractionOptions
   }, [isPlacementHardDisabled, trunkPlacementV2, dispatchModelHover, leafPlacement, jointCreationState.isActive, resolvePlacementRouting]);
 
   // Handler for MODEL click (trunk placement, or branch tip placement)
-  const onModelClick = useCallback((hit: THREE.Intersection) => {
+  const onModelClick = useCallback((hit: THREE.Intersection, settingsOverride?: SupportSettings) => {
     if (isSupportEditInteractionActive()) {
       return;
     }
@@ -207,7 +208,7 @@ export function useSupportInteractionManager({ mode }: SupportInteractionOptions
       return;
     }
 
-    trunkPlacementV2.onSupportClick(hit);
+    trunkPlacementV2.onSupportClick(hit, settingsOverride);
   }, [trunkPlacementV2, modelPlacementByOwner, leafPlacement, jointCreationState.isActive, resolvePlacementRouting]);
 
   useEffect(() => {

@@ -36,6 +36,7 @@ Important fields:
 - logical output dims: `width_px`, `height_px`
 - packing mode: `x_packing_mode` (`none`, `rgb8_div3`, `gray3_div2`)
 - build volume: `build_width_mm`, `build_depth_mm`
+- tolerance: `inner_diameter_tolerance_mm`, `outer_diameter_tolerance_mm`, `bottom_tolerance_enabled`, `bottom_layer_count`, and the two bottom-layer values
 - output selection: `output_format`
 - AA controls: `anti_aliasing_level`, `minimum_aa_alpha_percent`, `aa_on_supports`
 - transforms: `mirror_x`, `mirror_y`
@@ -45,6 +46,25 @@ Important fields:
 ### Physical-width rasterization rule
 
 `effective_render_width_px()` returns `source_width_px`, so rasterization happens at physical sub-pixel width even when output PNG width is logically reduced by packing.
+
+### Per-layer tolerance compensation
+
+The four signed tolerance values are diameter adjustments in millimeters. Positive inner values
+make enclosed holes smaller; positive outer values make the exterior model contour larger. Negative
+values reverse those changes. The raster pass converts each diameter adjustment to a radial offset
+using the physical X/Y pixel pitch.
+
+When `bottom_tolerance_enabled` is true, the bottom-specific inner and outer values apply to layers
+`0..bottom_layer_count`; higher layers use the normal values. When it is false, normal values apply
+to every layer. Zero values leave the image unchanged. The profile-driven app fills these fields
+from the material profile; direct API callers may omit them when deserializing because they default
+to zero/false.
+
+The implementation classifies edge-connected background separately from enclosed holes, offsets
+those masks independently, then merges them into the exposure image. This is a pixel-grid
+approximation using a chamfer distance map; it is not a continuous geometric offset, and its result
+can change abruptly where a hole opens to the outside between layers. Tolerance processing is
+serialized per layer to bound its extra memory use on high-resolution panels.
 
 ## Result types
 
