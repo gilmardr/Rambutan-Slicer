@@ -8,8 +8,7 @@
       "dmg": {
         "background": "nsis/assets/dmg-background.png"
       },
-      "signingIdentity": "Developer ID Application: Pascal Krumme (MHNF3GA2MM)",
-      "providerShortName": "MHNF3GA2MM",
+      "signingIdentity": "-",
       "files": {
         "PlugIns/VoxlThumbnailExtension.appex": "../rust/dragonfruit-voxl-thumbnail/macos-qlext/build/VoxlThumbnailExtension.appex"
       }

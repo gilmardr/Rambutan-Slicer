@@ -5,6 +5,26 @@ source-of-truth for anyone cutting a release or touching
 [`.github/workflows/release.yml`](https://github.com/Open-Resin-Alliance/DragonFruit/blob/main/.github/workflows/release.yml)
 or [`src-tauri/src/updater_channel.rs`](https://github.com/Open-Resin-Alliance/DragonFruit/blob/main/src-tauri/src/updater_channel.rs).
 
+## Rambutan fork: signing and the update feed
+
+The release workflow runs on this fork without any secrets. A version bump on
+`main` builds macOS, Windows and Flatpak bundles and publishes a GitHub release
+named "Rambutan Slicer vX.Y.Z"; without credentials the builds are unsigned
+(ad-hoc on macOS, `signingIdentity: "-"` in `src-tauri/tauri.macos.conf.json`)
+and not notarized. Each credential is used only when its secrets exist:
+
+| Repository secret(s) | Effect |
+|---|---|
+| `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASS`, `APPLE_SIGNING_IDENTITY` | Developer ID signing on macOS |
+| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | Notarization of the app and DMG |
+| `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Signed updater archives |
+
+The updater feed (`latest.json`) is written only when the repository
+**variable** `UPDATER_FEED_ENABLED` is `true`; the in-app updater stays disabled
+until the fork has its own feed. `build-preview.yml` and `pr-check-build.yml`
+still carry the upstream Apple team and identity; they run only by hand or on
+pull requests, and the PR check skips signing when the certificate is absent.
+
 ## The model
 
 We will be using semantic versioning, i.e. vMAJOR.MINOR.PATCH-prerelease.

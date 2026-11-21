@@ -82,7 +82,15 @@ jobs:
           # (but it's very unlikely that we ever make those). main only updates the
           # stable feed for a final release — an RC on main is downloadable for
           # testing but never wired to the auto-updater, so stable users can't land on it.
-          if [[ "$branch" == "dev" && "$has_prerelease_suffix" == "false" ]]; then
+          #
+          # Rambutan: the in-app updater stays disabled until the fork has its own
+          # signed feed, so the feed is only written when the repository variable
+          # UPDATER_FEED_ENABLED is "true" (Settings → Secrets and variables →
+          # Actions → Variables). The feed also needs TAURI_SIGNING_PRIVATE_KEY.
+          if [[ "${{ vars.UPDATER_FEED_ENABLED }}" != "true" ]]; then
+            updater_json=""
+            publish_updater_json="false"
+          elif [[ "$branch" == "dev" && "$has_prerelease_suffix" == "false" ]]; then
             updater_json="latest-dev.json"
             publish_updater_json="true"
           elif [[ "$branch" == "main" && "$has_prerelease_suffix" == "false" ]]; then
@@ -97,7 +105,7 @@ jobs:
             if [[ "$has_prerelease_suffix" == "true" ]]; then
               release_label="Release candidate ${tag_name}"
             else
-              release_label="DragonFruit ${tag_name}"
+              release_label="Rambutan Slicer ${tag_name}"
             fi
           else
             release_label="Dev build ${tag_name}"
@@ -196,6 +204,11 @@ jobs:
       # the same cache the warmer writes.
       CMAKE_OSX_ARCHITECTURES: ${{ matrix.cmake_archs || '' }}
       DF_BUILD_TARGET_TRIPLE: ${{ matrix.df_build_triple || '' }}
+      # Signing is optional on this fork: without these secrets the build is
+      # unsigned (ad-hoc on macOS, see tauri.macos.conf.json) and not notarized.
+      HAS_APPLE_SIGNING: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_SIGNING_IDENTITY != '' }}
+      HAS_APPLE_NOTARY: ${{ secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+      HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
     needs:
       - detect-version-bump
     if: needs.detect-version-bump.outputs.should_release == 'true'
@@ -206,16 +219,16 @@ jobs:
           - platform: macos-latest
             build_kind: tauri
             args: --target universal-apple-darwin --bundles app,dmg
-            artifact_name: dragonfruit-macos-universal
+            artifact_name: rambutan-macos-universal
             cmake_archs: "arm64;x86_64"
             df_build_triple: universal-apple-darwin
           - platform: windows-latest
             build_kind: tauri
             args: --target x86_64-pc-windows-msvc --bundles nsis,msi
-            artifact_name: dragonfruit-windows-x64
+            artifact_name: rambutan-windows-x64
           - platform: ubuntu-22.04
             build_kind: flatpak
-            artifact_name: dragonfruit-linux-flatpak-x64
+            artifact_name: rambutan-linux-flatpak-x64
     runs-on: ${{ matrix.platform }}
     permissions:
       actions: write
@@ -256,11 +269,41 @@ jobs:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Install Apple Certificate
-        if: matrix.platform == 'macos-latest'
+        if: matrix.platform == 'macos-latest' && env.HAS_APPLE_SIGNING == 'true'
         uses: apple-actions/import-codesign-certs@v7
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASS }}
+
+      # Credentials are exported only when present. An empty variable is still a
+      # set variable, and Tauri would try to sign or notarize with a blank value.
+      - name: Export signing credentials that exist
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY_SECRET: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD_SECRET: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_KEY_SECRET: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD_SECRET: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" && "$HAS_APPLE_SIGNING" == "true" ]]; then
+            echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY_SECRET" >> "$GITHUB_ENV"
+          fi
+          if [[ "$RUNNER_OS" == "macOS" && "$HAS_APPLE_NOTARY" == "true" ]]; then
+            {
+              echo "APPLE_ID=$APPLE_ID_SECRET"
+              echo "APPLE_PASSWORD=$APPLE_PASSWORD_SECRET"
+              echo "APPLE_TEAM_ID=$APPLE_TEAM_ID_SECRET"
+            } >> "$GITHUB_ENV"
+          fi
+          if [[ "$HAS_UPDATER_KEY" == "true" ]]; then
+            {
+              echo "TAURI_SIGNING_PRIVATE_KEY=$TAURI_KEY_SECRET"
+              echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$TAURI_KEY_PASSWORD_SECRET"
+            } >> "$GITHUB_ENV"
+          fi
+          echo "Apple signing: $HAS_APPLE_SIGNING · notarization: $HAS_APPLE_NOTARY · updater key: $HAS_UPDATER_KEY"
 
       # `swatinem/rust-cache` hashes every toolchain `rustup` lists, not only the
       # one the build uses, and the runner image ships its own `stable` (1.98.1
@@ -323,11 +366,7 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: ${{ matrix.platform == 'ubuntu-22.04' && '1' || '' }}
           CMAKE_OSX_ARCHITECTURES: ${{ matrix.cmake_archs || '' }}
           DF_BUILD_TARGET_TRIPLE: ${{ matrix.df_build_triple || '' }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: MHNF3GA2MM
+          # Signing and notarization credentials come from the export step above.
         with:
           tauriScript: npx tauri
           args: ${{ matrix.args }}
@@ -339,10 +378,8 @@ jobs:
 
       - name: Embed QuickLook extension + verify universal bundle
         if: matrix.platform == 'macos-latest'
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: MHNF3GA2MM
+        # Notarizes the DMG when the export step provided Apple credentials;
+        # otherwise the script leaves it signed (ad-hoc) and not notarized.
         run: |
           node scripts/macos-embed-appex.mjs --target ${{ matrix.df_build_triple }}
           node scripts/verify-universal-bundle.mjs
