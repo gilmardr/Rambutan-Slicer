@@ -12,7 +12,7 @@
       "manufacturer": "Creality",
       "name": "LD-002R (CTB v2)",
       "family": "LD-002R",
-      "imageAssetPath": "./assets/ld-002r.jpg",
+      "imageAssetPath": "./illustrations/ld-002r.svg",
       "buildVolumeMm": { "width": 65, "depth": 119, "height": 160 },
       "pixelSize": { "x": 45.1, "y": 46.5 },
       "display": {
@@ -29,7 +29,7 @@
       "manufacturer": "Creality",
       "name": "LD-002R (CTB v4 firmware)",
       "family": "LD-002R",
-      "imageAssetPath": "./assets/ld-002r.jpg",
+      "imageAssetPath": "./illustrations/ld-002r.svg",
       "buildVolumeMm": { "width": 65, "depth": 119, "height": 160 },
       "pixelSize": { "x": 45.1, "y": 46.5 },
       "display": {
@@ -46,7 +46,7 @@
       "manufacturer": "Creality",
       "name": "LD-002H (CTB v4)",
       "family": "LD-002H",
-      "imageAssetPath": "./assets/ld-002h.webp",
+      "imageAssetPath": "./illustrations/ld-002h.svg",
       "buildVolumeMm": { "width": 82, "depth": 130, "height": 160 },
       "pixelSize": { "x": 51, "y": 51 },
       "display": {
@@ -63,7 +63,7 @@
       "manufacturer": "Creality",
       "name": "LD-006 (CTB v4)",
       "family": "LD-006",
-      "imageAssetPath": "./assets/ld-006.jpg",
+      "imageAssetPath": "./illustrations/ld-006.svg",
       "buildVolumeMm": { "width": 192, "depth": 120, "height": 250 },
       "pixelSize": { "x": 50, "y": 50 },
       "display": {
@@ -80,7 +80,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-LITE",
       "family": "HALOT-LITE",
-      "imageAssetPath": "./assets/halot-lite.jpg",
+      "imageAssetPath": "./illustrations/halot-lite.svg",
       "buildVolumeMm": { "width": 192, "depth": 120, "height": 200 },
       "pixelSize": { "x": 50, "y": 50 },
       "display": {
@@ -95,7 +95,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-MAGE PRO",
       "family": "HALOT-MAGE PRO",
-      "imageAssetPath": "./assets/halot-mage-pro.jpg",
+      "imageAssetPath": "./illustrations/halot-mage-pro.svg",
       "buildVolumeMm": { "width": 228, "depth": 128, "height": 230 },
       "pixelSize": { "x": 29.7, "y": 29.7 },
       "display": {
@@ -110,7 +110,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-MAGE S 14K",
       "family": "HALOT-MAGE S",
-      "imageAssetPath": "./assets/halot-mage-s.jpg",
+      "imageAssetPath": "./illustrations/halot-mage-s.svg",
       "buildVolumeMm": { "width": 223, "depth": 126, "height": 230 },
       "pixelSize": { "x": 16.8, "y": 24.8 },
       "display": {
@@ -125,7 +125,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-MAGE",
       "family": "HALOT-MAGE",
-      "imageAssetPath": "./assets/halot-mage.jpg",
+      "imageAssetPath": "./illustrations/halot-mage.svg",
       "buildVolumeMm": { "width": 228, "depth": 128, "height": 230 },
       "pixelSize": { "x": 29.7, "y": 29.7 },
       "display": {
@@ -142,7 +142,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-ONE PLUS",
       "family": "HALOT-ONE PLUS",
-      "imageAssetPath": "./assets/halot-one-plus.jpg",
+      "imageAssetPath": "./illustrations/halot-one-plus.svg",
       "buildVolumeMm": { "width": 172.8, "depth": 102.4, "height": 160 },
       "pixelSize": { "x": 40, "y": 40 },
       "display": {
@@ -157,7 +157,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-ONE PRO",
       "family": "HALOT-ONE PRO",
-      "imageAssetPath": "./assets/halot-one-pro.jpg",
+      "imageAssetPath": "./illustrations/halot-one-pro.svg",
       "buildVolumeMm": { "width": 130, "depth": 122, "height": 160 },
       "pixelSize": { "x": 50, "y": 50 },
       "display": {
@@ -172,7 +172,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-ONE",
       "family": "HALOT-ONE",
-      "imageAssetPath": "./assets/halot-one.jpg",
+      "imageAssetPath": "./illustrations/halot-one.svg",
       "buildVolumeMm": { "width": 128, "depth": 81, "height": 160 },
       "pixelSize": { "x": 50, "y": 50 },
       "display": {
@@ -187,7 +187,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-PLAY",
       "family": "HALOT-PLAY",
-      "imageAssetPath": "./assets/halot-play.jpg",
+      "imageAssetPath": "./illustrations/halot-play.svg",
       "buildVolumeMm": { "width": 192, "depth": 120, "height": 200 },
       "pixelSize": { "x": 50, "y": 50 },
       "display": {
@@ -202,7 +202,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-R6",
       "family": "HALOT-R6",
-      "imageAssetPath": "./assets/halot-r6.jpg",
+      "imageAssetPath": "./illustrations/halot-r6.svg",
       "buildVolumeMm": { "width": 130.56, "depth": 82.62, "height": 160 },
       "pixelSize": { "x": 51, "y": 51 },
       "display": {
@@ -217,7 +217,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-RAY",
       "family": "HALOT-RAY",
-      "imageAssetPath": "./assets/halot-ray.jpg",
+      "imageAssetPath": "./illustrations/halot-ray.svg",
       "buildVolumeMm": { "width": 198, "depth": 123, "height": 210 },
       "pixelSize": { "x": 34, "y": 34 },
       "display": {
@@ -232,7 +232,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-SKY 2025",
       "family": "HALOT-SKY 2025",
-      "imageAssetPath": "./assets/halot-sky-2025.png",
+      "imageAssetPath": "./illustrations/halot-sky-2025.svg",
       "buildVolumeMm": { "width": 211.68, "depth": 118.37, "height": 200 },
       "pixelSize": { "x": 14, "y": 19 },
       "display": {
@@ -247,7 +247,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-X1 Max",
       "family": "HALOT-X1 Combo",
-      "imageAssetPath": "./assets/halot-x1-max.png",
+      "imageAssetPath": "./illustrations/halot-x1-max.svg",
       "buildVolumeMm": { "width": 302.4, "depth": 161.98, "height": 350 },
       "pixelSize": { "x": 20, "y": 26 },
       "display": {
@@ -262,7 +262,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-X1 Neo",
       "family": "HALOT-X1 Neo",
-      "imageAssetPath": "./assets/halot-x1-neo.webp",
+      "imageAssetPath": "./illustrations/halot-x1-neo.svg",
       "buildVolumeMm": { "width": 153.36, "depth": 77.76, "height": 160 },
       "pixelSize": { "x": 18, "y": 18 },
       "display": {
@@ -277,7 +277,7 @@
       "manufacturer": "Creality",
       "name": "HALOT-X1",
       "family": "HALOT-X1",
-      "imageAssetPath": "./assets/halot-x1.webp",
+      "imageAssetPath": "./illustrations/halot-x1.svg",
       "buildVolumeMm": { "width": 211.68, "depth": 118.37, "height": 200 },
       "pixelSize": { "x": 14, "y": 19 },
       "display": {

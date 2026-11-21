@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img" aria-label="Generic resin printer illustration">
+  <!-- Generic illustration, not a product photo. Proportions approximate
+       330 × 300 × 540 mm (W × D × H). Rambutan Slicer, AGPL-3.0-or-later. -->
+  <ellipse cx="200" cy="382" rx="121.2" ry="8" fill="#000" opacity="0.18"/>
+  <polygon points="257.8,270.6 321.2,234 321.2,339.4 257.8,376" fill="#137A5A" stroke="#0B4F3D" stroke-width="2" stroke-linejoin="round"/>
+  <polygon points="78.8,270.6 142.2,234 321.2,234 257.8,270.6" fill="#3DB58D" stroke="#0B4F3D" stroke-width="2" stroke-linejoin="round"/>
+  <polygon points="78.8,270.6 257.8,270.6 257.8,376 78.8,376" fill="#1D9E75" stroke="#0B4F3D" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="141.5" y="300.1" width="53.7" height="35.8" rx="4" fill="#04342C"/>
+  <rect x="147.9" y="314.4" width="16.1" height="7.2" rx="2" fill="#EF9F27"/>
+  <polygon points="236.5,255.9 271.3,235.7 271.3,243.1 236.5,263.2" fill="#0B4F3D"/>
+  <polygon points="125.5,255.9 160.4,235.7 271.3,235.7 236.5,255.9" fill="#0B4F3D"/>
+  <polygon points="125.5,255.9 236.5,255.9 236.5,263.2 125.5,263.2" fill="#0B4F3D"/>
+  <rect x="212.8" y="68.8" width="12.5" height="172.4" fill="#9FB3AD"/>
+  <rect x="184.1" y="140.5" width="41.1" height="7.9" fill="#9FB3AD"/>
+  <polygon points="225.3,137.9 253.8,121.4 253.8,134.5 225.3,151" fill="#9FB3AD"/>
+  <polygon points="143,137.9 171.5,121.4 253.8,121.4 225.3,137.9" fill="#C9D6D2"/>
+  <polygon points="143,137.9 225.3,137.9 225.3,151 143,151" fill="#C9D6D2"/>
+  <polygon points="253.8,81.7 312.1,48 312.1,235.4 253.8,269.1" fill="#D4537E" fill-opacity="0.38" stroke="#ED93B1" stroke-width="2" stroke-linejoin="round"/>
+  <polygon points="87.9,81.7 146.2,48 312.1,48 253.8,81.7" fill="#E27A9D" fill-opacity="0.55" stroke="#ED93B1" stroke-width="2" stroke-linejoin="round"/>
+  <polygon points="87.9,81.7 253.8,81.7 253.8,269.1 87.9,269.1" fill="#D4537E" fill-opacity="0.32" stroke="#ED93B1" stroke-width="2" stroke-linejoin="round"/>
+</svg>
