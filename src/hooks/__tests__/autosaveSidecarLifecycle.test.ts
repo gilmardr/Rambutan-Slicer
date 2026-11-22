@@ -37,7 +37,8 @@ function extractCallback(source: string, name: string): string {
 }
 
 describe('the autosave sidecar is deleted only when nothing would be lost', () => {
-  const page = readSource('src/app/page.tsx');
+  // The save and exit lifecycle moved out of page.tsx into its own hook.
+  const page = readSource('src/app/home/useSceneLifecycle.ts');
 
   /**
    * **The binding safety rule.** A user who closes the app and declines to save
