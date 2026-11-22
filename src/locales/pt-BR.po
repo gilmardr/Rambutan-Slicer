@@ -607,11 +607,11 @@ msgstr ""
 msgid "3D Hole Verification"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1268
+#: src/components/settings/SettingsModal.tsx:1270
 msgid "3D Mouse"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1269
+#: src/components/settings/SettingsModal.tsx:1271
 msgid "3D mouse navigation controls"
 msgstr ""
 
@@ -664,7 +664,7 @@ msgstr ""
 msgid "A source model or preview changed. Create the preview again."
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1316
+#: src/components/settings/SettingsModal.tsx:1318
 msgid "About"
 msgstr ""
 
@@ -804,13 +804,13 @@ msgstr ""
 #: src/components/layout/OnboardingPrinterLibrary.tsx:414
 #: src/components/printers/PrinterVariantPickerModal.tsx:707
 #: src/components/settings/FleetManagement.tsx:269
-#: src/components/settings/PluginStudioModal.tsx:2096
+#: src/components/settings/PluginStudioModal.tsx:2107
 #: src/components/settings/ProfileSettingsModal.tsx:3701
 #: src/components/settings/ProfileSettingsModal.tsx:3764
 msgid "Add printer"
 msgstr "Adicionar impressora"
 
-#: src/components/settings/PluginStudioModal.tsx:2981
+#: src/components/settings/PluginStudioModal.tsx:2992
 msgid "Add printer variant"
 msgstr ""
 
@@ -842,7 +842,7 @@ msgstr ""
 msgid "Add supports"
 msgstr "Adicionar suportes"
 
-#: src/components/controls/AutoSupportPanel.tsx:1523
+#: src/components/controls/AutoSupportPanel.tsx:1547
 msgid "Add to existing"
 msgstr "Adicionar aos existentes"
 
@@ -1119,7 +1119,7 @@ msgstr ""
 msgid "Are you sure you want to remove every model from the plate?"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1260
+#: src/components/controls/AutoSupportPanel.tsx:1284
 msgid "Area coverage"
 msgstr "Cobertura da área"
 
@@ -1275,7 +1275,7 @@ msgstr ""
 msgid "Auto Supports (Beta)"
 msgstr "Suportes automáticos (beta)"
 
-#: src/components/controls/AutoSupportPanel.tsx:1412
+#: src/components/controls/AutoSupportPanel.tsx:1436
 msgid "Auto Supports (Beta) Settings"
 msgstr "Configurações de suportes automáticos (beta)"
 
@@ -1348,7 +1348,7 @@ msgid "Auto-support preset, modified"
 msgstr ""
 
 #: src/components/controls/AutoSupportPanel.tsx:899
-#: src/components/controls/AutoSupportPanel.tsx:1397
+#: src/components/controls/AutoSupportPanel.tsx:1421
 msgid "Auto-support settings"
 msgstr "Configurações de suportes automáticos"
 
@@ -1410,7 +1410,7 @@ msgstr ""
 msgid "Automation"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1287
+#: src/components/settings/SettingsModal.tsx:1289
 msgid "Autosave and crash recovery behavior"
 msgstr ""
 
@@ -1530,7 +1530,7 @@ msgstr ""
 msgid "Backup snapshot is malformed."
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1292
+#: src/components/settings/SettingsModal.tsx:1294
 msgid "Backups"
 msgstr ""
 
@@ -1749,7 +1749,7 @@ msgstr ""
 msgid "Build volume (mm)"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1245
+#: src/components/settings/SettingsModal.tsx:1247
 msgid "Build volume bounds, origin, and 3D view resolution"
 msgstr ""
 
@@ -1797,7 +1797,7 @@ msgstr ""
 msgid "cached"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1226
+#: src/components/settings/SettingsModal.tsx:1228
 msgid "Camera"
 msgstr ""
 
@@ -1812,7 +1812,7 @@ msgstr ""
 #: src/app/page.tsx:12099
 #: src/components/controls/autoSupport/AutoSupportPresets.tsx:470
 #: src/components/controls/autoSupport/AutoSupportPresets.tsx:666
-#: src/components/controls/AutoSupportPanel.tsx:1515
+#: src/components/controls/AutoSupportPanel.tsx:1539
 #: src/components/controls/IslandScanCard.tsx:185
 #: src/components/controls/IslandsPanel.tsx:350
 #: src/components/controls/ModelManagerPanel.tsx:807
@@ -1957,7 +1957,7 @@ msgstr ""
 msgid "Center Selection"
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:168
+#: src/supports/Settings/components/RaftSettingsCard.tsx:169
 msgid "Chamfer Angle"
 msgstr ""
 
@@ -1976,7 +1976,7 @@ msgid "Change tenon settings"
 msgstr ""
 
 #. placeholder {0}: changedContactCount ?? 0
-#: src/components/controls/AutoSupportPanel.tsx:1267
+#: src/components/controls/AutoSupportPanel.tsx:1291
 msgid "Changed contact positions: {0}"
 msgstr "Posições de contato alteradas: {0}"
 
@@ -2006,10 +2006,11 @@ msgid "Check for collisions"
 msgstr ""
 
 #: src/components/controls/AutoSupportPanel.tsx:979
+#: src/components/controls/AutoSupportPanel.tsx:1250
 msgid "Check for floating regions"
 msgstr "Procurar regiões flutuantes"
 
-#: src/components/settings/SettingsModal.tsx:1311
+#: src/components/settings/SettingsModal.tsx:1313
 msgid "Check for new versions and manage channels"
 msgstr ""
 
@@ -2051,6 +2052,7 @@ msgid "Checking the configured update channel"
 msgstr ""
 
 #: src/components/controls/AutoSupportPanel.tsx:979
+#: src/components/controls/AutoSupportPanel.tsx:1250
 msgid "Checking…"
 msgstr "Verificando…"
 
@@ -2316,7 +2318,7 @@ msgstr ""
 msgid "Client ID"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1368
+#: src/components/controls/AutoSupportPanel.tsx:1392
 #: src/components/layout/TopBar.tsx:1166
 #: src/components/modals/IslandHierarchyModal.tsx:93
 #: src/components/modals/SliceCompletedModal.tsx:93
@@ -2339,7 +2341,7 @@ msgstr ""
 msgid "Close delete confirmation"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1424
+#: src/components/controls/AutoSupportPanel.tsx:1448
 msgid "Close dialog"
 msgstr "Fechar janela"
 
@@ -2433,11 +2435,11 @@ msgstr ""
 msgid "Close supports modal"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1487
+#: src/components/controls/AutoSupportPanel.tsx:1511
 msgid "Close the dialog and discard the edits"
 msgstr "Fechar a janela e descartar as alterações"
 
-#: src/components/controls/AutoSupportPanel.tsx:1366
+#: src/components/controls/AutoSupportPanel.tsx:1390
 msgid "Close the report"
 msgstr "Fechar o relatório"
 
@@ -2457,7 +2459,7 @@ msgstr ""
 msgid "Close window"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1425
+#: src/components/controls/AutoSupportPanel.tsx:1449
 msgid "Close without applying the edits made in this dialog"
 msgstr "Fechar sem aplicar as alterações feitas nesta janela"
 
@@ -2469,7 +2471,7 @@ msgstr ""
 msgid "Closing gaps"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1495
+#: src/components/controls/AutoSupportPanel.tsx:1519
 msgid "Closing now leaves the auto-support settings as they are. Save in the dialog's footer writes them."
 msgstr "Fechar agora mantém as configurações de suportes automáticos como estão. Salvar no rodapé da janela aplica as alterações."
 
@@ -2557,8 +2559,8 @@ msgstr ""
 msgid "Combine, cut, intersect, or split solid models"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1249
-#: src/components/controls/AutoSupportPanel.tsx:1250
+#: src/components/controls/AutoSupportPanel.tsx:1273
+#: src/components/controls/AutoSupportPanel.tsx:1274
 msgid "Combined"
 msgstr "Combinado"
 
@@ -2571,8 +2573,8 @@ msgstr ""
 msgid "Compare orientations"
 msgstr "Comparar orientações"
 
-#: src/components/controls/AutoSupportPanel.tsx:1238
-#: src/components/controls/AutoSupportPanel.tsx:1239
+#: src/components/controls/AutoSupportPanel.tsx:1262
+#: src/components/controls/AutoSupportPanel.tsx:1263
 msgid "Compare support runs"
 msgstr "Comparar execuções de suporte"
 
@@ -2805,7 +2807,7 @@ msgstr ""
 msgid "Converting support data and model metadata"
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:130
+#: src/supports/Settings/components/RaftSettingsCard.tsx:131
 msgid "Convex hull"
 msgstr ""
 
@@ -2818,7 +2820,7 @@ msgstr ""
 msgid "Copied!"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1360
+#: src/components/controls/AutoSupportPanel.tsx:1384
 #: src/components/ui/EditorContextMenu.tsx:114
 msgid "Copy"
 msgstr "Copiar"
@@ -2843,7 +2845,7 @@ msgstr ""
 msgid "Copy the selected preset under a new name"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1358
+#: src/components/controls/AutoSupportPanel.tsx:1382
 msgid "Copy the whole report to the clipboard"
 msgstr "Copiar o relatório completo para a área de transferência"
 
@@ -2914,7 +2916,7 @@ msgstr ""
 msgid "Count"
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:129
+#: src/supports/Settings/components/RaftSettingsCard.tsx:130
 msgid "Cover all supports"
 msgstr ""
 
@@ -3337,7 +3339,7 @@ msgstr ""
 msgid "Delete this curve preset?"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1530
+#: src/components/controls/AutoSupportPanel.tsx:1554
 msgid "Delete this model's existing supports and place the new ones"
 msgstr "Excluir os suportes existentes deste modelo e posicionar novos"
 
@@ -3414,7 +3416,7 @@ msgstr ""
 msgid "Detected a {bitsLabel} screen that doesn't match any known variant of {presetName}."
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1415
+#: src/components/controls/AutoSupportPanel.tsx:1439
 msgid "Detected surfaces, density and sizing, stability, and the saved presets a run follows"
 msgstr "Superfícies detectadas, densidade e dimensionamento, estabilidade e perfis salvos usados na execução"
 
@@ -3462,12 +3464,12 @@ msgstr ""
 msgid "Disabled"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1489
+#: src/components/controls/AutoSupportPanel.tsx:1513
 #: src/components/scene/SceneAutosaveRecoveryModal.tsx:160
 msgid "Discard"
 msgstr "Descartar"
 
-#: src/components/controls/AutoSupportPanel.tsx:1458
+#: src/components/controls/AutoSupportPanel.tsx:1482
 msgid "Discard auto-support settings changes"
 msgstr "Descartar alterações nas configurações de suportes automáticos"
 
@@ -3475,7 +3477,7 @@ msgstr "Descartar alterações nas configurações de suportes automáticos"
 msgid "Discard Changes"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1459
+#: src/components/controls/AutoSupportPanel.tsx:1483
 msgid "Discard Changes?"
 msgstr "Descartar alterações?"
 
@@ -3681,7 +3683,7 @@ msgstr ""
 msgid "Each object was repaired on its own."
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1281
+#: src/components/settings/SettingsModal.tsx:1283
 msgid "Early-access and experimental features"
 msgstr ""
 
@@ -3919,7 +3921,7 @@ msgid "Every other point on the loop."
 msgstr ""
 
 #: src/components/controls/autoSupport/AutoSupportRunDiagnostics.tsx:85
-#: src/components/controls/AutoSupportPanel.tsx:1343
+#: src/components/controls/AutoSupportPanel.tsx:1367
 msgid "Every placed support with its size and fan-out groups"
 msgstr "Cada suporte colocado, com suas dimensões e ramificações"
 
@@ -3931,8 +3933,8 @@ msgstr ""
 msgid "Existing supports already cover the detected points."
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1501
-#: src/components/controls/AutoSupportPanel.tsx:1502
+#: src/components/controls/AutoSupportPanel.tsx:1525
+#: src/components/controls/AutoSupportPanel.tsx:1526
 msgid "Existing Supports Detected"
 msgstr "Suportes existentes detectados"
 
@@ -3959,7 +3961,7 @@ msgid "Experimental Features"
 msgstr ""
 
 #: src/components/settings/ExperimentsSettingsTab.tsx:167
-#: src/components/settings/SettingsModal.tsx:1280
+#: src/components/settings/SettingsModal.tsx:1282
 msgid "Experiments"
 msgstr ""
 
@@ -4051,8 +4053,8 @@ msgstr ""
 msgid "Exposure:"
 msgstr "Exposição:"
 
-#: src/components/controls/AutoSupportPanel.tsx:1249
-#: src/components/controls/AutoSupportPanel.tsx:1250
+#: src/components/controls/AutoSupportPanel.tsx:1273
+#: src/components/controls/AutoSupportPanel.tsx:1274
 msgid "Exterior"
 msgstr "Exterior"
 
@@ -4297,8 +4299,8 @@ msgstr ""
 msgid "For continuous edits, save at least this often."
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1341
-#: src/components/controls/AutoSupportPanel.tsx:1342
+#: src/components/controls/AutoSupportPanel.tsx:1365
+#: src/components/controls/AutoSupportPanel.tsx:1366
 msgid "Forest Report"
 msgstr "Relatório da estrutura"
 
@@ -4344,16 +4346,16 @@ msgctxt "Arrange array spacing"
 msgid "Gap"
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:255
+#: src/supports/Settings/components/RaftSettingsCard.tsx:256
 msgid "Gap Spacing"
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:242
+#: src/supports/Settings/components/RaftSettingsCard.tsx:243
 msgid "Gap Width"
 msgstr ""
 
 #. Support kind tab. One of four tabs on a narrow row, so keep it to one short word.
-#: src/components/settings/SettingsModal.tsx:1220
+#: src/components/settings/SettingsModal.tsx:1222
 #: src/supports/Settings/components/SidebarPanelTabs.tsx:20
 msgid "General"
 msgstr ""
@@ -4391,7 +4393,7 @@ msgstr "Começar"
 msgid "Give this build plate a name"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1471
+#: src/components/controls/AutoSupportPanel.tsx:1495
 msgid "Go back to the settings dialog"
 msgstr "Voltar à janela de configurações"
 
@@ -4668,7 +4670,7 @@ msgstr ""
 msgid "Horizontal Resolution (μm)"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1262
+#: src/components/settings/SettingsModal.tsx:1264
 msgid "Hotkeys"
 msgstr ""
 
@@ -5090,8 +5092,8 @@ msgstr ""
 msgid "Interface scale"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1249
-#: src/components/controls/AutoSupportPanel.tsx:1250
+#: src/components/controls/AutoSupportPanel.tsx:1273
+#: src/components/controls/AutoSupportPanel.tsx:1274
 msgid "Interior"
 msgstr "Interior"
 
@@ -5185,7 +5187,7 @@ msgstr ""
 msgid "Islands"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1254
+#: src/components/controls/AutoSupportPanel.tsx:1278
 msgid "Islands covered"
 msgstr "Ilhas atendidas"
 
@@ -5193,7 +5195,7 @@ msgstr "Ilhas atendidas"
 msgid "Islands found by BOTH the slice and mesh scans are placed first (they are the most certain)"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1257
+#: src/components/controls/AutoSupportPanel.tsx:1281
 msgid "Islands uncovered"
 msgstr "Ilhas sem cobertura"
 
@@ -5280,7 +5282,7 @@ msgstr ""
 msgid "Keep each model's current Z orientation"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1473
+#: src/components/controls/AutoSupportPanel.tsx:1497
 #: src/features/slicing/components/LutCurveEditor.tsx:1699
 msgid "Keep Editing"
 msgstr "Continuar editando"
@@ -5305,11 +5307,11 @@ msgstr ""
 msgid "Keep Printing"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1513
+#: src/components/controls/AutoSupportPanel.tsx:1537
 msgid "Keep the existing supports and do nothing"
 msgstr "Manter os suportes existentes e não fazer nada"
 
-#: src/components/controls/AutoSupportPanel.tsx:1521
+#: src/components/controls/AutoSupportPanel.tsx:1545
 msgid "Keep the existing supports and place the new ones around them"
 msgstr "Manter os suportes existentes e posicionar novos para preencher as lacunas"
 
@@ -5321,7 +5323,7 @@ msgstr ""
 msgid "Keeping the largest pieces"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1263
+#: src/components/settings/SettingsModal.tsx:1265
 msgid "Keyboard bindings and presets"
 msgstr ""
 
@@ -5535,15 +5537,15 @@ msgstr ""
 
 #. Raft bottom mode. One of three narrow buttons: Off / Solid / Line.
 #: src/components/settings/GeneralSettingsTab.tsx:444
-#: src/supports/Settings/components/RaftSettingsCard.tsx:120
+#: src/supports/Settings/components/RaftSettingsCard.tsx:121
 msgid "Line"
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:198
+#: src/supports/Settings/components/RaftSettingsCard.tsx:199
 msgid "Line Height"
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:185
+#: src/supports/Settings/components/RaftSettingsCard.tsx:186
 msgid "Line Width"
 msgstr ""
 
@@ -5565,7 +5567,7 @@ msgstr ""
 msgid "Live"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1332
+#: src/components/controls/AutoSupportPanel.tsx:1356
 msgid "Load a model and scan for islands."
 msgstr "Carregue um modelo e procure ilhas."
 
@@ -5595,7 +5597,7 @@ msgstr "Carga por suporte"
 msgid "Load Support Data (V2)"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1275
+#: src/components/settings/SettingsModal.tsx:1277
 msgid "Load vendor profile plugins"
 msgstr ""
 
@@ -5693,7 +5695,7 @@ msgstr ""
 msgid "Local backup sync failed."
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1293
+#: src/components/settings/SettingsModal.tsx:1295
 msgid "Local on-disk backup snapshots"
 msgstr ""
 
@@ -5734,11 +5736,11 @@ msgstr ""
 msgid "Locked"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1305
+#: src/components/settings/SettingsModal.tsx:1307
 msgid "Log file location and verbosity"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1304
+#: src/components/settings/SettingsModal.tsx:1306
 msgid "Logging"
 msgstr ""
 
@@ -6027,7 +6029,7 @@ msgstr ""
 #. View mode: mesh edges drawn over a solid surface, so back edges stay hidden.
 #: src/components/layout/EmptySceneState.tsx:729
 #: src/components/settings/LocalBackupsSettingsTab.tsx:996
-#: src/components/settings/SettingsModal.tsx:1232
+#: src/components/settings/SettingsModal.tsx:1234
 #: src/features/shaders/mesh/types.ts:45
 msgid "Mesh"
 msgstr ""
@@ -6390,7 +6392,7 @@ msgid "Moved off centre"
 msgstr ""
 
 #: src/components/controls/ArrangePanel.tsx:208
-#: src/components/settings/SettingsModal.tsx:1250
+#: src/components/settings/SettingsModal.tsx:1252
 msgid "Multi-Plate"
 msgstr ""
 
@@ -6895,7 +6897,7 @@ msgstr ""
 #: src/features/hollowing/HollowingPanel.tsx:198
 #: src/features/slicing/components/SlicingPanel.tsx:2508
 #: src/supports/Settings/components/GridSettingsCard.tsx:43
-#: src/supports/Settings/components/RaftSettingsCard.tsx:118
+#: src/supports/Settings/components/RaftSettingsCard.tsx:119
 #: src/supports/Settings/SupportSidebar.tsx:1759
 msgid "Off"
 msgstr "Desativado"
@@ -7029,7 +7031,7 @@ msgstr ""
 msgid "On, models stay this far above the build plate after every move or rotation. Off, they rest on the plate. Scaling keeps the current bottom height."
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:135
+#: src/supports/Settings/components/RaftSettingsCard.tsx:136
 msgid "One convex raft around all support bases."
 msgstr ""
 
@@ -7074,11 +7076,11 @@ msgstr ""
 msgid "Online"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1272
+#: src/components/controls/AutoSupportPanel.tsx:1296
 msgid "Only in earlier run"
 msgstr "Apenas na execução anterior"
 
-#: src/components/controls/AutoSupportPanel.tsx:1272
+#: src/components/controls/AutoSupportPanel.tsx:1296
 msgid "Only in latest run"
 msgstr "Apenas na execução mais recente"
 
@@ -7603,7 +7605,7 @@ msgstr ""
 msgid "Plate 1"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1251
+#: src/components/settings/SettingsModal.tsx:1253
 msgid "Plate behaviour across several beds"
 msgstr ""
 
@@ -7693,11 +7695,11 @@ msgstr ""
 msgid "Plugin Import is Experimental"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1274
+#: src/components/settings/SettingsModal.tsx:1276
 msgid "Plugins"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1239
+#: src/components/settings/SettingsModal.tsx:1241
 msgid "PNG compression and engine metadata"
 msgstr ""
 
@@ -8118,7 +8120,7 @@ msgstr ""
 msgid "Projection"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1227
+#: src/components/settings/SettingsModal.tsx:1229
 msgid "Projection and navigation behavior"
 msgstr ""
 
@@ -8169,7 +8171,7 @@ msgstr ""
 msgid "Raft"
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:124
+#: src/supports/Settings/components/RaftSettingsCard.tsx:125
 msgid "Raft footprint"
 msgstr ""
 
@@ -8195,7 +8197,7 @@ msgstr ""
 msgid "Rambutan Slicer first-time setup"
 msgstr "Configuração inicial do Rambutan Slicer"
 
-#: src/components/settings/SettingsModal.tsx:1674
+#: src/components/settings/SettingsModal.tsx:1676
 msgid "Rambutan Slicer fork and modifications by Druciak Tech"
 msgstr ""
 
@@ -8415,11 +8417,17 @@ msgstr ""
 msgid "Registration plugs"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1263
+#: src/components/controls/AutoSupportPanel.tsx:1287
 msgid "Rejected candidates"
 msgstr "Candidatos rejeitados"
 
-#: src/components/controls/AutoSupportPanel.tsx:1286
+#. placeholder {0}: fmt.fixed(report.rejectedCandidates ?? 0, 0)
+#. placeholder {1}: fmt.fixed(report.islandsUncovered ?? 0, 0)
+#: src/components/controls/AutoSupportPanel.tsx:1238
+msgid "Rejected candidates: {0} · Islands uncovered: {1}"
+msgstr ""
+
+#: src/components/controls/AutoSupportPanel.tsx:1310
 msgid "Rejections by reason"
 msgstr "Rejeições por motivo"
 
@@ -8775,7 +8783,7 @@ msgstr ""
 msgid "Repeating Pattern"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1532
+#: src/components/controls/AutoSupportPanel.tsx:1556
 msgid "Replace all"
 msgstr "Substituir todos"
 
@@ -9088,7 +9096,7 @@ msgstr ""
 msgid "Run an Island Scan first."
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1241
+#: src/components/controls/AutoSupportPanel.tsx:1265
 msgid "Run auto-support again after changing settings to compare two runs."
 msgstr "Gere os suportes novamente após alterar as configurações para comparar as duas execuções."
 
@@ -9399,7 +9407,7 @@ msgid "Scene"
 msgstr ""
 
 #: src/components/settings/SceneAutosaveSettingsTab.tsx:167
-#: src/components/settings/SettingsModal.tsx:1286
+#: src/components/settings/SettingsModal.tsx:1288
 msgid "Scene Autosave"
 msgstr ""
 
@@ -9454,7 +9462,7 @@ msgstr ""
 msgid "Scene was hollowed before export"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1248
+#: src/components/controls/AutoSupportPanel.tsx:1272
 msgid "Scope"
 msgstr "Escopo"
 
@@ -9772,7 +9780,7 @@ msgstr ""
 msgid "Send generated print file to selected printer"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1299
+#: src/components/settings/SettingsModal.tsx:1301
 msgid "Send sliced files to UVTools for analysis"
 msgstr ""
 
@@ -9840,7 +9848,7 @@ msgstr ""
 msgid "Shader Type"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1233
+#: src/components/settings/SettingsModal.tsx:1235
 msgid "Shader, rendering options, and selection behavior"
 msgstr ""
 
@@ -10109,6 +10117,7 @@ msgid "Slice Printable Models"
 msgstr ""
 
 #: src/components/controls/AutoSupportPanel.tsx:974
+#: src/components/controls/AutoSupportPanel.tsx:1245
 msgid "Slice the active model with its supports and look for floating or unsupported regions"
 msgstr "Fatiar o modelo ativo com os suportes e procurar regiões flutuantes ou sem suporte"
 
@@ -10133,7 +10142,7 @@ msgid "Slices the model with its supports and marks every region that still hang
 msgstr "Fatia o modelo junto com os suportes e marca toda região que ainda fica suspensa: sem nada embaixo ou longe demais do suporte mais próximo. O resultado vira ilhas, então Gerar suportes → Adicionar aos existentes coloca suportes nelas."
 
 #: src/components/scene/scanProgressMessages.ts:20
-#: src/components/settings/SettingsModal.tsx:1238
+#: src/components/settings/SettingsModal.tsx:1240
 #: src/features/slicing/components/SlicingPanel.tsx:2369
 #: src/features/slicing/components/SlicingPanel.tsx:2388
 msgid "Slicing"
@@ -10236,7 +10245,7 @@ msgstr ""
 
 #. Raft bottom mode. One of three narrow buttons: Off / Solid / Line.
 #: src/components/settings/GeneralSettingsTab.tsx:445
-#: src/supports/Settings/components/RaftSettingsCard.tsx:119
+#: src/supports/Settings/components/RaftSettingsCard.tsx:120
 msgid "Solid"
 msgstr ""
 
@@ -10677,7 +10686,7 @@ msgstr ""
 msgid "Supports are generated against the mesh as it stands. Hollowing is only baked in later, so a support generated now can land inside a cavity that does not exist yet."
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1251
+#: src/components/controls/AutoSupportPanel.tsx:1275
 msgid "Supports created"
 msgstr "Suportes criados"
 
@@ -10961,7 +10970,7 @@ msgstr ""
 msgid "The dot you drag to slide the tenon."
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1460
+#: src/components/controls/AutoSupportPanel.tsx:1484
 msgid "The edits made in this dialog have not been saved."
 msgstr "As alterações feitas nesta janela ainda não foram salvas."
 
@@ -11195,7 +11204,7 @@ msgstr ""
 msgid "The webcam image could not be loaded."
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1257
+#: src/components/settings/SettingsModal.tsx:1259
 msgid "Theme and custom UI token customization"
 msgstr ""
 
@@ -11207,7 +11216,7 @@ msgstr ""
 msgid "These points do not define parallel planes. Click again to start over."
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:155
+#: src/supports/Settings/components/RaftSettingsCard.tsx:156
 msgid "Thickness"
 msgstr ""
 
@@ -11274,7 +11283,7 @@ msgstr ""
 msgid "This mesh isn't a valid solid"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1503
+#: src/components/controls/AutoSupportPanel.tsx:1527
 msgid "This model already has supports. How would you like to proceed?"
 msgstr "Este modelo já tem suportes. Como deseja continuar?"
 
@@ -11516,7 +11525,7 @@ msgstr ""
 msgid "Typical print preparation workflow"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1256
+#: src/components/settings/SettingsModal.tsx:1258
 msgid "UI & Theme"
 msgstr ""
 
@@ -11730,7 +11739,7 @@ msgstr ""
 msgid "Update the display name for this LUT curve profile."
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1310
+#: src/components/settings/SettingsModal.tsx:1312
 msgid "Updates"
 msgstr ""
 
@@ -11861,7 +11870,7 @@ msgstr ""
 msgid "Using SAT-based 2.5D nesting to pack duplicates onto the plate."
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1298
+#: src/components/settings/SettingsModal.tsx:1300
 msgid "UVTools"
 msgstr ""
 
@@ -11902,7 +11911,7 @@ msgstr ""
 msgid "Version {version} is ready to install"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1317
+#: src/components/settings/SettingsModal.tsx:1319
 msgid "Version info and project details"
 msgstr ""
 
@@ -11929,7 +11938,7 @@ msgstr ""
 msgid "via Open Collective"
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1270
+#: src/components/controls/AutoSupportPanel.tsx:1294
 msgid "View changed contact positions"
 msgstr "Ver posições de contato alteradas"
 
@@ -12049,15 +12058,15 @@ msgstr ""
 msgid "Waiting for metadata readiness"
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:144
+#: src/supports/Settings/components/RaftSettingsCard.tsx:145
 msgid "Wall"
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:216
+#: src/supports/Settings/components/RaftSettingsCard.tsx:217
 msgid "Wall Height"
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:229
+#: src/supports/Settings/components/RaftSettingsCard.tsx:230
 msgid "Wall Thickness"
 msgstr ""
 
@@ -12193,15 +12202,15 @@ msgstr ""
 msgid "Workflows are saved on this device and include stage selection and support scope."
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1244
+#: src/components/settings/SettingsModal.tsx:1246
 msgid "Workspace"
 msgstr ""
 
-#: src/components/settings/SettingsModal.tsx:1221
+#: src/components/settings/SettingsModal.tsx:1223
 msgid "Workspace behavior and panel layout"
 msgstr ""
 
-#: src/supports/Settings/components/RaftSettingsCard.tsx:136
+#: src/supports/Settings/components/RaftSettingsCard.tsx:137
 msgid "Wraps every support base and bridges nearby roots for a stronger raft."
 msgstr ""
 
@@ -12263,7 +12272,7 @@ msgstr ""
 msgid "You can dismiss this and keep working, or repair the mesh now."
 msgstr ""
 
-#: src/components/controls/AutoSupportPanel.tsx:1539
+#: src/components/controls/AutoSupportPanel.tsx:1563
 msgid "You can replace all existing supports with auto-placed ones, or incorporate your existing supports and fill in the gaps."
 msgstr "Você pode substituir todos os suportes existentes por suportes automáticos ou manter os atuais e preencher as lacunas."
 

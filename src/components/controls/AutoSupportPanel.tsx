@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Settings, Settings2, X } from 'lucide-react';
+import { AlertTriangle, Settings, Settings2, X } from 'lucide-react';
 import * as THREE from 'three';
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
@@ -1227,6 +1227,30 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
                         <p className="mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
                           <AutoSupportModelReason reason={report.skipReason} />
                         </p>
+                      )}
+                      {/* A run that placed supports can still have refused some candidates;
+                          say so here instead of only in the two-run comparison. */}
+                      {!report.skipReason && ((report.rejectedCandidates ?? 0) > 0 || (report.islandsUncovered ?? 0) > 0) && (
+                        <div className="mt-1 space-y-1">
+                          <p className="flex items-start gap-1 leading-snug" style={{ color: 'var(--warning, #f59e0b)' }}>
+                            <AlertTriangle className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
+                            <span>
+                              <Trans>Rejected candidates: {fmt.fixed(report.rejectedCandidates ?? 0, 0)} · Islands uncovered: {fmt.fixed(report.islandsUncovered ?? 0, 0)}</Trans>
+                            </span>
+                          </p>
+                          {report.modelId === activeModelId && (
+                            <Button
+                              onClick={() => { void handleSupportCheck(); }}
+                              disabled={!canRunSupportCheck}
+                              title={_(msg`Slice the active model with its supports and look for floating or unsupported regions`)}
+                              variant="secondary"
+                              size="auto"
+                              className="w-full !h-7 text-[10px] disabled:opacity-50"
+                            >
+                              {islands.scanning ? _(msg`Checking…`) : _(msg`Check for floating regions`)}
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </li>
                   ))}

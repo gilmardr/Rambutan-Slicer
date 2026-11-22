@@ -131,6 +131,9 @@ The repo still carries thousands of pre-existing ESLint problems, so
 `npm run lint` (full repo) is not a gate and will stay red for a long while.
 What gates CI is `npm run check:lint`: it lints only the directories listed in
 `scripts/lint-clean-dirs.json` and fails on any error **or** warning there.
+It also runs the correctness rules listed under `repoWideRules` in the same
+file (`react-hooks/rules-of-hooks` and others already at zero) over all of
+`src`, so those fail the build wherever they appear.
 
 Coverage grows one directory at a time. To put a directory under lint control,
 clean it until `npx eslint <dir> --max-warnings 0` passes, then add it to the

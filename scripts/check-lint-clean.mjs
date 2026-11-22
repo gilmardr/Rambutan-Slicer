@@ -13,25 +13,51 @@
  * `npx eslint <dir> --max-warnings 0` already passes, so tolerating warnings
  * afterwards would just let the debt back in through the side door.
  *
+ * A few correctness rules (`repoWideRules` in the same file) are already at
+ * zero across all of src, so they are checked everywhere rather than per
+ * directory: a conditional hook in a file no listed directory reaches still
+ * fails the build.
+ *
  * Usage:
- *   node scripts/check-lint-clean.mjs            # check every listed directory
- *   node scripts/check-lint-clean.mjs <dir>…     # check specific directories
+ *   node scripts/check-lint-clean.mjs            # check every listed directory and the repo-wide rules
+ *   node scripts/check-lint-clean.mjs <dir>…     # check specific directories only
  */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const projectRoot = process.cwd();
 const LIST_FILE = 'scripts/lint-clean-dirs.json';
 const ESLINT_CLI = path.join(projectRoot, 'node_modules', 'eslint', 'bin', 'eslint.js');
 
-async function readDirectories() {
+const REPO_WIDE_ROOTS = ['src'];
+
+async function readList() {
       const raw = await fs.readFile(path.join(projectRoot, LIST_FILE), 'utf8');
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed.directories)) {
             throw new Error(`${LIST_FILE} has no "directories" array.`);
       }
-      return parsed.directories;
+      const repoWideRules = Array.isArray(parsed.repoWideRules) ? parsed.repoWideRules : [];
+      return { directories: parsed.directories, repoWideRules };
+}
+
+/** Lints the repo-wide roots running only the given rules; returns the problems found. */
+async function runRepoWideRules(rules) {
+      const { ESLint } = await import(pathToFileURL(path.join(projectRoot, 'node_modules', 'eslint', 'lib', 'api.js')).href);
+      const ruleSet = new Set(rules);
+      const eslint = new ESLint({ cwd: projectRoot, ruleFilter: ({ ruleId }) => ruleSet.has(ruleId) });
+      const results = await eslint.lintFiles(REPO_WIDE_ROOTS);
+      const problems = [];
+      for (const result of results) {
+            for (const message of result.messages) {
+                  // A fatal parse error has no ruleId and would hide every rule in that file.
+                  if (message.ruleId && !ruleSet.has(message.ruleId)) continue;
+                  problems.push({ file: path.relative(projectRoot, result.filePath), ...message });
+            }
+      }
+      return problems;
 }
 
 /** A renamed or deleted directory must fail loudly — silently losing coverage is the failure mode this check exists to prevent. */
@@ -105,7 +131,9 @@ function runEslint(directories) {
 
 async function main() {
       const requested = process.argv.slice(2);
-      const directories = requested.length > 0 ? requested : await readDirectories();
+      const list = await readList();
+      const directories = requested.length > 0 ? requested : list.directories;
+      const repoWideRules = requested.length > 0 ? [] : list.repoWideRules;
 
       if (directories.length === 0) {
             console.log('[lint-clean] No directories under lint control yet.');
@@ -136,7 +164,19 @@ async function main() {
             process.exit(1);
       }
 
-      console.log(`[lint-clean] OK: ${directories.length} directories clean (0 errors, 0 warnings).`);
+      if (repoWideRules.length > 0) {
+            const problems = await runRepoWideRules(repoWideRules);
+            if (problems.length > 0) {
+                  for (const problem of problems) {
+                        console.error(`${problem.file}:${problem.line}:${problem.column}  ${problem.ruleId ?? 'fatal'}  ${problem.message}`);
+                  }
+                  console.error('');
+                  console.error(`[lint-clean] ${problems.length} problem(s) from rules that must stay at zero across ${REPO_WIDE_ROOTS.join(', ')}.`);
+                  process.exit(1);
+            }
+      }
+
+      console.log(`[lint-clean] OK: ${directories.length} directories clean (0 errors, 0 warnings)${repoWideRules.length > 0 ? `, ${repoWideRules.length} rules clean across ${REPO_WIDE_ROOTS.join(', ')}` : ''}.`);
 }
 
 main().catch((error) => {

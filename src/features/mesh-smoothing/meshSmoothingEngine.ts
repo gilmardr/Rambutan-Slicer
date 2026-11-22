@@ -730,7 +730,11 @@ function ensureSmoothingWorker(): Worker | null {
           workerPendingFinalize = false;
           workerActiveGeometry = null;
           workerActiveGeometryKey = 0;
-          try { finalizeStrokeGeometry(geometry); } catch { }
+          try {
+            finalizeStrokeGeometry(geometry);
+          } catch (finalizeError) {
+            console.error('[MeshSmoothingEngine] Finalizing the stroke after an invalid worker result failed', finalizeError);
+          }
           return;
         }
       }

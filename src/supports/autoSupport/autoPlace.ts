@@ -1227,7 +1227,12 @@ function placeOneCandidate(
                                     return { kind: memberTypeId, preset, draft: d, entityId: leaf.id };
                                 }
                             }
-                        } catch {}
+                        } catch (e) {
+                            // Still falls through to the branch attempt, as before;
+                            // the warning keeps a builder bug from hiding behind it.
+                            console.warn(LOG_PREFIX,
+                                `Leaf (merge) ${candidate.id} failed, trying branch: ${e instanceof Error ? e.message : String(e)}`);
+                        }
                     }
                 } else if (leafSpanMm > MAX_LEAF_SPAN_BEFORE_BRANCH_MM) {
                     // Branch: requires upward angle from knot to tip. Every origin

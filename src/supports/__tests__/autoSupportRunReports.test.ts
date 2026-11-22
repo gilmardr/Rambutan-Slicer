@@ -43,8 +43,8 @@ test('per-model results preserve scan skips and report each model count and reje
   assert.deepEqual(
     buildAutoSupportModelReports(reports, [{ modelId: 'model-a' }, { modelId: 'model-b' }], result),
     [
-      { modelId: 'model-a', modelName: 'Part A', supportCount: 3 },
-      { modelId: 'model-b', modelName: 'Part B', supportCount: 0, skipReason: 'collision' },
+      { modelId: 'model-a', modelName: 'Part A', supportCount: 3, rejectedCandidates: 0, islandsUncovered: 0 },
+      { modelId: 'model-b', modelName: 'Part B', supportCount: 0, rejectedCandidates: 2, islandsUncovered: 1, skipReason: 'collision' },
       { modelId: 'model-c', modelName: 'Part C', supportCount: 0, skipReason: 'scan-failed' },
     ],
   );
@@ -84,6 +84,25 @@ test('single-model result supports the legacy aggregate result shape', () => {
       [{ modelId: 'model-a' }],
       result,
     ),
-    [{ modelId: 'model-a', modelName: 'Part A', supportCount: 2 }],
+    [{ modelId: 'model-a', modelName: 'Part A', supportCount: 2, rejectedCandidates: 0 }],
+  );
+});
+
+test('a single-model run carries its rejected candidates and uncovered islands', () => {
+  const result = {
+    placed: { ...emptyPlacedCounts(), trunk: 5 },
+    rejectedCandidates: 7,
+    changed: true,
+    status: 'placed',
+    analytics: { islandsUncovered: 2 },
+  } as AutoPlaceResult;
+
+  assert.deepEqual(
+    buildAutoSupportModelReports(
+      [{ modelId: 'model-a', modelName: 'Part A', supportCount: 0 }],
+      [{ modelId: 'model-a' }],
+      result,
+    ),
+    [{ modelId: 'model-a', modelName: 'Part A', supportCount: 5, rejectedCandidates: 7, islandsUncovered: 2 }],
   );
 });

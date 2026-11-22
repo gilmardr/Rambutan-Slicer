@@ -23,6 +23,10 @@ export type AutoSupportModelRunReport = {
     modelName: string;
     supportCount: number;
     skipReason?: AutoSupportModelSkipReason;
+    /** Candidates the run could not place for this model; known once the run has a result. */
+    rejectedCandidates?: number;
+    /** Islands still without a nearby support after the run, when the run reported coverage. */
+    islandsUncovered?: number;
 };
 
 export type AutoSupportModelEntry = { modelId: string };
@@ -53,7 +57,13 @@ export function buildAutoSupportModelReports(
         if (!placed) return { ...report, skipReason: 'run-failed' };
 
         const supportCount = Object.values(placed).reduce((total, count) => total + count, 0);
-        if (supportCount > 0) return { ...report, supportCount };
+        const rejectedCandidates = perModel?.rejectedCandidates ?? (entries.length === 1 ? result.rejectedCandidates : undefined);
+        const islandsUncovered = perModel?.islandsUncovered ?? (entries.length === 1 ? result.analytics?.islandsUncovered : undefined);
+        const outcome = {
+            ...(rejectedCandidates !== undefined ? { rejectedCandidates } : {}),
+            ...(islandsUncovered !== undefined ? { islandsUncovered } : {}),
+        };
+        if (supportCount > 0) return { ...report, supportCount, ...outcome };
 
         const reasonResult: AutoPlaceResult = {
             ...result,
@@ -64,6 +74,7 @@ export function buildAutoSupportModelReports(
         return {
             ...report,
             supportCount,
+            ...outcome,
             skipReason: getAutoSupportNoResultReason(reasonResult, perModel?.rejectionReasons),
         };
     });
