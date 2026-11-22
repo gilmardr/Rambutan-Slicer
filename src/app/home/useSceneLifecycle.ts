@@ -131,6 +131,12 @@ export function useSceneLifecycle({
   setNativePickerPreparationState,
   pendingStartupSceneHandoff,
 }: UseSceneLifecycleInput) {
+  // Home is not compiled by the React Compiler (it bails out on it), and this
+  // code ran there with its useMemo/useCallback dependency lists honoured as
+  // written. Compiled, a memo keeps only what its body reads and drops a
+  // dependency listed to force a refresh (the resin estimate stopped updating
+  // in the Support tab). Opting out keeps the behaviour it had inside Home.
+  'use no memo';
   const performTopBarSaveScene = React.useCallback(async (options?: { nativePathOverride?: string | null }) => {
     // Captured before the save so a Save As can clean up the sidecar beside the
     // project the user just moved away from.

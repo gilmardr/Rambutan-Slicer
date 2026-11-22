@@ -67,6 +67,12 @@ export function useEditorContextMenuItems({
   scene,
   editorContextMenuSupportTarget,
 }: UseEditorContextMenuItemsInput) {
+  // Home is not compiled by the React Compiler (it bails out on it), and this
+  // code ran there with its useMemo/useCallback dependency lists honoured as
+  // written. Compiled, a memo keeps only what its body reads and drops a
+  // dependency listed to force a refresh (the resin estimate stopped updating
+  // in the Support tab). Opting out keeps the behaviour it had inside Home.
+  'use no memo';
   // The menu reads the selection and the braces collection, so it subscribes to
   // those rather than to the snapshot object. The snapshot is rebuilt on every
   // store write, a support hover included, and this is the app root: the whole
@@ -212,6 +218,12 @@ export function useEditorMenuActions({
   setAutoStartRepair,
   setManualRepairModelIds,
 }: UseEditorMenuActionsInput) {
+  // Home is not compiled by the React Compiler (it bails out on it), and this
+  // code ran there with its useMemo/useCallback dependency lists honoured as
+  // written. Compiled, a memo keeps only what its body reads and drops a
+  // dependency listed to force a refresh (the resin estimate stopped updating
+  // in the Support tab). Opting out keeps the behaviour it had inside Home.
+  'use no memo';
   const handleEditorMenuAction = React.useCallback((action: EditorMenuAction) => {
     const projectSplitPoint = (
       start: { x: number; y: number; z: number },

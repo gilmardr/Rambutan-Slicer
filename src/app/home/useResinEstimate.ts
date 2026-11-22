@@ -61,6 +61,12 @@ export function useResinEstimate({
   supportStateSnapshot,
   raftSettingsSnapshot,
 }: UseResinEstimateInput) {
+  // Home is not compiled by the React Compiler (it bails out on it), and this
+  // code ran there with its useMemo/useCallback dependency lists honoured as
+  // written. Compiled, a memo keeps only what its body reads and drops a
+  // dependency listed to force a refresh (the resin estimate stopped updating
+  // in the Support tab). Opting out keeps the behaviour it had inside Home.
+  'use no memo';
   const [printingEstimatedResinMl, setPrintingEstimatedResinMl] = React.useState<number | null>(null);
   /** The same estimate over every plate, shown beside the per-plate one. */
   const [printingEstimatedResinTotalMl, setPrintingEstimatedResinTotalMl] = React.useState<number | null>(null);
