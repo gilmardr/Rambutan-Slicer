@@ -17,7 +17,6 @@ interface RaftSettingsCardProps {
 
 export function RaftSettingsCard({ settings, onChange, activeModelId, selectedModelIds }: RaftSettingsCardProps) {
     const { _ } = useLingui();
-    if (!settings) return null;
 
     const makeFocusHandlers = React.useCallback((key: string) => {
         return {
@@ -31,6 +30,8 @@ export function RaftSettingsCard({ settings, onChange, activeModelId, selectedMo
             },
         };
     }, []);
+
+    if (!settings) return null;
 
     const ModeButton = ({
         active,

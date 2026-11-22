@@ -2278,7 +2278,13 @@ type PluginLocalMaterialSettingsSectionsProps = {
     showTabBar?: boolean;
 };
 
-export function PluginLocalMaterialSettingsSections({
+export function PluginLocalMaterialSettingsSections(props: PluginLocalMaterialSettingsSectionsProps) {
+    // The guard lives in this wrapper so the inner component always runs the same hooks.
+    if (!props.adapter || props.adapter.fields.length === 0) return null;
+    return <PluginLocalMaterialSettingsSectionsContent {...props} adapter={props.adapter} />;
+}
+
+function PluginLocalMaterialSettingsSectionsContent({
     outputFormat,
     settingsMode,
     adapter,
@@ -2288,9 +2294,7 @@ export function PluginLocalMaterialSettingsSections({
     activeTabId: controlledActiveTabId,
     onActiveTabChange,
     showTabBar = true,
-}: PluginLocalMaterialSettingsSectionsProps) {
-    if (!adapter || adapter.fields.length === 0) return null;
-
+}: PluginLocalMaterialSettingsSectionsProps & { adapter: NonNullable<PluginLocalMaterialSettingsSectionsProps['adapter']> }) {
     const normalizedOutput = outputFormat.trim().toLowerCase();
     const tabs = React.useMemo(() => {
         const declared = [...(adapter.tabs ?? [])]

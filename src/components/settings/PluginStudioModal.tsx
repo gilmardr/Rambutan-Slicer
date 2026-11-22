@@ -707,6 +707,15 @@ function isSimplePluginManifestLike(manifest: Record<string, unknown>): boolean 
   return printerPresets.length > 0 || materialPresets.length > 0 || materialTemplates.length > 0;
 }
 
+function escapeCodeBlockHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -1523,16 +1532,18 @@ function CodeBlock({ label, content }: { label: string; content: string }) {
   };
 
   const language = detectLanguage(label);
-  let highlightedHtml = content;
+  // hljs escapes what it highlights; anything that skips it must be escaped
+  // here, because the result is injected as HTML.
+  let highlightedHtml = escapeCodeBlockHtml(content);
 
   try {
     if (language !== 'plaintext') {
       const result = hljs.highlight(content, { language, ignoreIllegals: true });
       highlightedHtml = result.value;
     }
-  } catch (e) {
-    // Fallback to plain text if highlighting fails
-    highlightedHtml = content;
+  } catch {
+    // Fallback to escaped plain text if highlighting fails
+    highlightedHtml = escapeCodeBlockHtml(content);
   }
 
   const handleCopy = async () => {

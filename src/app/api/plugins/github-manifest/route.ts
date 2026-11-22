@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
+import { isGithubRepoHost, isInlinableGithubAssetUrl } from './assetUrlPolicy';
 import { normalizeFormatVersion, normalizeOutputFormat, normalizeSettingsMode, normalizeWebcamRotationDeg, DEFAULT_WEBCAM_ROTATION_DEG } from '@/features/profiles/outputFormatUtils';
 
 type GithubRepoRef = {
@@ -202,7 +203,7 @@ function parseGithubRepoUrl(input: string): GithubRepoRef | null {
 
   try {
     const parsed = new URL(trimmed);
-    if (!/github\.com$/i.test(parsed.hostname)) return null;
+    if (!isGithubRepoHost(parsed.hostname)) return null;
 
     const parts = parsed.pathname.split('/').filter(Boolean);
     if (parts.length < 2) return null;
@@ -467,7 +468,7 @@ async function inlinePrinterPresetAssets<T extends { imageAssetPath?: string }>(
   const transformed: T[] = [];
   for (const preset of presets) {
     const imageAssetPath = preset.imageAssetPath;
-    if (!imageAssetPath || !/^https?:\/\//i.test(imageAssetPath)) {
+    if (!imageAssetPath || !isInlinableGithubAssetUrl(imageAssetPath)) {
       transformed.push(preset);
       continue;
     }

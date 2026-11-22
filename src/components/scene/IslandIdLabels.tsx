@@ -19,8 +19,13 @@ type IslandIdLabelsProps = {
  * 
  * TO REMOVE: Delete this file and remove from SceneCanvas when no longer needed.
  */
-export function IslandIdLabels({ islands, scanResults, layerHeightMm, enabled, bboxMinZ }: IslandIdLabelsProps) {
-  if (!enabled || !scanResults) return null;
+export function IslandIdLabels(props: IslandIdLabelsProps) {
+  // The guard lives in this wrapper so the inner component always runs the same hooks.
+  if (!props.enabled || !props.scanResults) return null;
+  return <IslandIdLabelsContent {...props} />;
+}
+
+function IslandIdLabelsContent({ islands, scanResults, layerHeightMm, bboxMinZ }: IslandIdLabelsProps) {
 
   // Calculate label positions (at the base of each island, same as overlay markers)
   const labelData = useMemo(() => {
