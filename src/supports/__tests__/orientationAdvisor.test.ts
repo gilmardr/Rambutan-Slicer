@@ -12,6 +12,52 @@ import {
     suggestOrientationForGeometry,
 } from '../autoSupport/orientationAdvisor';
 import { quaternionFromGlobalEuler } from '@/utils/rotation';
+import { analyzeOrientationLayers } from '../autoSupport/orientationLayerAnalysis';
+
+test('layer analysis retains holes and distinguishes sealed cavities from through holes', () => {
+    const analyze = (cavityHeight: number) => {
+        const outer = new THREE.BoxGeometry(20, 16, 10).translate(0, 33, 0).toNonIndexed();
+        const cavity = new THREE.BoxGeometry(10, 8, cavityHeight).translate(0, 33, 0).toNonIndexed();
+        const positions = [...outer.getAttribute('position').array, ...cavity.getAttribute('position').array];
+        return analyzeOrientationLayers({ positions }, { rotXRad: 0, rotYRad: 0 }, 0.1, true);
+    };
+    const sealed = analyze(6);
+    assert.ok(sealed.peakTrappedAreaMm2 > 70);
+    assert.ok(sealed.layerAreasMm2.some((area) => area > 230 && area < 250));
+    assert.equal(analyze(10).peakTrappedAreaMm2, 0);
+});
+
+test('physical safety ranks a broad slab below a safer tilt and supplies three distinct choices', () => {
+    const slab = new THREE.BoxGeometry(40, 30, 3);
+    const result = suggestOrientationForGeometry({
+        attributes: { position: { array: slab.getAttribute('position').array } },
+        index: slab.getIndex()?.array,
+    }, { objective: 'safety', avoidParallelFaces: true, layerHeightMm: 0.1 });
+    assert.ok(result?.alternatives);
+    assert.equal(result.alternatives.length, 3);
+    assert.equal(new Set(result.alternatives.map(({ rotXDeg, rotYDeg }) => `${rotXDeg}/${rotYDeg}`)).size, 3);
+    assert.ok(result.alternatives[0].layers.peakAreaMm2 < 1000);
+    assert.ok(result.alternatives.every(({ layers }) => layers.unsupportedIslands > 0));
+});
+
+test('the three physical modes make different tradeoffs on an asymmetric model', () => {
+    const blocks = [
+        new THREE.BoxGeometry(28, 9, 9),
+        new THREE.BoxGeometry(4, 28, 12).translate(12, 0, 4),
+        new THREE.BoxGeometry(8, 4, 15).translate(0, -12, 6),
+    ];
+    const positions = blocks.flatMap((block) => Array.from(block.toNonIndexed().getAttribute('position').array));
+    const options = { layerHeightMm: 0.1, avoidParallelFaces: true, blockedTriangleIndices: [0, 1] };
+    const safe = suggestOrientation({ positions }, { ...options, objective: 'safety' }).alternatives?.[0];
+    const lean = suggestOrientation({ positions }, { ...options, objective: 'supports' }).alternatives?.[0];
+    const quality = suggestOrientation({ positions }, { ...options, objective: 'scarring' }).alternatives?.[0];
+    assert.ok(safe && lean && quality);
+    assert.ok(safe.layers.peakPeelLoadProxy < quality.layers.peakPeelLoadProxy);
+    assert.ok(lean.layers.supportDemandMm3 < quality.layers.supportDemandMm3);
+    assert.ok(quality.cost.scarAreaMm2 < safe.cost.scarAreaMm2);
+    assert.equal(new Set([safe, lean, quality].map(({ rotXDeg, rotYDeg }) => `${rotXDeg}/${rotYDeg}`)).size, 3);
+    assert.equal(safe.layers.layerAreasMm2.length, safe.layers.requestedLayerCount);
+});
 
 /** Unit down-facing square (area 1) in the XY plane. */
 function downSquare(): { positions: number[]; index: number[] } {

@@ -144,7 +144,7 @@ export function rasterizeLoopsScanline(loops: Pt2[][], px_mm: number, paddingMm 
 /**
  * Rasterize loops into an existing grid reference (resizing not supported, assumes same grid).
  */
-export function rasterizeLoopsToExistingGridScanline(loops: Pt2[][], ref: Mask): Mask {
+export function rasterizeLoopsToExistingGridScanline(loops: Pt2[][], ref: Mask, fillRule: 'union' | 'even-odd' = 'union'): Mask {
     const { width, height, originX, originZ, px_mm } = ref;
     const data = new Uint8Array(width * height);
     const originXCenter = originX + px_mm * 0.5;
@@ -227,7 +227,8 @@ export function rasterizeLoopsToExistingGridScanline(loops: Pt2[][], ref: Mask):
                 if (startX < endX) {
                     const rowOffset = y * width;
                     for (let x = startX; x < endX; x++) {
-                        data[rowOffset + x] = 1;
+                        if (fillRule === 'even-odd') data[rowOffset + x] ^= 1;
+                        else data[rowOffset + x] = 1;
                     }
                 }
             }

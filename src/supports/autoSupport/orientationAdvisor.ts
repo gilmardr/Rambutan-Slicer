@@ -28,6 +28,7 @@ import * as THREE from 'three';
 import { ConvexHull } from 'three-stdlib';
 import { quaternionFromGlobalEuler } from '@/utils/rotation';
 import { isStaticallyUnstable, measurePoseStability, type PoseStability, type RestingContact } from './poseStability';
+import { analyzeOrientationLayers, type OrientationLayerAnalysis } from './orientationLayerAnalysis';
 
 export interface AdvisorMesh {
     /** Flat XYZ positions (mm, model space). */
@@ -68,9 +69,13 @@ export interface OrientationCost {
 }
 
 /** What the sweep ranks first. `supports` minimizes contact area (the resin default); `height` minimizes Z extent (fastest print) and breaks ties by contact area; `scarring` minimizes contact weighted by surface detail (least scarring) with the same cup guard. */
-export type OrientationObjective = 'supports' | 'height' | 'scarring';
+export type OrientationObjective = 'supports' | 'height' | 'scarring' | 'safety';
 
 export interface AdvisorOptions {
+    /** Prefer poses with less broad, nearly horizontal surface when printing raised on supports. */
+    avoidParallelFaces?: boolean;
+    /** Enable physical comparison of shortlisted poses at the requested layer height. */
+    layerHeightMm?: number;
     /** Face is overhang when normal.z < -cos(angle). Default 45°. */
     selfSupportAngleDeg?: number;
     /** Extra weight per mm² of cup area. Default 2 (cups fail prints). */
@@ -106,6 +111,16 @@ export interface OrientationSuggestion {
     suggested: OrientationCost;
     /** Predicted contact-area change vs current orientation (negative = better). */
     deltaPercent: number;
+    alternatives?: OrientationAlternative[];
+}
+
+export interface OrientationAlternative {
+    rotXDeg: number;
+    rotYDeg: number;
+    cost: OrientationCost;
+    layers: OrientationLayerAnalysis;
+    /** Relative to the current orientation, where 100% is the reference load. */
+    relativePeelLoadPercent: number;
 }
 
 /** One sweep candidate: tilt (rotX) and turntable (rotY) in radians. */
@@ -116,6 +131,7 @@ export interface OrientationCandidate {
 
 const DEFAULT_ANGLE_DEG = 45;
 const CUP_FLAT_COS = 0.95;
+const PEEL_FLAT_COS = Math.cos(Math.PI / 9);
 /** Detail weight default; detail itself is 0 (flat) to 1 (≥90° crease). */
 const DEFAULT_SCAR_WEIGHT = 3;
 const DEFAULT_BLOCKED_WEIGHT = 10;
@@ -300,11 +316,13 @@ function scoreParts(
     sb: number,
     cb: number,
     blocked: Set<number> | null = null,
-): { overhang: number; cup: number; scarArea: number; blockedArea: number } {
+    avoidParallelFaces = false,
+): { overhang: number; cup: number; scarArea: number; blockedArea: number; peelArea: number } {
     let overhang = 0;
     let cup = 0;
     let scarArea = 0;
     let blockedArea = 0;
+    let peelArea = 0;
     const { normals, areas, details, triCount } = prep;
     for (let t = 0; t < triCount; t++) {
         const area = areas[t];
@@ -316,8 +334,19 @@ function scoreParts(
             if (blocked !== null && blocked.has(t)) blockedArea += area;
         }
         if (nzr < -CUP_FLAT_COS) cup += area;
+        if (avoidParallelFaces) {
+            // Either face of a broad slab can change the cured area abruptly.
+            // Fade the penalty with tilt rather than rewarding a sharp angle cutoff.
+            const flatness = (Math.abs(nzr) - PEEL_FLAT_COS) / (1 - PEEL_FLAT_COS);
+            if (flatness > 0) peelArea += area * Math.min(1, flatness);
+        }
     }
-    return { overhang, cup, scarArea, blockedArea };
+    return { overhang, cup, scarArea, blockedArea, peelArea };
+}
+
+function peelAreaAllowance(areas: PreparedTriangles['areas']): number {
+    // Small flats and near-horizontal patches on curved parts need not trigger a tilt.
+    return Math.max(5, areas.reduce((total, area) => total + area, 0) * 0.08);
 }
 
 function measureBoundingBox(
@@ -379,7 +408,7 @@ export function evaluateOrientationCost(
     const ca = Math.cos(rotXRad);
     const sb = Math.sin(rotYRad);
     const cb = Math.cos(rotYRad);
-    const { overhang, cup, scarArea, blockedArea } = scoreParts(prep, threshold, sa, ca, sb, cb, blocked);
+    const { overhang, cup, scarArea, blockedArea, peelArea } = scoreParts(prep, threshold, sa, ca, sb, cb, blocked, opts.avoidParallelFaces);
     const { heightMm, footprintMm2 } = measureBoundingBox(mesh.positions, sa, ca, sb, cb);
     const stability = measurePoseStability(mesh.positions, mesh.index, rotXRad, rotYRad, {
         normals: prep.normals,
@@ -394,7 +423,8 @@ export function evaluateOrientationCost(
     const scar = net.overhang + scarWeight * net.scarArea;
     const base =
         objective === 'scarring' ? scar + cupWeight * net.cup : net.overhang + cupWeight * net.cup;
-    const cost = base + blockedWeight * net.blockedArea + stabilityPenaltyMm2;
+    const peelPenalty = opts.avoidParallelFaces ? Math.max(0, peelArea - peelAreaAllowance(prep.areas)) : 0;
+    const cost = base + blockedWeight * net.blockedArea + stabilityPenaltyMm2 + peelPenalty;
     return {
         overhangAreaMm2: net.overhang,
         cupAreaMm2: net.cup,
@@ -553,6 +583,7 @@ export function generateM1Candidates(mesh: AdvisorMesh, opts: AdvisorOptions = {
 
 interface ScoredOrientation extends OrientationCandidate {
     primary: number;
+    peelPenalty: number;
     overhang: number;
     cup: number;
     scar: number;
@@ -567,6 +598,7 @@ interface ScoredOrientation extends OrientationCandidate {
 interface RankEps {
     primary: number;
     height: number;
+    peel: number;
 }
 
 /**
@@ -588,6 +620,9 @@ function compareScored(
     objective: OrientationObjective,
     preferFootprint: boolean,
 ): number {
+    if (Math.abs(a.peelPenalty - b.peelPenalty) > eps.peel) {
+        return a.peelPenalty < b.peelPenalty ? -1 : 1;
+    }
     if (objective === 'height') {
         if (Math.abs(a.heightMm - b.heightMm) > eps.height) return a.heightMm < b.heightMm ? -1 : 1;
         if (Math.abs(a.primary - b.primary) > eps.primary) return a.primary < b.primary ? -1 : 1;
@@ -622,13 +657,15 @@ export function suggestOrientation(mesh: AdvisorMesh, opts: AdvisorOptions = {})
     const blocked = toBlockedSet(opts.blockedTriangleIndices);
     const prep = prepareTriangles(mesh);
     const candidates = generateM1Candidates(mesh, opts);
+    const peelAllowance = opts.avoidParallelFaces ? peelAreaAllowance(prep.areas) : 0;
 
     const scoreFull = (c: OrientationCandidate): ScoredOrientation => {
         const sa = Math.sin(c.rotXRad);
         const ca = Math.cos(c.rotXRad);
         const sb = Math.sin(c.rotYRad);
         const cb = Math.cos(c.rotYRad);
-        const { overhang, cup, scarArea, blockedArea } = scoreParts(prep, threshold, sa, ca, sb, cb, blocked);
+        const { overhang, cup, scarArea, blockedArea, peelArea } = scoreParts(prep, threshold, sa, ca, sb, cb, blocked, opts.avoidParallelFaces);
+        const peelPenalty = Math.max(0, peelArea - peelAllowance);
         const { heightMm, footprintMm2 } = measureBoundingBox(mesh.positions, sa, ca, sb, cb);
         const stability = measurePoseStability(mesh.positions, mesh.index, c.rotXRad, c.rotYRad, {
             normals: prep.normals,
@@ -644,8 +681,8 @@ export function suggestOrientation(mesh: AdvisorMesh, opts: AdvisorOptions = {})
         const primary =
             (objective === 'scarring' ? scar + cupWeight * net.cup : net.overhang + cupWeight * net.cup) +
             blockedWeight * net.blockedArea +
-            stabilityPenalty;
-        return { ...c, primary, overhang: net.overhang, cup: net.cup, scar, blocked: net.blockedArea, heightMm, footprintMm2, stability, stabilityPenalty };
+            stabilityPenalty + peelPenalty;
+        return { ...c, primary, overhang: net.overhang, cup: net.cup, scar, blocked: net.blockedArea, heightMm, footprintMm2, stability, stabilityPenalty, peelPenalty };
     };
     const descend = (start: ScoredOrientation, eps: RankEps, obj: OrientationObjective, preferFootprint: boolean): ScoredOrientation => {
         let cur = start;
@@ -680,6 +717,7 @@ export function suggestOrientation(mesh: AdvisorMesh, opts: AdvisorOptions = {})
     const eps: RankEps = {
         primary: preferFootprint ? minPrimary * ANCHOR_TOL + ANCHOR_FLOOR_MM2 : gainEps,
         height: 1e-6 * Math.max(1, baseline.heightMm),
+        peel: 1e-6 * Math.max(1, baseline.peelPenalty),
     };
     let best = baseline;
     for (let i = 1; i < scores.length; i++) {
@@ -689,8 +727,10 @@ export function suggestOrientation(mesh: AdvisorMesh, opts: AdvisorOptions = {})
     // Refinement around the top-K coarse candidates by objective rank.
     const refineK = Math.max(0, Math.floor(opts.refineTopK ?? DEFAULT_REFINE_TOP_K));
     const order = scores.map((_, i) => i).sort((a, b) => compareScored(scores[a], scores[b], eps, objective, preferFootprint));
+    const refined: ScoredOrientation[] = [];
     for (const s of order.slice(0, Math.min(Math.max(1, refineK), order.length))) {
         const r = descend(scores[s], eps, objective, preferFootprint);
+        refined.push(r);
         if (compareScored(r, best, eps, objective, preferFootprint) < 0) best = r;
     }
 
@@ -710,19 +750,73 @@ export function suggestOrientation(mesh: AdvisorMesh, opts: AdvisorOptions = {})
         footprintMm2: s.footprintMm2,
         cost: s.primary,
     });
-    const improved =
-        objective === 'height'
-            ? best.heightMm < baseline.heightMm - eps.height
-            : best.primary < baseline.primary - gainEps;
-    const suggested = improved ? best : baseline;
+    const peelChange = best.peelPenalty - baseline.peelPenalty;
+    const objectiveImproved = objective === 'height'
+        ? best.heightMm < baseline.heightMm - eps.height
+        : best.primary < baseline.primary - gainEps;
+    const improved = peelChange < -eps.peel || (peelChange <= eps.peel && objectiveImproved);
+    let suggested = improved ? best : baseline;
+    let alternatives: OrientationAlternative[] | undefined;
+    if (opts.layerHeightMm !== undefined) {
+        const shortlist: ScoredOrientation[] = [baseline];
+        const axes = [tiltToDownAxis(baseline.rotXRad, baseline.rotYRad)];
+        const distinctCos = Math.cos(Math.PI / 18);
+        const addDistinct = (pose: ScoredOrientation) => {
+            const axis = tiltToDownAxis(pose.rotXRad, pose.rotYRad);
+            if (axes.some((a) => a[0] * axis[0] + a[1] * axis[1] + a[2] * axis[2] > distinctCos)) return false;
+            shortlist.push(pose);
+            axes.push(axis);
+            return true;
+        };
+        const guard = (pose: ScoredOrientation) => blockedWeight * pose.blocked + pose.peelPenalty;
+        // Give each physical objective its own candidates. An overhang-only
+        // shortlist can hide a lower-peak pose or one that protects fine details.
+        const geometricRanks = [
+            (pose: ScoredOrientation) => pose.scar + guard(pose),
+            (pose: ScoredOrientation) => pose.overhang + 0.2 * pose.stabilityPenalty + guard(pose),
+            (pose: ScoredOrientation) => pose.footprintMm2 + 2 * pose.cup + guard(pose),
+        ];
+        for (const rank of geometricRanks) {
+            let added = 0;
+            for (const pose of [...scores].sort((a, b) => rank(a) - rank(b))) {
+                if (addDistinct(pose) && ++added === 2) break;
+            }
+        }
+        for (const pose of [suggested, ...refined, ...order.map((i) => scores[i])]) {
+            if (shortlist.length >= 9) break;
+            addDistinct(pose);
+        }
+        const ranked = shortlist.map((pose) => {
+            const tilt = { rotXRad: toDeg(pose.rotXRad) * Math.PI / 180, rotYRad: toDeg(pose.rotYRad) * Math.PI / 180 };
+            const layers = analyzeOrientationLayers(mesh, tilt, opts.layerHeightMm!, opts.avoidParallelFaces ?? false);
+            const physicalRisk = layers.peakPeelLoadProxy + layers.peakAreaIncreaseMm2 + 5 * layers.unsupportedIslands;
+            let score = pose.primary + 0.15 * physicalRisk;
+            if (objective === 'safety') score = physicalRisk + guard(pose);
+            if (objective === 'scarring') score = pose.scar + guard(pose) + 0.04 * physicalRisk;
+            if (objective === 'supports') {
+                score = layers.supportDemandMm3 / Math.max(1, baseline.heightMm)
+                    + 0.15 * pose.overhang + guard(pose) + 0.02 * physicalRisk;
+            }
+            return { pose, layers, score };
+        }).filter(({ layers }) => layers.peakAreaMm2 > 0).sort((a, b) => a.score - b.score);
+        if (ranked.length) {
+            suggested = ranked[0].pose;
+            const baselineLoad = ranked.find(({ pose }) => pose === baseline)?.layers.peakPeelLoadProxy;
+            alternatives = ranked.slice(0, 3).map(({ pose, layers }) => ({
+                rotXDeg: toDeg(pose.rotXRad), rotYDeg: toDeg(pose.rotYRad), cost: toCost(pose), layers,
+                relativePeelLoadPercent: baselineLoad ? 100 * layers.peakPeelLoadProxy / baselineLoad : 0,
+            }));
+        }
+    }
     const deltaPercent =
         baseline.overhang > 0 ? ((suggested.overhang - baseline.overhang) / baseline.overhang) * 100 : 0;
     return {
-        rotXDeg: improved ? toDeg(best.rotXRad) : 0,
-        rotYDeg: improved ? toDeg(best.rotYRad) : 0,
+        rotXDeg: toDeg(suggested.rotXRad),
+        rotYDeg: toDeg(suggested.rotYRad),
         baseline: toCost(baseline),
         suggested: toCost(suggested),
         deltaPercent,
+        ...(alternatives ? { alternatives } : {}),
     };
 }
 

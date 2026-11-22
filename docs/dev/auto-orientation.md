@@ -163,6 +163,27 @@ sizing band remains the base; peel exposure modulates it.
 
 ### Integration points
 
+- **Comparison**: call `suggestOrientation(mesh, { objective: 'safety', layerHeightMm: 0.05, avoidParallelFaces: true })`
+  to sweep the mesh and physically compare up to nine distinct poses. The
+  shortlist draws from surface, support and safety geometry rankings so the
+  physical comparison can see poses that do well on different criteria. The
+  worker returns up to three `alternatives`, each with the tilt, geometry cost,
+  layer profile, and estimated relative peak load. The panel lets the user
+  apply a choice through the scene's placement and support confirmation.
+  Magic Prepare applies the highest-ranked safety option.
+- **Analysis resolution**: the worker rasterizes up to 160 Z sections on a
+  shared XY grid per pose. The layer profile interpolates between section
+  samples. Peak area, positive area jumps, detached components, and pockets
+  with no sampled vent path toward the plate are calculated from the measured
+  sections. Narrow vents and islands between samples may be missed. Peak load
+  is a relative index combining solid and trapped area, and the support demand
+  index estimates unsupported clearance rather than generated support resin.
+- **Auto-lift**: the Transform panel and Magic Prepare pass
+  `avoidParallelFaces: true` to the advisor when auto-lift is on. The sweep
+  estimates broad, nearly horizontal surface area from triangle normals and
+  prefers poses that reduce it before comparing the selected objective. Small
+  horizontal patches have a tolerance, and the penalty fades as a face tilts
+  away from the plate. This is a geometric proxy for abrupt layer area changes.
 - **Transform panel**: an "Auto" mode that applies the winning rotation
   to the model transform, with before/after score display.
 - **Auto-supports**: orientation runs first; the support pipeline

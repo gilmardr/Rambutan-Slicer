@@ -8,11 +8,14 @@ import { Trans } from '@lingui/react/macro';
 import { Button, Card, CardHeader, Select } from '@/components/atoms';
 import { PanelCollapseToggle } from '@/components/atoms/PanelCollapseToggle';
 import { useFloatingPanelCollapse } from '@/components/layout/FloatingPanelStack';
-import { getModelMesh } from '@/supports/autoSupport/meshStore';
+import { quaternionFromGlobalEuler } from '@/utils/rotation';
 import {
   suggestOrientationForGeometry,
   composeOrientationDelta,
   type OrientationObjective,
+  type OrientationAlternative,
+  type AdvisorOptions,
+  type OrientationSuggestion,
 } from '@/supports/autoSupport/orientationAdvisor';
 import type { OrientationToastReport } from '@/features/notifications/useEditorToasts';
 import {
@@ -65,12 +68,19 @@ export function OrientElapsed() {
 
 /** Module-level labels (React Compiler must not rename Lingui locals). */
 const TITLE = msg`Auto Orientation (Beta)`;
-const ORIENT = msg`Orient Model`;
-const OPT_SUPPORTS = msg`Fewest Supports`;
-const OPT_HEIGHT = msg`Shortest Print Time`;
-const OPT_SCARRING = msg`Least Scarring`;
+const ORIENT = msg`Compare orientations`;
+const OPT_SUPPORTS = msg`Lowest support consumption`;
+const OPT_SAFETY = msg`Highest print safety`;
+const OPT_SCARRING = msg`Best surface quality`;
+const RANK_REASON = {
+  safety: msg`Ranks lower peel loads, smaller area jumps and fewer islands first.`,
+  scarring: msg`Ranks poses that keep support contacts away from fine details and protected faces first.`,
+  supports: msg`Ranks poses with less unsupported area and shorter gaps to support first.`,
+  height: msg`Ranks shorter poses first.`,
+};
 const NO_MODEL = msg`Load a model to get an orientation suggestion.`;
 const NO_GEOMETRY = msg`Active model has no readable geometry.`;
+const ANALYSIS_FAILED = msg`Orientation analysis could not be completed.`;
 const BLOCKERS = msg`Blockers`;
 const CLEAR_BLOCKERS = msg`Clear`;
 const DONE_BLOCKERS = msg`Done`;
@@ -80,74 +90,101 @@ const PAINT_TITLE = msg`Blocker Painting Mode`;
 const BLOCKER_ACTION_TEXT = { color: 'var(--accent-secondary-action-color)', fontWeight: 600 } as const;
 const BRUSH_SIZE = msg`Brush Size`;
 
+function OrientationAreaProfile({ areas, peak }: { areas: readonly number[]; peak: number }) {
+  const { _ } = useLingui();
+  const bins = new Array<number>(Math.min(32, areas.length)).fill(0);
+  for (let i = 0; i < areas.length; i += 1) {
+    const bin = Math.floor(i * bins.length / areas.length);
+    bins[bin] = Math.max(bins[bin], areas[i]);
+  }
+  if (peak <= 0) return null;
+  return (
+    <div role="img" aria-label={_(msg`Estimated cured area from the first layer to the last`)} className="flex h-5 items-end gap-px">
+      {bins.map((area, index) => (
+        <span key={index} aria-hidden="true" className="flex-1 rounded-t-sm bg-[var(--accent)]" style={{ height: `${100 * area / peak}%` }} />
+      ))}
+    </div>
+  );
+}
+
 export interface AutoRotationPanelProps {
   activeModelId?: string;
+  geometry?: THREE.BufferGeometry;
+  scale?: THREE.Vector3;
+  autoLift?: boolean;
+  layerHeightMm?: number;
   /** Live scene rotation (world frame the suggestion is computed in). */
   currentRotation?: THREE.Euler;
-  /** Scene-owned apply: moves the model AND its supports, with history. */
-  onApplyRotation?: (modelId: string, rotation: THREE.Euler) => void;
+  /** Applies the optional tilt and arranges the plate, possibly after confirmation. */
+  onApplyRotation?: (modelId: string, rotation: THREE.Euler | undefined, onComplete: (applied: boolean) => void) => void;
   /** Display name for the toast receipt; falls back to the model id. */
   activeModelName?: string;
   /** Shell-toast receipt for the orient run (data only — the stack renders it). */
   onOrientationReport?: (report: Omit<OrientationToastReport, 'id'>) => void;
-  /**
-   * Gate before a destructive apply: receives the apply continuation. Returns
-   * true when the apply may run immediately (no dialog); false means the gate
-   * kept the continuation and will run it after confirm. Absent → apply directly.
-   */
-  onBeforeOrientApply?: (continueApply: () => void) => boolean;
   /** Whether the scene is in support-blocker paint mode. */
   blockersActive?: boolean;
   /** Toggles support-blocker paint mode in the scene. */
   onToggleBlockers?: () => void;
 }
 
-export type AutomaticOrientationSuggestion =
-  | { status: 'unavailable' }
-  | { status: 'already-optimal' }
-  | { status: 'suggested'; rotation: THREE.Euler };
+export type AutomaticOrientationSuggestion = { status: 'unavailable' } | (
+  ({ status: 'already-optimal' } | { status: 'suggested'; rotation: THREE.Euler })
+  & { alternatives?: OrientationAlternative[] }
+);
 
 /** Resolve the current model's best support-oriented rotation without mutating the scene. */
-export function getAutomaticOrientationSuggestion(
+export async function getAutomaticOrientationSuggestion(
   activeModelId: string,
+  geometry: THREE.BufferGeometry | undefined,
   currentRotation?: THREE.Euler,
   objective: OrientationObjective = 'supports',
-): AutomaticOrientationSuggestion {
-  const mesh = getModelMesh(activeModelId);
-  const position = mesh?.geometry?.attributes?.position;
-  if (!mesh || !position) return { status: 'unavailable' };
+  scale?: THREE.Vector3,
+  autoLift = false,
+  layerHeightMm?: number,
+): Promise<AutomaticOrientationSuggestion> {
+  const position = geometry?.getAttribute('position');
+  if (!position || position.count < 3) return { status: 'unavailable' };
 
-  const baked = new Float32Array(position.array as ArrayLike<number>);
-  if (currentRotation) {
-    const v = new THREE.Vector3();
-    for (let i = 0; i < baked.length; i += 3) {
-      v.set(baked[i], baked[i + 1], baked[i + 2]).applyEuler(currentRotation);
-      baked[i] = v.x;
-      baked[i + 1] = v.y;
-      baked[i + 2] = v.z;
-    }
+  const baked = new Float32Array(position.count * 3);
+  const quaternion = quaternionFromGlobalEuler(currentRotation);
+  const vertex = new THREE.Vector3();
+  for (let i = 0; i < position.count; i += 1) {
+    vertex.fromBufferAttribute(position, i);
+    if (scale) vertex.multiply(scale);
+    vertex.applyQuaternion(quaternion).toArray(baked, i * 3);
   }
 
-  const index = (mesh.geometry.index?.array as ArrayLike<number> | undefined) ?? null;
+  const sourceIndex = geometry?.getIndex()?.array;
+  const index = sourceIndex ? Uint32Array.from(sourceIndex) : null;
   const blocked = getSupportBlockedTriangles(activeModelId);
-  const result = suggestOrientationForGeometry(
-    { attributes: { position: { array: baked } }, index },
-    { objective, ...(blocked.size > 0 ? { blockedTriangleIndices: blocked } : {}) },
-  );
+  const options: AdvisorOptions = { objective, avoidParallelFaces: autoLift, layerHeightMm, blockedTriangleIndices: blocked };
+  const result = typeof Worker === 'undefined'
+    ? suggestOrientationForGeometry({ attributes: { position: { array: baked } }, index }, options)
+    : await new Promise<OrientationSuggestion>((resolve, reject) => {
+      const worker = new Worker(new URL('../../supports/autoSupport/orientationAdvisor.worker.ts', import.meta.url), { type: 'module' });
+      worker.onmessage = ({ data }: MessageEvent<{ result?: OrientationSuggestion; error?: string }>) => {
+        worker.terminate();
+        if (data.result) resolve(data.result);
+        else reject(new Error(data.error ?? 'Orientation worker returned no result'));
+      };
+      worker.onerror = (event) => {
+        worker.terminate();
+        reject(new Error(event.message));
+      };
+      worker.postMessage({ mesh: { positions: baked, index }, options }, index ? [baked.buffer, index.buffer] : [baked.buffer]);
+    });
   if (!result) return { status: 'unavailable' };
 
-  const improved = objective === 'height'
-    ? result.suggested.heightMm < result.baseline.heightMm
-    : result.suggested.cost < result.baseline.cost;
-  if (!improved) return { status: 'already-optimal' };
+  if (result.rotXDeg === 0 && result.rotYDeg === 0) return { status: 'already-optimal', alternatives: result.alternatives };
 
   return {
     status: 'suggested',
     rotation: composeOrientationDelta(currentRotation, result.rotXDeg, result.rotYDeg),
+    alternatives: result.alternatives,
   };
 }
 
-export function AutoRotationPanel({ activeModelId, activeModelName, currentRotation, onApplyRotation, onOrientationReport, onBeforeOrientApply, blockersActive, onToggleBlockers }: AutoRotationPanelProps) {
+export function AutoRotationPanel({ activeModelId, activeModelName, geometry, scale, autoLift, layerHeightMm = 0.05, currentRotation, onApplyRotation, onOrientationReport, blockersActive, onToggleBlockers }: AutoRotationPanelProps) {
   const { _ } = useLingui();
   const fmt = useLocaleFormat();
   // Named exactly as the ICU placeholders in the blocker hint below: the Trans
@@ -158,15 +195,31 @@ export function AutoRotationPanel({ activeModelId, activeModelName, currentRotat
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const brushSizeMm = getSupportBlockerBrushSizeMm();
-  const [objective, setObjective] = React.useState<OrientationObjective>('supports');
+  const [objective, setObjective] = React.useState<OrientationObjective>('safety');
+  const [alternatives, setAlternatives] = React.useState<OrientationAlternative[]>([]);
+  const analysisRevision = React.useRef(0);
+  const profilePeak = Math.max(0, ...alternatives.map(({ layers }) => layers.peakAreaMm2));
   // Support-blocker mask version for the active model (drives Clear).
-  React.useSyncExternalStore(subscribeSupportBlockers, getSupportBlockersVersion, getSupportBlockersVersion);
+  const blockersVersion = React.useSyncExternalStore(subscribeSupportBlockers, getSupportBlockersVersion, getSupportBlockersVersion);
   const blockedCount = activeModelId ? getSupportBlockedCount(activeModelId) : 0;
 
   // A new model or goal clears a stale error.
   React.useEffect(() => {
     setError(null);
-  }, [activeModelId, objective]);
+    setAlternatives([]);
+    return () => { analysisRevision.current += 1; };
+  }, [activeModelId, geometry, currentRotation, scale, objective, layerHeightMm, autoLift, blockersVersion]);
+
+  const applyAlternative = (alternative: OrientationAlternative) => {
+    if (!activeModelId || !onApplyRotation) return;
+    const { rotXDeg, rotYDeg } = alternative;
+    const rotation = rotXDeg || rotYDeg ? composeOrientationDelta(currentRotation, rotXDeg, rotYDeg) : undefined;
+    onApplyRotation(activeModelId, rotation, (applied) => {
+      if (!applied) return;
+      setAlternatives([]);
+      onOrientationReport?.({ status: rotation ? 'applied' : 'already-optimal', modelName: activeModelName ?? activeModelId });
+    });
+  };
 
   const handleOrient = React.useCallback(() => {
     setError(null);
@@ -174,42 +227,32 @@ export function AutoRotationPanel({ activeModelId, activeModelName, currentRotat
       setError(_(NO_MODEL));
       return;
     }
-    if (!onApplyRotation) return;
+    if (!onApplyRotation || getOrientationBusy()) return;
+    const revision = analysisRevision.current;
+    setAlternatives([]);
     setBusy(true);
     setOrientationBusy(true);
-    // Let the modal paint before the synchronous sweep blocks the thread.
     requestAnimationFrame(() => {
-      setTimeout(() => {
+      void (async () => {
         try {
-          const suggestion = getAutomaticOrientationSuggestion(activeModelId, currentRotation, objective);
+          const suggestion = await getAutomaticOrientationSuggestion(activeModelId, geometry, currentRotation, objective, scale, autoLift, layerHeightMm);
+          if (analysisRevision.current !== revision) return;
           if (suggestion.status === 'unavailable') {
             setError(_(NO_GEOMETRY));
             return;
           }
-          if (suggestion.status === 'already-optimal') {
-            onOrientationReport?.({
-              status: 'already-optimal',
-              modelName: activeModelName ?? activeModelId,
-            });
-            return;
-          }
-          // Compose in the canonical frame (see composeOrientationDelta) so
-          // the scene path moves supports along and records history.
-          const doApply = () => {
-            onApplyRotation(activeModelId, suggestion.rotation);
-            onOrientationReport?.({
-              status: 'applied',
-              modelName: activeModelName ?? activeModelId,
-            });
-          };
-          if (!onBeforeOrientApply || onBeforeOrientApply(doApply)) doApply();
+          if (suggestion.alternatives?.length) setAlternatives(suggestion.alternatives);
+          else setError(_(ANALYSIS_FAILED));
+        } catch (error) {
+          console.error('[AutoOrientation] analysis failed:', error);
+          if (analysisRevision.current === revision) setError(_(ANALYSIS_FAILED));
         } finally {
           setBusy(false);
           setOrientationBusy(false);
         }
-      }, 0);
+      })();
     });
-  }, [activeModelId, activeModelName, currentRotation, objective, onApplyRotation, onOrientationReport, onBeforeOrientApply, _]);
+  }, [activeModelId, geometry, scale, autoLift, layerHeightMm, currentRotation, objective, onApplyRotation, _]);
 
   return (
     <Card>
@@ -291,15 +334,44 @@ export function AutoRotationPanel({ activeModelId, activeModelName, currentRotat
           ) : (
             <div className="flex flex-col gap-1">
               <Select
+                aria-label={_(msg`Orientation objective`)}
                 style={{ textAlign: 'center', background: 'var(--surface-1)' }}
                 value={objective}
                 onChange={(e) => setObjective(e.target.value as OrientationObjective)}
                 disabled={busy || !activeModelId}
               >
                 <option value="supports">{_(OPT_SUPPORTS)}</option>
-                <option value="height">{_(OPT_HEIGHT)}</option>
+                <option value="safety">{_(OPT_SAFETY)}</option>
                 <option value="scarring">{_(OPT_SCARRING)}</option>
               </Select>
+            </div>
+          )}
+          {!blockersActive && alternatives.length > 0 && (
+            <div className="space-y-2" aria-live="polite">
+              <p className="ui-meta"><Trans>Estimated from sampled layers (Experimental)</Trans></p>
+              <p className="ui-meta">{_(RANK_REASON[objective])}</p>
+              {alternatives.map((alternative, index) => {
+                const { cost, layers, rotXDeg, rotYDeg } = alternative;
+                const area = (value: number) => fmt.quantity(value, 1, 'mm2');
+                return (
+                  <div key={`${rotXDeg}/${rotYDeg}`} className="rounded-md border border-[var(--border-subtle)] p-2 text-xs space-y-1">
+                    <div className="font-semibold">{index + 1}. X {fmt.quantity(rotXDeg, 1, 'degree')} · Y {fmt.quantity(rotYDeg, 1, 'degree')}</div>
+                    <OrientationAreaProfile areas={layers.layerAreasMm2} peak={profilePeak} />
+                    <dl className="grid grid-cols-[1fr_auto] gap-x-2">
+                      <dt><Trans>Peak layer area</Trans></dt><dd>{area(layers.peakAreaMm2)}</dd>
+                      <dt><Trans>Peel load vs. current pose</Trans></dt><dd>{alternative.relativePeelLoadPercent > 0 ? fmt.quantity(alternative.relativePeelLoadPercent, 0, 'percent') : '—'}</dd>
+                      <dt><Trans>Largest layer area increase</Trans></dt><dd>{area(layers.peakAreaIncreaseMm2)}</dd>
+                      <dt><Trans>Potential suction area</Trans></dt><dd>{area(layers.peakTrappedAreaMm2)}</dd>
+                      <dt><Trans>Unsupported islands</Trans></dt><dd>{fmt.fixed(layers.unsupportedIslands, 0)}</dd>
+                      <dt><Trans>Overhang area</Trans></dt><dd>{area(cost.overhangAreaMm2)}</dd>
+                      <dt><Trans>Support demand index</Trans></dt><dd>{fmt.fixed(layers.supportDemandMm3, 1)}</dd>
+                      <dt><Trans>Scarring score</Trans></dt><dd>{fmt.fixed(cost.scarAreaMm2, 1)}</dd>
+                      {blockedCount > 0 && <><dt><Trans>Contact on protected faces</Trans></dt><dd>{area(cost.blockedAreaMm2)}</dd></>}
+                    </dl>
+                    <Button type="button" size="auto" onClick={() => applyAlternative(alternative)}><Trans>Apply orientation</Trans></Button>
+                  </div>
+                );
+              })}
             </div>
           )}
           {blockersActive && (
