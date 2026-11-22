@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useSceneFileExtensionLabels } from '@/features/plugins/pluginFileTypeExtensions';
-import { msg, plural } from '@lingui/core/macro';
+import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import type { MessageDescriptor } from '@lingui/core';
@@ -146,7 +146,6 @@ import {
 
 import { initializeBVH } from '@/utils/bvh';
 import { useLocaleFormat } from '@/hooks/useLocaleFormat';
-import { splitDurationSeconds } from '@/utils/durationParts';
 import {
   computeApproxModelWorldBounds,
   computePreciseModelWorldBounds,
@@ -360,9 +359,11 @@ import { subscribe as subscribeSupportState, findShaftOwnerOfSegment, getSnapsho
 import { bracePlacementStore } from '@/supports/SupportTypes/Brace/bracePlacementState';
 import { splitSupportShaft } from '@/supports/SupportPrimitives/Joint/jointUtils';
 import { resolveSegmentEndpoints, type ShaftEntity } from '@/supports/SupportPrimitives/Knot/segmentEndpoints';
-import { knotFields } from '@/supports/interaction/shared/selection/selectedIdsByType';
 import type { KnotSplitRemap } from '@/supports/SupportPrimitives/Knot/knotUtils';
 import { captureSupportEditSnapshot, pushSupportEditHistory } from '@/supports/history/supportEditHistory';
+import { formatSelectedModelCount, formatArrangeOverflowMessage, formatApproxPrintTimeLabel, formatProcessingElapsedLabel, formatApplyingToModelLabel, formatCompressedModelSize, formatElapsedLabel, formatUploadToLabel, formatLayerHeightMismatch, formatUploadCompleteProcessing, formatSendFailed, formatImportComplete, formatUploadStillProcessing, formatPrintStarted, formatPrintStartFailed, formatEstimatedPrintTimeLabel, formatLastSuccessfulAutosave, formatPlateLockedNotice } from './home/homeFormatters';
+import { countRecordEntries, getDefaultHolePunchDepthMm, createModelTransformKey, PREPARE_TOOL_MODES, isAppMode, isTransformMode } from './home/homeUtils';
+import { getLongPartPlateYaw, computeArrangeSupportBounds } from './home/homeArrangeGeometry';
 
 /**
  * Apply knot re-anchor patches from a segment split BEFORE the host update runs,
@@ -380,7 +381,6 @@ function applyJointSplitKnotRemaps(remaps: KnotSplitRemap[]) {
     }
 }
 import { getRaftSettings, getRaftSettingsForModel, subscribeToRaftStore } from '@/supports/Rafts/Crenelated/RaftState';
-import { computeFootprint } from '@/supports/Rafts/Crenelated/geometry/computeFootprint';
 import { computeRaftFootprintPolygons, raftBandTopMm } from '@/supports/Rafts/Crenelated/geometry/computeRaftFootprint';
 import { collectModelPlateFootprint } from '@/supports/Rafts/Crenelated/geometry/modelPlateFootprint';
 import { isUntrimmedFootprint } from '@/supports/Rafts/Crenelated/geometry/generateRaftFromFootprint';
@@ -390,7 +390,7 @@ import type { SupportBaseCircle } from '@/supports/Rafts/Crenelated/RaftTypes';
 import { getFinalSocketPosition } from '@/supports/SupportPrimitives/ContactCone/contactConeUtils';
 import { calculateDiskThickness } from '@/supports/SupportPrimitives/ContactDisk/contactDiskUtils';
 import { getBezierPointAtT } from '@/supports/Curves/BezierUtils';
-import { getSupportsForModel, modelIdOfParentShaft } from '@/supports/PlacementLogic/SupportModelLinker';
+import { getSupportsForModel } from '@/supports/PlacementLogic/SupportModelLinker';
 import { buildProjectedCrossSectionZRange } from '@/features/slicing/rasterLayerZipExport';
 import { resolveCompositeMaterialLabel } from '@/utils/materialLabel';
 
@@ -463,127 +463,7 @@ type PendingModifierResetAction = 'hollowing' | 'hole_punch' | 'clear_hollowing'
 
 const EMPTY_SUPPORT_BOUNDS_BY_MODEL_ID = new Map<string, THREE.Box3>();
 
-function countRecordEntries(record: Record<string, unknown>): number {
-  let count = 0;
-  for (const _key in record) {
-    count += 1;
-  }
-  return count;
-}
-
-function areSortedNumberArraysEqual(a: readonly number[], b: readonly number[]): boolean {
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-  for (let index = 0; index < a.length; index += 1) {
-    if (a[index] !== b[index]) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// Module scope for the same React Compiler reason as the duration formatters below.
-function formatSelectedModelCount(translate: (descriptor: MessageDescriptor) => string, count: number): string {
-  return translate(msg`${plural(count, { one: '# model', other: '# models' })}`);
-}
-
-function formatArrangeOverflowMessage(translate: (descriptor: MessageDescriptor) => string, count: number): string {
-  return translate(msg`${plural(count, {
-    one: '# model could not fit in the available build volume and was moved outside the plate. Scale or split it before printing.',
-    other: '# models could not fit in the available build volume and were moved outside the plate. Scale or split them before printing.',
-  })}`);
-}
-
-function isKeyboardTargetEditable(target: EventTarget | null): boolean {
-  if (!target || !(target instanceof HTMLElement)) return false;
-  const tag = target.tagName.toLowerCase();
-  if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
-  if (target.isContentEditable) return true;
-  return Boolean(target.closest('[contenteditable="true"]'));
-}
-
-// Duration label formatters. These MUST stay at module scope. React Compiler
-// rewrites the component body and renames locals (e.g. `minutes` -> `minutes_2`);
-// when that rename lands inside a Lingui `msg` template, the macro bakes the
-// renamed name into the generated message id, which then no longer matches the
-// compiled catalog (extracted from the original names). Lingui only interpolates
-// the fallback message in development, so production builds render raw
-// `{minutes_2}` placeholders. Plain module-scope functions are left untouched by
-// React Compiler, keeping the placeholder names — and thus the ids — stable.
-function formatApproxPrintTimeLabel(translate: (descriptor: MessageDescriptor) => string, totalSec: number): string {
-  const { hours, minutes: mins } = splitDurationSeconds(totalSec);
-  if (hours > 0) return translate(msg({ message: `~${hours} h ${mins} min`, comment: 'Approximate estimated print time (the "~" marks it as a rough estimate). {hours}/{mins} are whole-number quantities.' }));
-  return translate(msg({ message: `~${mins} min`, comment: 'Approximate estimated print time under an hour (the "~" marks it as a rough estimate).' }));
-}
-
-function formatProcessingElapsedLabel(translate: (descriptor: MessageDescriptor) => string, elapsedSec: number): string {
-  const total = Math.max(0, elapsedSec);
-  const { totalMinutes: minutes, seconds } = splitDurationSeconds(total);
-  return translate(msg`${minutes} min ${seconds} s`);
-}
-
-/** Module-scope helpers because they interpolate: React Compiler renames inline `msg` locals in production. */
-function formatApplyingToModelLabel(translate: (descriptor: MessageDescriptor) => string, current: number, total: number): string {
-  return translate(msg`Applying to model ${current} of ${total}`);
-}
-
-function formatCompressedModelSize(translate: (descriptor: MessageDescriptor) => string, name: string, megabytes: string): string {
-  return translate(msg({ message: `${name}: ${megabytes} MB compressed`, comment: 'One row of the per-model breakdown when a scene is too large to save.' }));
-}
-
-function formatElapsedLabel(translate: (descriptor: MessageDescriptor) => string, elapsed: string): string {
-  return translate(msg({ message: `Elapsed: ${elapsed}`, comment: 'Time a blocking task has been running, e.g. "Elapsed: 1 min 12 s".' }));
-}
-
-type Translate = (descriptor: MessageDescriptor) => string;
-
-function formatUploadToLabel(translate: Translate, printer: string): string {
-  return translate(msg({ message: `Upload to ${printer}`, comment: 'Send button label; {printer} is the target printer name, shortened when long.' }));
-}
-
-function formatLayerHeightMismatch(translate: Translate, layerHeight: string): string {
-  return translate(msg`Selected material on this printer does not match sliced layer height ${layerHeight} mm.`);
-}
-
-function formatUploadCompleteProcessing(translate: Translate, printer: string): string {
-  return translate(msg`Upload complete. ${printer} is processing file metadata…`);
-}
-
-function formatSendFailed(translate: Translate, reason: string): string {
-  return translate(msg`Send failed: ${reason}`);
-}
-
-function formatImportComplete(translate: Translate, plateId: string | number | null | undefined): string {
-  return plateId
-    ? translate(msg({ message: `Import complete • Plate #${plateId}. Click Print Now when ready.`, comment: 'Plate here is the file slot on the printer.' }))
-    : translate(msg`Import complete. Click Print Now when ready.`);
-}
-
-function formatUploadStillProcessing(translate: Translate, plateId: string | number | null | undefined): string {
-  return plateId
-    ? translate(msg({ message: `Upload complete • Plate #${plateId}. Device is still processing metadata after waiting.`, comment: 'Plate here is the file slot on the printer.' }))
-    : translate(msg`Upload complete. Device is still processing metadata after waiting.`);
-}
-
-function formatPrintStarted(translate: Translate, plateId: string | number | null | undefined): string {
-  return plateId
-    ? translate(msg({ message: `Print started successfully • Plate #${plateId}.`, comment: 'Plate here is the file slot on the printer.' }))
-    : translate(msg`Print started successfully.`);
-}
-
-function formatPrintStartFailed(translate: Translate, reason: string): string {
-  return translate(msg`Print start failed: ${reason}`);
-}
-
-function formatEstimatedPrintTimeLabel(translate: (descriptor: MessageDescriptor) => string, totalSec: number): string {
-  const wholeSeconds = Math.max(0, Math.floor(totalSec));
-  const { hours, minutes, seconds } = splitDurationSeconds(wholeSeconds);
-  if (hours > 0) return translate(msg`${hours} h ${minutes} min`);
-  return translate(msg`${minutes} min ${seconds} s`);
-}
-
 const HOLE_PUNCH_OUTSIDE_PROTRUSION_MM = 3;
-const HOLE_PUNCH_DEPTH_OFFSET_FROM_SHELL_MM = 1;
 const HOLE_PUNCH_AUTO_DEPTH_RAY_START_OFFSET_MM = 0.3;
 const HOLE_PUNCH_AUTO_DEPTH_MIN_INSIDE_MM = 1;
 const HOLLOW_PREVIEW_DEBOUNCE_MS = 90;
@@ -625,12 +505,6 @@ const TET_SURFACE_DEFAULT_OPTIONS: TetWrapOptions = {
   // Off: the decomposition constrains the model's own facets, and simplifying folds them.
   tolerance: 0,
 };
-
-function getDefaultHolePunchDepthMm(shellThicknessMm: number): number {
-  return Number(
-    Math.min(120, Math.max(1, shellThicknessMm + HOLE_PUNCH_DEPTH_OFFSET_FROM_SHELL_MM)).toFixed(1),
-  );
-}
 
 function installReactDevtoolsSemverGuard() {
   if (process.env.NODE_ENV !== 'development') return;
@@ -708,260 +582,6 @@ type PendingSupportDragSyncTransaction = {
   expectedSupportStoreVersion: number;
   expectedKickstandStoreVersion: number;
 };
-
-function createModelTransformKey(modelId: string, transform: ModelTransform): string {
-  return [
-    modelId,
-    transform.position.x.toFixed(6),
-    transform.position.y.toFixed(6),
-    transform.position.z.toFixed(6),
-    transform.rotation.x.toFixed(6),
-    transform.rotation.y.toFixed(6),
-    transform.rotation.z.toFixed(6),
-    transform.scale.x.toFixed(6),
-    transform.scale.y.toFixed(6),
-    transform.scale.z.toFixed(6),
-  ].join('|');
-}
-
-/**
- * Modes a history entry may name as its origin. The history store carries the
- * origin as plain strings (it must not depend on the app's unions), so these
- * narrow it back on the way in — an entry recorded by an older build, or a mode
- * that has since been renamed, is ignored rather than jamming the app into a
- * mode that no longer exists.
- */
-const HISTORY_APP_MODES: readonly SupportMode[] = ['prepare', 'analysis', 'support', 'export', 'printing'];
-const HISTORY_TRANSFORM_MODES: readonly TransformMode[] = [
-  'select', 'transform', 'smoothing', 'engraving', 'solidOperations', 'arrange', 'duplicate', 'placeOnFace', 'mirror', 'hollowing', 'organicCut',
-  'supportBlockers', 'supportPainting', 'supportInline', 'supportProjection',
-];
-
-/**
- * The transform modes Prepare's rail offers. Support's Hollowing is deliberately
- * absent: it is a Support tool now, and Prepare must never restore it.
- */
-const PREPARE_TOOL_MODES: readonly TransformMode[] = [
-  'select', 'transform', 'placeOnFace', 'mirror', 'duplicate', 'arrange', 'organicCut', 'smoothing', 'engraving', 'solidOperations',
-];
-
-function isAppMode(value: string): value is SupportMode {
-  return (HISTORY_APP_MODES as readonly string[]).includes(value);
-}
-
-function isTransformMode(value: string): value is TransformMode {
-  return (HISTORY_TRANSFORM_MODES as readonly string[]).includes(value);
-}
-
-// Static ICU pattern in a module-level formatter (see PrinterVariantPickerModal):
-// inline interpolation loses its placeholder names to the React Compiler in
-// production builds, leaving the raw {timestamp} on screen.
-function formatLastSuccessfulAutosave(
-  translate: (descriptor: MessageDescriptor, values?: Record<string, unknown>) => string,
-  timestamp: string,
-): string {
-  return translate(msg({
-    message: 'Last successful autosave: {timestamp}. Save your project manually.',
-    comment: '{timestamp} is a locale-formatted date and time.',
-  }), { timestamp });
-}
-
-// Static ICU pattern in a module-level formatter (see AGENTS.md): written inside the
-// component, the React Compiler renames the interpolated local and the message id stops
-// matching the compiled catalogue.
-function formatPlateLockedNotice(
-  translate: (descriptor: MessageDescriptor, values?: Record<string, unknown>) => string,
-  plateName: string,
-): string {
-  return translate(msg({
-    message: '{plateName} is locked.',
-    comment: '{plateName} is the locked build plate, named as the Models panel names it: its own name, or "Plate 1".',
-  }), { plateName });
-}
-
-function getLongPartPlateYaw(
-  geometry: GeometryWithBounds,
-  transform: Parameters<typeof computePreciseModelWorldBounds>[1],
-  plate: PlateRect,
-): number {
-  const plateWidth = plate.maxX - plate.minX;
-  const plateDepth = plate.maxY - plate.minY;
-  const position = geometry.geometry.getAttribute('position');
-  if (!position || position.count < 3 || Math.abs(plateWidth - plateDepth) < 0.01) return 0;
-
-  // Find the long axis of the projected mesh, including diagonal poses.
-  const rotation = quaternionFromGlobalEuler(transform.rotation);
-  const vertex = new THREE.Vector3();
-  const stride = Math.max(1, Math.floor(position.count / 2048));
-  let count = 0;
-  let x = 0;
-  let y = 0;
-  let xx = 0;
-  let xy = 0;
-  let yy = 0;
-  for (let i = 0; i < position.count; i += stride) {
-    vertex.fromBufferAttribute(position, i).sub(geometry.center).multiply(transform.scale).applyQuaternion(rotation);
-    x += vertex.x;
-    y += vertex.y;
-    xx += vertex.x * vertex.x;
-    xy += vertex.x * vertex.y;
-    yy += vertex.y * vertex.y;
-    count += 1;
-  }
-  const axis = Math.atan2(2 * (xy - x * y / count), (xx - x * x / count) - (yy - y * y / count)) / 2;
-  if (!Number.isFinite(axis)) return 0;
-  const { x: rx, y: ry, z: rz } = transform.rotation;
-  const size = computePreciseModelWorldBounds(geometry, {
-    ...transform,
-    rotation: eulerFromGlobalEuler({ x: rx, y: ry, z: rz - axis }),
-  }).getSize(vertex);
-  if (size.x < 1.6 * Math.max(size.y, size.z, 0.01)) return 0;
-
-  const target = plateWidth > plateDepth ? 0 : Math.PI / 2;
-  // The axis has no direction. Choose the equivalent turn closest to the current pose.
-  return THREE.MathUtils.euclideanModulo(target - axis + Math.PI / 2, Math.PI) - Math.PI / 2;
-}
-
-function computeArrangeSupportBounds(
-  supportStateSnapshot: HomeSupportCollectionsSnapshot,
-  raftSettingsSnapshot: ReturnType<typeof getRaftSettings>,
-  resolveModelRaftSettings?: typeof getRaftSettingsForModel,
-) {
-  const boundsByModelId = new Map<string, THREE.Box3>();
-  const supportOnlyBoundsByModelId = new Map<string, THREE.Box3>();
-  const raftBoundsByModelId = new Map<string, THREE.Box3>();
-
-  const expandInto = (
-    target: Map<string, THREE.Box3>,
-    modelId: string | null | undefined,
-    pos: { x: number; y: number; z: number } | null | undefined,
-    radiusMm = 0,
-  ) => {
-    if (!modelId || !pos) return;
-    let bounds = target.get(modelId);
-    if (!bounds) {
-      bounds = new THREE.Box3();
-      target.set(modelId, bounds);
-    }
-    const radius = Math.max(0, radiusMm);
-    bounds.expandByPoint(new THREE.Vector3(pos.x - radius, pos.y - radius, pos.z - radius));
-    bounds.expandByPoint(new THREE.Vector3(pos.x + radius, pos.y + radius, pos.z + radius));
-  };
-
-  const expand = (modelId: string | null | undefined, pos: { x: number; y: number; z: number } | null | undefined, radiusMm = 0) => {
-    expandInto(boundsByModelId, modelId, pos, radiusMm);
-    expandInto(supportOnlyBoundsByModelId, modelId, pos, radiusMm);
-  };
-
-  const expandRaft = (modelId: string, pos: { x: number; y: number; z: number }) => {
-    expandInto(boundsByModelId, modelId, pos);
-    expandInto(raftBoundsByModelId, modelId, pos);
-  };
-
-  // Which model each knot belongs to, from the `hostedBy knots` edges every
-  // type declares. A brace lands under both its ends because it declares two.
-  const knotModelById = new Map<string, string>();
-  for (const descriptor of SUPPORT_TYPES) {
-    const fields = knotFields(descriptor);
-    if (fields.length === 0) continue;
-
-    const collection = supportStateSnapshot[descriptor.location.key as SupportCollectionKey] as unknown as
-      Record<string, Record<string, unknown>>;
-    for (const entity of Object.values(collection ?? {})) {
-      const modelId = entity.modelId as string | undefined;
-      if (!modelId) continue;
-      for (const field of fields) {
-        const knotId = entity[field];
-        if (typeof knotId === 'string') knotModelById.set(knotId, modelId);
-      }
-    }
-  }
-
-  for (const root of Object.values(supportStateSnapshot.roots)) {
-    expand(root.modelId, root.transform?.pos, Math.max(0.001, root.diameter / 2));
-    expand(root.modelId, {
-      x: root.transform.pos.x,
-      y: root.transform.pos.y,
-      z: root.transform.pos.z + Math.max(0, root.diskHeight) + Math.max(0, root.coneHeight),
-    }, Math.max(0.001, root.diameter / 2));
-  }
-
-  if (resolveModelRaftSettings || raftSettingsSnapshot.bottomMode !== 'off') {
-    const rootsByModel = new Map<string, SupportBaseCircle[]>();
-
-    for (const root of Object.values(supportStateSnapshot.roots)) {
-      if (!root.modelId) continue;
-      if (!rootsByModel.has(root.modelId)) rootsByModel.set(root.modelId, []);
-      rootsByModel.get(root.modelId)!.push({
-        x: root.transform.pos.x,
-        y: root.transform.pos.y,
-        r: root.diameter / 2,
-      });
-    }
-
-    for (const [modelId, circles] of rootsByModel) {
-      const raft = resolveModelRaftSettings?.(modelId) ?? raftSettingsSnapshot;
-      if (circles.length === 0 || raft.bottomMode === 'off') continue;
-
-      const thickness = raft.bottomMode === 'line' ? raft.lineHeightMm : raft.thickness;
-      const chamferInset = Math.max(0, thickness) * Math.tan((Math.PI / 180) * (90 - Math.min(90, Math.max(45, raft.chamferAngle))));
-      const wallInset = raft.wallEnabled ? Math.max(0, raft.wallThickness) : 0;
-      const dynamicMargin = 0.2 + Math.max(chamferInset, wallInset);
-
-      const baseProfile = computeFootprint(circles, {
-        marginMm: dynamicMargin,
-        samplesPerCircle: 24,
-      });
-
-      if (!baseProfile || baseProfile.length < 3) continue;
-
-      const outerProfile = raft.wallEnabled
-        ? computeRaftOuterBoundary(baseProfile, raft)
-        : baseProfile;
-
-      const raftMaxZ = raftBandTopMm(raft);
-
-      for (const p of outerProfile) {
-        expandRaft(modelId, { x: p.x, y: p.y, z: 0 });
-        expandRaft(modelId, { x: p.x, y: p.y, z: raftMaxZ });
-      }
-    }
-  }
-
-  // Every type's joints and declared contacts, so each one grows the bounds.
-  for (const descriptor of SUPPORT_TYPES) {
-    const collection = supportStateSnapshot[descriptor.location.key as SupportCollectionKey] as unknown as
-      Record<string, { modelId?: string; segments?: Segment[] }>;
-
-    for (const entity of Object.values(collection ?? {})) {
-      const modelId = entity.modelId;
-      if (!modelId) continue;
-
-      for (const seg of entity.segments ?? []) {
-        expand(modelId, seg.topJoint?.pos, Math.max(0.001, (seg.topJoint?.diameter ?? seg.diameter) / 2));
-        expand(modelId, seg.bottomJoint?.pos, Math.max(0.001, (seg.bottomJoint?.diameter ?? seg.diameter) / 2));
-      }
-
-      for (const { kind, field } of contactEndpointsFor(descriptor.id)) {
-        const contact = (entity as unknown as Record<string, unknown>)[field];
-        if (!contact) continue;
-        // A disk carries its contact diameter directly; a cone in its profile.
-        const c = contact as { pos: { x: number; y: number; z: number }; contactDiameterMm?: number; profile?: { contactDiameterMm?: number } };
-        const diameter = kind === 'disk' ? c.contactDiameterMm : c.profile?.contactDiameterMm;
-        expand(modelId, c.pos, Math.max(0.001, (diameter ?? 0.002) / 2));
-      }
-    }
-  }
-
-  // A knot with no hosting entity falls back to the shaft it sits on.
-  for (const knot of Object.values(supportStateSnapshot.knots)) {
-    const modelId = knotModelById.get(knot.id)
-      ?? modelIdOfParentShaft(supportStateSnapshot, knot.parentShaftId);
-    expand(modelId, knot.pos, Math.max(0.001, (knot.diameter ?? 1.2) / 2));
-  }
-
-  return { all: boundsByModelId, supports: supportOnlyBoundsByModelId, rafts: raftBoundsByModelId };
-}
 
 export default function Home() {
   const { _, i18n } = useLingui();
