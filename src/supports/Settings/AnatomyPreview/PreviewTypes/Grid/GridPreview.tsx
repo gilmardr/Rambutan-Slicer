@@ -36,7 +36,7 @@ export function GridPreview({
     return (
         <>
             {gridPreviewSupports.map((data) => {
-                // Apply 3DRESIN Pink highlight to roots to emphasize the grid layout
+                // Apply Rambutan Slicer Pink highlight to roots to emphasize the grid layout
                 // And dim the rest of the support to make the roots pop
                 const mergedOverrides = {
                     roots: ANATOMY_CONFIG.colors.highlight,

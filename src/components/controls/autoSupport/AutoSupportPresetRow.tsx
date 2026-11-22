@@ -36,7 +36,7 @@ const AUTO_LIFT_OFF = msg({ message: 'Auto-Lift OFF', comment: 'Toggle button sh
 const AUTO_LIFT_HINT = msg`Hold the model clear of the plate, so a support can stand under it. Turns off a manual Z move.`;
 
 /**
- * The standard 3DRESIN toggle treatment — the bracing card's quick-pick and
+ * The standard Rambutan Slicer toggle treatment — the bracing card's quick-pick and
  * the Cut Panel's segmented selector both use it, so a toggle reads the same
  * wherever it appears: the theme accent behind the button while it is on.
  */

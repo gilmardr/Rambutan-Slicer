@@ -433,7 +433,7 @@ export function SettingsModal({
   const [copied, setCopied] = useState(false);
   const handleCopyBuildInfo = React.useCallback(async () => {
     // Full build identity in one string — what a bug report needs.
-    const buildInfo = `3DRESIN ${DRAGONFRUIT_VERSION} (${DRAGONFRUIT_BUILD_CHANNEL})${DRAGONFRUIT_GIT_BUILD_LABEL ? ` — ${DRAGONFRUIT_GIT_BUILD_LABEL}` : ''}`;
+    const buildInfo = `Rambutan Slicer ${DRAGONFRUIT_VERSION} (${DRAGONFRUIT_BUILD_CHANNEL})${DRAGONFRUIT_GIT_BUILD_LABEL ? ` — ${DRAGONFRUIT_GIT_BUILD_LABEL}` : ''}`;
     try {
       await navigator.clipboard.writeText(buildInfo);
       setCopied(true);
@@ -1387,7 +1387,7 @@ export function SettingsModal({
             <div>
               <h2 className="text-base font-semibold" style={{ color: 'var(--text-strong)' }}>Settings</h2>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Customize 3DRESIN behavior, visuals, and controls.
+                Customize Rambutan Slicer behavior, visuals, and controls.
               </p>
             </div>
           </div>
@@ -1671,7 +1671,7 @@ export function SettingsModal({
                         </h5>
 
                         <p className="mt-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                          {_(msg`3DRESIN fork and modifications by Druciak Tech`)}
+                          {_(msg`Rambutan Slicer fork and modifications by Druciak Tech`)}
                         </p>
 
                         <div className="mt-2.5 space-y-2">
@@ -1908,7 +1908,7 @@ export function SettingsModal({
         )}
       >
         <p className="text-xs leading-snug" style={{ color: 'var(--text-muted)' }}>
-          Reload 3DRESIN now to apply your experiment changes? Any unsaved changes to the current scene will be lost.
+          Reload Rambutan Slicer now to apply your experiment changes? Any unsaved changes to the current scene will be lost.
         </p>
       </StructuredDialogModal>
 
@@ -1980,7 +1980,7 @@ export function SettingsModal({
         )}
       >
         <p className="text-xs leading-snug" style={{ color: 'var(--text-muted)' }}>
-          Delete <strong>{draftCustomThemeName.trim() || 'this custom theme'}</strong>? 3DRESIN will switch back to a built-in preset.
+          Delete <strong>{draftCustomThemeName.trim() || 'this custom theme'}</strong>? Rambutan Slicer will switch back to a built-in preset.
         </p>
       </StructuredDialogModal>
 

@@ -191,7 +191,7 @@ const EdgeCube = ({ onClick, dimensions, position, hoverColor = colors.hover }: 
 export const ZUpGizmoViewcube = (props: GenericProps) => {
   return (
     // Rotate the rendered cube and tween targets together so the widget matches
-    // 3DRESIN's Z-up, X-right, Y-back coordinate convention.
+    // Rambutan Slicer's Z-up, X-right, Y-back coordinate convention.
     <group scale={[60, 60, 60]} rotation={[0, 0, GIZMO_Z_ROTATION]}>
       <FaceCube {...props} />
       {edges.map((edge, index) => (

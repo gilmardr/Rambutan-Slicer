@@ -2,7 +2,7 @@
  * Printer names and advertised slice formats from the CHITUBOX Pro 2.0.8
  * documentation, with current Creality HALOT product aliases. This is a
  * compatibility catalog, not verified machine dimensions or a claim that
- * 3DRESIN can encode every listed format.
+ * Rambutan Slicer can encode every listed format.
  * Sources:
  * - https://docs.chitubox.com/en-US/chitubox/latest/introduction
  * - https://www.creality.com/products/halot-x1-resin-3d-printer

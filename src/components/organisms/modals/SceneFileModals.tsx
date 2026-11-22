@@ -546,8 +546,8 @@ export function SceneFileModals({
           <>
             <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               {hasUnsavedSceneChanges
-                ? <Trans>You’re about to close 3DRESIN with unsaved scene changes.</Trans>
-                : <Trans>Close 3DRESIN now?</Trans>}
+                ? <Trans>You’re about to close Rambutan Slicer with unsaved scene changes.</Trans>
+                : <Trans>Close Rambutan Slicer now?</Trans>}
             </p>
             <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               <strong><Trans>Please ensure you have saved any important work.</Trans></strong>

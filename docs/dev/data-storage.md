@@ -186,7 +186,7 @@ Autosave timing is stored in milliseconds: `debounceMs` defaults to `45_000` (45
 | dragonfruit-local-backups:last-sync-at       | localStorage | Last local sync timestamp       |
 | dragonfruit-local-backups:directory          | localStorage | Selected local backup directory |
 
-3DRESIN has no account sign-in or remote-account backup flow. Existing
+Rambutan Slicer has no account sign-in or remote-account backup flow. Existing
 dragonfruit-backups:* values from older builds are inert legacy data and are
 not read by this app. Local filesystem backups remain available. Each snapshot
 contains app-scoped `localStorage` values (including support presets and saved

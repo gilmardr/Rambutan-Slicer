@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="3DRESIN">
-  <rect x="48" y="48" width="928" height="928" rx="210" fill="#10141c"/>
-  <path d="M512 154 830 336 512 520 194 336Z" fill="#ffb45d"/>
-  <path d="M194 336 512 520V878L194 696Z" fill="#3bd2c6"/>
-  <path d="M830 336 512 520V878L830 696Z" fill="#138b84"/>
-  <path d="M512 520v358" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="16"/>
-</svg>

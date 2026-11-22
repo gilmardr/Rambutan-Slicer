@@ -162,7 +162,7 @@ function isDesktopRuntime(): boolean {
 
 async function invokeDesktop<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   if (!isDesktopRuntime()) {
-    throw new Error('Local backups are only available in the 3DRESIN desktop build.');
+    throw new Error('Local backups are only available in the Rambutan Slicer desktop build.');
   }
 
   const { invoke } = await import('@tauri-apps/api/core');
@@ -741,7 +741,7 @@ export function LocalBackupsSettingsTab({
   if (!desktopAvailable) {
     return (
       <div className="rounded-md border p-3 text-xs" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)', color: 'var(--text-muted)' }}>
-        <Trans>Local on-disk backups are currently available in the 3DRESIN desktop build only.</Trans>
+        <Trans>Local on-disk backups are currently available in the Rambutan Slicer desktop build only.</Trans>
       </div>
     );
   }

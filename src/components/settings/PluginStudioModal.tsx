@@ -624,11 +624,11 @@ function buildReadmeTemplate(meta: PluginMeta): string {
   return [
     `# ${repoName}`,
     '',
-    meta.description || `${meta.name || 'Plugin'} presets for 3DRESIN.`,
+    meta.description || `${meta.name || 'Plugin'} presets for Rambutan Slicer.`,
     '',
     '## Installation',
     '',
-    '### Via 3DRESIN Plugin Manager',
+    '### Via Rambutan Slicer Plugin Manager',
     '',
     'Open **Settings → Plugins → Install from GitHub URL** and paste:',
     '',
@@ -1350,7 +1350,7 @@ function StepDetails({ meta, onChange, onImportManifest, installedPlugins, onImp
               Development Build Warning
             </div>
             <div className="mt-0.5 text-[12px] font-medium leading-5" style={{ color: 'var(--text-muted)' }}>
-              You are running a development build of <span style={{ color: 'var(--text-strong)' }}>3DRESIN</span>. Plugin Creation Studio is intended for developers, integrators, and OEM partners creating or maintaining printer and material profile packs. Changes made here can overwrite or replace local plugin data, so review edits carefully before importing, editing, or writing files.
+              You are running a development build of <span style={{ color: 'var(--text-strong)' }}>Rambutan Slicer</span>. Plugin Creation Studio is intended for developers, integrators, and OEM partners creating or maintaining printer and material profile packs. Changes made here can overwrite or replace local plugin data, so review edits carefully before importing, editing, or writing files.
             </div>
           </div>
         </div>
@@ -1485,7 +1485,7 @@ function StepRepo({ meta }: StepRepoProps) {
       </RepoStep>
 
       {/* Step 5 */}
-      <RepoStep n={5} title="Install in 3DRESIN" description="Two ways to load the plugin.">
+      <RepoStep n={5} title="Install in Rambutan Slicer" description="Two ways to load the plugin.">
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg border p-2.5 space-y-1" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
             <div className="text-xs font-semibold" style={{ color: 'var(--text-strong)' }}>GitHub URL Install</div>
@@ -1494,7 +1494,7 @@ function StepRepo({ meta }: StepRepoProps) {
           </div>
           <div className="rounded-lg border p-2.5 space-y-1" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
             <div className="text-xs font-semibold" style={{ color: 'var(--text-strong)' }}>Git Submodule</div>
-            <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>From your 3DRESIN directory:</div>
+            <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>From your Rambutan Slicer directory:</div>
             <code className="block font-mono text-[11px] mt-1 break-all" style={{ color: 'var(--accent-secondary)' }}>{submoduleCmd}</code>
             <div className="mt-2 rounded-md border px-2 py-1.5 text-[11px]" style={{ borderColor: 'color-mix(in srgb, #d97706, var(--border-subtle) 50%)', background: 'color-mix(in srgb, #d97706, var(--surface-2) 92%)', color: 'var(--text-muted)' }}>
               If you use the submodule route, also register the plugin in{' '}
@@ -3220,7 +3220,7 @@ function StepExport({ jsonContent, readmeContent, slug, printerPresetFiles, mate
           <ol className="text-xs space-y-1 list-decimal list-inside" style={{ color: 'var(--text-muted)' }}>
             <li>Use <strong>Write to plugins/</strong> to generate files in your local plugin folder.</li>
             <li>Commit and push your changes to GitHub.</li>
-            <li>In 3DRESIN: Plugins → Install from GitHub URL → enter your repo URL.</li>
+            <li>In Rambutan Slicer: Plugins → Install from GitHub URL → enter your repo URL.</li>
           </ol>
         </div>
       )}
@@ -3690,7 +3690,7 @@ export function PluginStudioModal({ isOpen, onClose }: PluginStudioModalProps) {
             </span>
             <div className="min-w-0">
               <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-strong)' }}>
-                3DRESIN
+                Rambutan Slicer
               </div>
               <div className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
                 Plugin authoring mode

@@ -1691,7 +1691,7 @@ function MaterialAntiAliasingSectionDense({ draft, onChange }: MaterialAntiAlias
             >
                 <LabeledToggleInput
                     label="Enable Anti-Aliasing Override"
-                    helpText="When disabled, 3DRESIN ignores this material profile's AA settings and uses the slicer's Auto AA configuration."
+                    helpText="When disabled, Rambutan Slicer ignores this material profile's AA settings and uses the slicer's Auto AA configuration."
                     checked={overrideEnabled}
                     onChange={(value) => updateAaSettings({ enableOverride: value })}
                 />

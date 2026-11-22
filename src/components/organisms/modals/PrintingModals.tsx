@@ -2634,7 +2634,7 @@ export function PrintingModals({
                     <div>{printingMonitorRelayDebugTransport?.clientPort ?? 'n/a'}</div>
 
                     <div className="col-span-2 text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                      Source is the printer/server RTP port; destination is the 3DRESIN/client RTP port.
+                      Source is the printer/server RTP port; destination is the Rambutan Slicer/client RTP port.
                     </div>
 
                     <div style={{ color: 'var(--text-muted)' }}>Reclaim session</div>

@@ -4646,7 +4646,7 @@ export function ProfileSettingsModal({
                 <div>
                   <h3 className="text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>Edit Unit</h3>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Customize nickname and card thumbnail for this fleet unit in 3DRESIN.
+                    Customize nickname and card thumbnail for this fleet unit in Rambutan Slicer.
                   </p>
                 </div>
                 <IconButton

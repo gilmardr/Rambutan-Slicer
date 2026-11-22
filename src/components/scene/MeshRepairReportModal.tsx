@@ -378,10 +378,10 @@ function OptimisticReportBody({ entry }: { entry: MeshRepairReportEntry }) {
   const [showTechnicalDetails, setShowTechnicalDetails] = React.useState(false);
 
   const summaryText = report.rebuilt
-    ? _(msg`3DRESIN rebuilt this mesh into a solid and replaced the model in your current scene.`)
+    ? _(msg`Rambutan Slicer rebuilt this mesh into a solid and replaced the model in your current scene.`)
     : report.fully_repaired
-      ? _(msg`3DRESIN repaired this mesh and replaced the model in your current scene.`)
-      : _(msg`3DRESIN could not fully repair this mesh — it is still not a valid manifold and may cause problems later in your workflow.`);
+      ? _(msg`Rambutan Slicer repaired this mesh and replaced the model in your current scene.`)
+      : _(msg`Rambutan Slicer could not fully repair this mesh — it is still not a valid manifold and may cause problems later in your workflow.`);
 
   const summaryAccent = report.fully_repaired ? '#22c55e' : '#ef4444';
 
@@ -434,7 +434,7 @@ function OptimisticReportBody({ entry }: { entry: MeshRepairReportEntry }) {
         style={{ borderColor: 'var(--border-subtle)', background: 'color-mix(in srgb, var(--surface-1), black 4%)' }}
       >
         <div className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--text-muted)' }}>
-          <Trans>What 3DRESIN repaired</Trans>
+          <Trans>What Rambutan Slicer repaired</Trans>
         </div>
         <ul className="space-y-1.5">
           {wins.map((win) => (

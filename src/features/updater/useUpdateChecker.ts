@@ -32,7 +32,7 @@ export type UpdateState =
 // ---------------------------------------------------------------------------
 
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // once per day
-const STORAGE_KEY_LAST_CHECK = '3dresin-updater-last-check';
+const STORAGE_KEY_LAST_CHECK = 'rambutan-slicer-updater-last-check';
 
 const EXTERNAL_STATE: UpdateState = { status: 'external' };
 

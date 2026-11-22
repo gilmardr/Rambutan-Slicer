@@ -158,13 +158,13 @@ export default function CustomPrinterProfileModal({
                 <Trans>Manufacturer</Trans>
               </span>
               <input
-                list="3dresin-printer-manufacturers"
+                list="rambutan-slicer-printer-manufacturers"
                 value={manufacturer}
                 onChange={(event) => setManufacturer(event.target.value)}
                 required
                 className="ui-input w-full h-9 text-sm"
               />
-              <datalist id="3dresin-printer-manufacturers">
+              <datalist id="rambutan-slicer-printer-manufacturers">
                 {RESIN_PRINTER_MANUFACTURERS.map((name) => <option key={name} value={name} />)}
               </datalist>
             </label>

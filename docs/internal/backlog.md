@@ -360,7 +360,7 @@
   `index.ts` files nobody imports, fixtures no test loads, undocumented scripts.
 - Why: dead code still draws upkeep — sweeps translated and restyled a stale
   copy of RaftSettingsCard before anyone noticed nothing mounted it.
-- In 3DRESIN, GitHub-authenticated backups are removed; local filesystem backups remain in LocalBackupsSettingsTab.tsx. loadVoxlFixture.ts feeds the export goldens
+- In Rambutan Slicer, GitHub-authenticated backups are removed; local filesystem backups remain in LocalBackupsSettingsTab.tsx. loadVoxlFixture.ts feeds the export goldens
   that live outside the repo in `lysdiag/`.
 - Careful: knip lists files, not directories — count what is still live in a
   directory before calling it dead. A manual script that shows up gets

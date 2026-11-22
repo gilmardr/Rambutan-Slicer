@@ -1,4 +1,4 @@
-//! In-app updates stay disabled until 3DRESIN has an independent release feed.
+//! In-app updates stay disabled until Rambutan Slicer has an independent release feed.
 
 use serde::Serialize;
 use tauri::Manager;
@@ -35,7 +35,7 @@ pub async fn perform_update(
     on_chunk: tauri::ipc::Channel<PerformUpdateProgress>,
 ) -> Result<String, String> {
     let _ = on_chunk;
-    Err("In-app updates are not configured for this 3DRESIN build.".into())
+    Err("In-app updates are not configured for this Rambutan Slicer build.".into())
 }
 
 #[derive(Debug, Clone, Serialize)]

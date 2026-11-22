@@ -249,7 +249,7 @@ export function EmptySceneState({
   const [copied, setCopied] = React.useState(false);
   const handleCopyBuildInfo = React.useCallback(async () => {
     // Full build identity in one string — what a bug report needs.
-    const buildInfo = `3DRESIN ${APP_VERSION} (${BUILD_CHANNEL})${FULL_BUILD_LABEL ? ` — ${FULL_BUILD_LABEL}` : ''}`;
+    const buildInfo = `Rambutan Slicer ${APP_VERSION} (${BUILD_CHANNEL})${FULL_BUILD_LABEL ? ` — ${FULL_BUILD_LABEL}` : ''}`;
     try {
       await navigator.clipboard.writeText(buildInfo);
       setCopied(true);

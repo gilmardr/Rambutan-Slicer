@@ -496,7 +496,7 @@ export function ModelStatsCard({
           <div
             className="[grid-area:1/1] w-full min-w-0 ui-panel rounded-xl px-3.5 py-3.5 shadow-lg space-y-3 flex flex-col"
             style={{
-              background: '#101219',
+              background: 'rgba(16, 18, 25, 0.7)',
               borderColor: '#2b2e38',
               ...(useFlatFlip
                 ? { visibility: flatFlipShownFace === 'front' ? ('visible' as const) : ('hidden' as const) }

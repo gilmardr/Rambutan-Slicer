@@ -25,7 +25,7 @@ type IndicatorState =
 
 const STARTUP_CHECK_DELAY_MS = 5_000;
 const RE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
-const STORAGE_KEY_SUPPRESSED = '3dresin-update-suppressed-version';
+const STORAGE_KEY_SUPPRESSED = 'rambutan-slicer-update-suppressed-version';
 
 // ---------------------------------------------------------------------------
 // Component

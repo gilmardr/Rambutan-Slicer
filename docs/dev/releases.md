@@ -334,11 +334,11 @@ consent/UAC cancellation, failed downloads/signatures, and reboot-required resul
 
 ## Updater implementation notes
 
-The 3DRESIN fork has no independent signed release feed configured. Automatic
+The Rambutan Slicer fork has no independent signed release feed configured. Automatic
 checks and installs are therefore disabled on every platform: the frontend
 reports updates as external in `src/features/updater/updateBridge.ts`, and the
 Tauri commands in `src-tauri/src/updater_channel.rs` return no update. The
-upstream feed and signing key must not be used for 3DRESIN builds. When an
+upstream feed and signing key must not be used for Rambutan Slicer builds. When an
 independent feed is ready, configure its signed endpoint and key before
 re-enabling these checks. The Team & Credits section remains separate from
 update configuration.

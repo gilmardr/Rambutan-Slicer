@@ -630,7 +630,7 @@ export function TopBar({
     },
   ];
 
-  // Same rows the 3DRESIN dropdown has always offered; placement, grouping
+  // Same rows the Rambutan Slicer dropdown has always offered; placement, grouping
   // rules and dismissal belong to ContextMenu.
   const appMenuEntries: ContextMenuEntry[] = [
     {
@@ -738,8 +738,8 @@ export function TopBar({
               ? 'color-mix(in srgb, var(--accent), transparent 80%)'
               : 'transparent',
           }}
-          title={_(msg({ message: '3DRESIN menu', comment: '"3DRESIN" is the product name and should stay untranslated/unchanged; only "menu" needs translating.' }))}
-          aria-label={_(msg({ message: 'Open 3DRESIN menu', comment: '"3DRESIN" is the product name and should stay untranslated/unchanged.' }))}
+          title={_(msg({ message: 'Rambutan Slicer menu', comment: '"Rambutan Slicer" is the product name and should stay untranslated/unchanged; only "menu" needs translating.' }))}
+          aria-label={_(msg({ message: 'Open Rambutan Slicer menu', comment: '"Rambutan Slicer" is the product name and should stay untranslated/unchanged.' }))}
           data-no-window-drag="true"
         >
           <img
@@ -851,8 +851,8 @@ export function TopBar({
           onClose={closeAppMenu}
           dismissIgnoreRef={appMenuButtonRef}
           // i18n-ignore: product name
-          title="3DRESIN"
-          ariaLabel={_(msg({ message: '3DRESIN app menu', comment: '"3DRESIN" is the product name and should stay untranslated/unchanged.' }))}
+          title="Rambutan Slicer"
+          ariaLabel={_(msg({ message: 'Rambutan Slicer app menu', comment: '"Rambutan Slicer" is the product name and should stay untranslated/unchanged.' }))}
         />
       )}
 

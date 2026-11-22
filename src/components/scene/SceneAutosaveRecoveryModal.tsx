@@ -45,7 +45,7 @@ export function SceneAutosaveRecoveryModal({ savedAt, voxlPath, origin, onRestor
     if (origin === 'sidecar') {
       return _(msg({
         message: 'Recovered from beside your project file',
-        comment: 'Subtitle of the autosave recovery dialog: the copy 3DRESIN writes next to the saved project.',
+        comment: 'Subtitle of the autosave recovery dialog: the copy Rambutan Slicer writes next to the saved project.',
       }));
     }
     if (origin === 'recovery-dir') {
@@ -113,7 +113,7 @@ export function SceneAutosaveRecoveryModal({ savedAt, voxlPath, origin, onRestor
         {/* Body */}
         <div className="space-y-4 p-5">
           <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-            <Trans>It looks like 3DRESIN quit before you saved your last session. You can restore the autosaved scene or discard it and start fresh.</Trans>
+            <Trans>It looks like Rambutan Slicer quit before you saved your last session. You can restore the autosaved scene or discard it and start fresh.</Trans>
           </p>
 
           <div className="grid grid-cols-2 gap-2">

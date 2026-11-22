@@ -1,17 +1,17 @@
-# 3DResin visual identity audit
+# Rambutan Slicer visual identity audit
 
 This note records the palette and customization changes made to distinguish
-3DResin from the DragonFruit base. It is an internal comparison record, not a
+Rambutan Slicer from the DragonFruit base. It is an internal comparison record, not a
 user guide.
 
 ## Palette change
 
 The previous dark theme used a plum/magenta primary accent (`#ec2a77`) and a
 lime secondary accent (`#baf72e`), with a purple/pink viewport gradient. The
-current 3DResin dark theme uses teal (`#3bd2c6`, button `#13a99e`) and warm
+current Rambutan Slicer dark theme uses teal (`#3bd2c6`, button `#13a99e`) and warm
 amber (`#ffb45d`, button `#e99a42`) over deep blue-green surfaces. The light
 theme follows the same teal/amber identity with darker values for contrast.
-The current desktop screenshot shows those colors on the 3DResin wordmark,
+The current desktop screenshot shows those colors on the Rambutan Slicer wordmark,
 active Prepare tab, primary Load Mesh action and secondary Import Scene action.
 
 Computed WCAG relative-luminance contrast ratios for the current base tokens:
@@ -33,11 +33,11 @@ The theme profile model covers the app surfaces, text, borders, two brand
 accents, viewport background gradient, mesh selection/hover, danger/success,
 and the Organic Cut palette. Users can create a named theme from a light or dark
 base, save, rename, delete, import or export it. Built-in choices include the
-3DResin dark/light palette plus Concepts 3D and Atlas 3DSS. Theme files use the
+Rambutan Slicer dark/light palette plus Concepts 3D and Atlas 3DSS. Theme files use the
 versioned `dragonfruit-theme-profile` JSON envelope; the internal format id is
 kept stable for existing saved preferences and exports.
 
-The app name and current visible UI use 3DResin branding. Source identifiers
+The app name and current visible UI use Rambutan Slicer branding. Source identifiers
 and the backwards-compatible theme format still retain DragonFruit names; those
 are compatibility/history labels, not part of the visible visual identity.
 

@@ -314,7 +314,7 @@ function InstallingState() {
             <Trans>Installing Update…</Trans>
           </span>
           <span className="block text-sm mt-1.5 font-medium" style={{ color: 'var(--text-muted)' }}>
-            <Trans>The update is being installed. 3DRESIN will restart automatically.</Trans>
+            <Trans>The update is being installed. Rambutan Slicer will restart automatically.</Trans>
           </span>
         </span>
       </div>
@@ -344,7 +344,7 @@ function InstalledState() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold" style={{ color: 'var(--text-strong)' }}>
-            <Trans>Update installed. 3DRESIN will restart.</Trans>
+            <Trans>Update installed. Rambutan Slicer will restart.</Trans>
           </span>
         </span>
       </div>
@@ -376,7 +376,7 @@ function ExternalState() {
             <Trans>In-app updates are unavailable</Trans>
           </span>
           <span className="block text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            <Trans>This 3DRESIN build has no independent update channel configured yet.</Trans>
+            <Trans>This Rambutan Slicer build has no independent update channel configured yet.</Trans>
           </span>
         </span>
       </div>

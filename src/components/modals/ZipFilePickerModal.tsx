@@ -230,7 +230,7 @@ export function ZipFilePickerModal({
                 Select Files from ZIP
               </h2>
               <p className="mt-0.5 text-[11px] leading-snug" style={{ color: 'var(--text-muted)' }}>
-                3DRESIN found {categoryLabel} in this archive for {actionLabel}
+                Rambutan Slicer found {categoryLabel} in this archive for {actionLabel}
               </p>
             </div>
           </div>

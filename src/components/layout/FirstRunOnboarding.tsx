@@ -100,7 +100,7 @@ export function FirstRunOnboarding({ onExit }: FirstRunOnboardingProps) {
       }}
       role="dialog"
       aria-modal="true"
-      aria-label={_(msg`3DRESIN first-time setup`)}
+      aria-label={_(msg`Rambutan Slicer first-time setup`)}
     >
       {/* Faded, blurred brand icon as a backdrop watermark. */}
       <img
@@ -174,7 +174,7 @@ export function FirstRunOnboarding({ onExit }: FirstRunOnboardingProps) {
                     {_(msg`Welcome!`)}
                   </h2>
                   <p className="mt-6 max-w-[540px] text-base leading-relaxed text-pretty" style={{ color: 'var(--text-muted)' }}>
-                    {_(msg`3DRESIN is a free, open-source slicer for resin 3D printing. Load a model, orient it, add supports, and slice it for your printer.`)}
+                    {_(msg`Rambutan Slicer is a free, open-source slicer for resin 3D printing. Load a model, orient it, add supports, and slice it for your printer.`)}
                   </p>
                   <p className="mt-10 max-w-[540px] text-base leading-relaxed text-pretty" style={{ color: 'var(--text-muted)' }}>
                     {_(msg`From the community, for the community. Free to use, open to contribute, and shaped by the people who print with it.`)}
@@ -325,7 +325,7 @@ export function FirstRunOnboarding({ onExit }: FirstRunOnboardingProps) {
                     onClick={startReveal}
                     className="ui-onboarding-success-action !h-10 !px-7 text-[15px]"
                   >
-                    {_(msg`Start using 3DRESIN`)}
+                    {_(msg`Start using Rambutan Slicer`)}
                   </Button>
                 </div>
               </div>

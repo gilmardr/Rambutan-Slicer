@@ -1,7 +1,7 @@
 # VoxelDance Tango support comparison
 
 Research captured 2026-11-17 to evaluate Tango's resin-support workflow against
-the current 3DResin source.
+the current Rambutan Slicer source.
 
 ## Evidence and limits
 
@@ -19,14 +19,14 @@ capture.
 
 ## Feature comparison
 
-| Tango support workflow | 3DResin status | Notes |
+| Tango support workflow | Rambutan Slicer status | Notes |
 | --- | --- | --- |
-| Automatic supports with editable, importable/exportable scripts | Available, different format | 3DResin's Auto-Support Presets save, duplicate, import and export run settings. Support Studio separately imports and exports manual support geometry presets. Tango script files and cloud synchronization are not supported. |
+| Automatic supports with editable, importable/exportable scripts | Available, different format | Rambutan Slicer's Auto-Support Presets save, duplicate, import and export run settings. Support Studio separately imports and exports manual support geometry presets. Tango script files and cloud synchronization are not supported. |
 | Apply different scripts to custom areas of one model | Manual workflow available; not Tango-script compatible | Support Projection paints a model-surface patch, previews projected contacts, applies independent border and infill Support Studio profiles, and saves reusable local projection presets. Paint and apply each area separately. The official Tango 4.0 page describes this as **Powerful Manual Support**; it does not establish that its area scripts are a one-click automatic-support batch. |
 | Tree supports | Available as automatic tree-like branching; no separate tree script | The auto-support generator fans leaves/branches into eligible hosts and consolidates nearby overhang pillars into chunk trees. Consolidation is bounded by geometry, collision, distance and angle checks; optimization is also exposed in Magic Prepare. This provides branching support structures, but users cannot choose Tango-style Tree as an independent script/preset, and the algorithm is different. |
 | Manual support placement, editing and removal | Available | Support Painting, Inline Supports, Support Projection, selection, per-support settings, relative scaling and deletion provide corresponding workflows. |
 | Mark regions that must stay support-free | Available | Support Blockers paint model-space triangles that auto-support refuses and the orientation advisor avoids. |
-| Interior/exterior support scope | Available, classifier differs | Auto-Support can target combined, interior-only or exterior-only regions. The classifier and placement algorithm are 3DResin's. |
+| Interior/exterior support scope | Available, classifier differs | Auto-Support can target combined, interior-only or exterior-only regions. The classifier and placement algorithm are Rambutan Slicer's. |
 | Lowest-point reinforcement | Available, different algorithm | Auto-Support has mesh-minima reinforcement and stability anchors. These are geometric methods, not Tango's implementation. |
 
 The closest existing workflow is already implemented in Support Projection:
