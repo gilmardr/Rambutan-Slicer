@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { convexHull2d } from '@/supports/Rafts/Crenelated/geometry/convexHull2d';
-import type { ArrangeAnchorMode } from '@/components/controls/ArrangePanel';
+import { rasterizePolygonsToRegion } from '@/supports/Rafts/Crenelated/geometry/polygonRaster2d';
+import type { PolygonWithHoles } from '@/supports/Rafts/Crenelated/geometry/polygonSet2d';
+import type { ArrangeAnchorMode, ArrangeRotationStepDeg, ArrangeSearchQuality } from '@/components/controls/ArrangePanel';
 import { quaternionFromGlobalEuler } from '@/utils/rotation';
 
 /**
@@ -8,7 +10,8 @@ import { quaternionFromGlobalEuler } from '@/utils/rotation';
  * -----------------------------------------
  *
  * What this module does:
- * - Packs visible model footprints on the build plate using convex-hull SAT checks.
+ * - Packs visible models with shape-aware 2D collision checks. Convex hulls guide candidate generation;
+ *   rasterized projected contours decide whether footprints overlap.
  * - Prioritizes dense on-plate fill first (top-left objective), then applies anchor intent.
  * - Falls back to an aggressive fit-rate rescue pass when standard pass leaves spills.
  *
@@ -44,6 +47,7 @@ export type ArrangeModel = {
     center: THREE.Vector3;
     geometry: THREE.BufferGeometry;
     supportLocalPoints?: THREE.Vector3[];
+    raftLocalPoints?: THREE.Vector3[];
     supportHullKey?: string;
   };
 };
@@ -51,6 +55,7 @@ export type ArrangeModel = {
 export type HullCacheEntry = {
   points: THREE.Vector2[];
   axes: THREE.Vector2[];
+  footprint?: PolygonWithHoles[];
   halfW: number;
   halfD: number;
   localMinX: number;
@@ -74,6 +79,9 @@ export type HighPrecisionArrangeInput = {
   plateOffsetMm?: { dxMm: number; dyMm: number };
   arrangeSpacingMm: number;
   arrangeAllowRotateOnZ: boolean;
+  searchQuality?: ArrangeSearchQuality;
+  rotationStepDeg?: ArrangeRotationStepDeg;
+  allowRaftOverlap?: boolean;
   arrangeAnchorMode: ArrangeAnchorMode;
   getArrangeTransform: (model: ArrangeModel) => ArrangeTransform;
   hullCache: Map<string, HullCacheEntry>;
@@ -120,6 +128,8 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
   const spacing = Math.max(-50, arrangeSpacingMm);
   const minSpacing = spacing + SAT_EPS_MM;
   const PERF_COMPLEX_SCENE = visibleModels.length >= 30;
+  const searchQuality = input.searchQuality ?? 'balanced';
+  const rotationStepDeg = input.rotationStepDeg ?? (PERF_COMPLEX_SCENE ? 30 : 15);
 
   const plateDxMm = input.plateOffsetMm?.dxMm ?? 0;
   const plateDyMm = input.plateOffsetMm?.dyMm ?? 0;
@@ -161,6 +171,7 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
   const fallbackHullData: HullData = {
     points: fallbackHullPoints,
     axes: axesFromPolygon(fallbackHullPoints),
+    footprint: [{ outer: fallbackHullPoints, holes: [] }],
     halfW: 1,
     halfD: 1,
     localMinX: -1,
@@ -169,17 +180,115 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
     localMaxY: 1,
   };
 
-  // Phase 1: Build/cache model footprints (2D convex hulls at a target Z rotation).
+  const projectedFootprintCache = new Map<string, PolygonWithHoles[]>();
+  const projectedFootprintAtRotation = (
+    model: ArrangeModel,
+    rotationZ: number,
+    transform: ArrangeTransform,
+  ): PolygonWithHoles[] => {
+    const geometry = model.geometry.geometry;
+    const position = geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
+    const index = geometry.getIndex();
+    const shapeKey = [
+      geometry.uuid,
+      position?.count ?? 0,
+      position?.version ?? 0,
+      index?.count ?? 0,
+      index?.version ?? 0,
+      model.geometry.supportHullKey ?? 'no_support_hull',
+      input.allowRaftOverlap ? 'raft-overlap' : 'raft-clearance',
+      quant(transform.rotation.x),
+      quant(transform.rotation.y),
+      quant(transform.scale.x),
+      quant(transform.scale.y),
+      quant(transform.scale.z),
+    ].join('|');
+    let base = projectedFootprintCache.get(shapeKey);
+    if (!base) {
+      if (!position || position.count < 3) return [];
+
+      const triangleCount = index ? Math.floor(index.count / 3) : Math.floor(position.count / 3);
+      const matrix = new THREE.Matrix4().compose(
+        new THREE.Vector3(),
+        quaternionFromGlobalEuler({ x: transform.rotation.x, y: transform.rotation.y, z: 0 }),
+        transform.scale,
+      );
+      const center = model.geometry.center;
+      const projectedTriangles: THREE.Vector2[][] = [];
+      const triangle = [new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2()];
+      const point = new THREE.Vector3();
+      for (let face = 0; face < triangleCount; face += 1) {
+        let twiceArea = 0;
+        for (let corner = 0; corner < 3; corner += 1) {
+          const vertex = index ? index.getX((face * 3) + corner) : (face * 3) + corner;
+          point.set(
+            position.getX(vertex) - center.x,
+            position.getY(vertex) - center.y,
+            position.getZ(vertex) - center.z,
+          ).applyMatrix4(matrix);
+          triangle[corner].set(point.x, point.y);
+        }
+        const a = triangle[0]; const b = triangle[1]; const c = triangle[2];
+        twiceArea = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+        if (Math.abs(twiceArea) <= 1e-8) continue;
+        projectedTriangles.push(triangle.map((p) => p.clone()));
+      }
+
+      // Existing supports are represented by their world bounds. Include that whole
+      // envelope in the shape so the tighter model outline never packs through supports.
+      const supportPoints = [
+        ...(model.geometry.supportLocalPoints ?? []),
+        ...(!input.allowRaftOverlap ? (model.geometry.raftLocalPoints ?? []) : []),
+      ];
+      if (supportPoints.length) {
+        let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
+        for (const supportPoint of supportPoints) {
+          point.copy(supportPoint).sub(center).applyMatrix4(matrix);
+          minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x);
+          minY = Math.min(minY, point.y); maxY = Math.max(maxY, point.y);
+        }
+        if (Number.isFinite(minX) && Number.isFinite(maxX) && Number.isFinite(minY) && Number.isFinite(maxY)) {
+          projectedTriangles.push([
+            new THREE.Vector2(minX, minY), new THREE.Vector2(maxX, minY),
+            new THREE.Vector2(maxX, maxY), new THREE.Vector2(minX, maxY),
+          ]);
+        }
+      }
+
+      base = rasterizePolygonsToRegion(projectedTriangles);
+      projectedFootprintCache.set(shapeKey, base);
+    }
+
+    if (Math.abs(rotationZ) <= 1e-8) return base;
+    const cos = Math.cos(rotationZ); const sin = Math.sin(rotationZ);
+    const rotateRing = (ring: THREE.Vector2[]) => ring.map((p) => new THREE.Vector2(
+      (p.x * cos) - (p.y * sin),
+      (p.x * sin) + (p.y * cos),
+    ));
+    return base.map((polygon) => ({
+      outer: rotateRing(polygon.outer),
+      holes: polygon.holes.map(rotateRing),
+    }));
+  };
+
+  // Phase 1: Build/cache projected model footprints and their conservative convex bounds.
   const getHullAtRotation = (model: ArrangeModel, rotationZ: number): HullData => {
     const t = modelTransformById.get(model.id) ?? model.transform;
     const positionAttr = model.geometry.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const geometryIndex = model.geometry.geometry.getIndex();
     if (!positionAttr || positionAttr.count < 3) {
       return fallbackHullData;
     }
 
     const key = [
+      'shape-footprint-v1',
       model.geometry.geometry.uuid,
+      positionAttr?.count ?? 0,
+      positionAttr?.version ?? 0,
+      geometryIndex?.count ?? 0,
+      geometryIndex?.version ?? 0,
       model.geometry.supportHullKey ?? 'no_support_hull',
+      input.allowRaftOverlap ? 'raft-overlap' : 'raft-clearance',
       quant(t.rotation.x),
       quant(t.rotation.y),
       quant(rotationZ),
@@ -228,10 +337,13 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
       }
     }
 
-    const supportLocalPoints = model.geometry.supportLocalPoints;
-    if (supportLocalPoints && supportLocalPoints.length > 0) {
-      for (const localPoint of supportLocalPoints) {
-        tmp.copy(localPoint).applyMatrix4(matrix);
+    const clearancePoints = [
+      ...(model.geometry.supportLocalPoints ?? []),
+      ...(!input.allowRaftOverlap ? (model.geometry.raftLocalPoints ?? []) : []),
+    ];
+    if (clearancePoints.length > 0) {
+      for (const localPoint of clearancePoints) {
+        tmp.copy(localPoint).sub(center).applyMatrix4(matrix);
         points2d.push(new THREE.Vector2(tmp.x, tmp.y));
       }
     }
@@ -241,6 +353,10 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
       ? hull
       : fallbackHullPoints;
     const axes = axesFromPolygon(points);
+    const projectedFootprint = projectedFootprintAtRotation(model, rotationZ, t);
+    const footprint = projectedFootprint.length > 0
+      ? projectedFootprint
+      : [{ outer: points, holes: [] }];
 
     let localMinX = Infinity;
     let localMaxX = -Infinity;
@@ -263,6 +379,7 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
     const next: HullData = {
       points,
       axes,
+      footprint,
       halfW: Math.max(1, (localMaxX - localMinX) * 0.5),
       halfD: Math.max(1, (localMaxY - localMinY) * 0.5),
       localMinX,
@@ -313,6 +430,70 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
     centerB: THREE.Vector2,
     spacingMm: number,
   ) => {
+    if (spacingMm >= 0 && proxyA.footprint.length > 0 && proxyB.footprint.length > 0) {
+      const pointInRing = (ring: THREE.Vector2[], x: number, y: number) => {
+        let inside = false;
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          const a = ring[i]; const b = ring[j];
+          if ((a.y > y) !== (b.y > y) && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+        }
+        return inside;
+      };
+      const contains = (polygons: PolygonWithHoles[], x: number, y: number) => polygons.some((polygon) => (
+        pointInRing(polygon.outer, x, y) && !polygon.holes.some((hole) => pointInRing(hole, x, y))
+      ));
+      const orientation = (a: THREE.Vector2, b: THREE.Vector2, c: THREE.Vector2) =>
+        ((b.x - a.x) * (c.y - a.y)) - ((b.y - a.y) * (c.x - a.x));
+      const pointSegmentDistanceSq = (p: THREE.Vector2, a: THREE.Vector2, b: THREE.Vector2) => {
+        const dx = b.x - a.x; const dy = b.y - a.y;
+        const lengthSq = dx * dx + dy * dy;
+        const t = lengthSq <= 1e-12 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq));
+        const px = a.x + (dx * t); const py = a.y + (dy * t);
+        return ((p.x - px) ** 2) + ((p.y - py) ** 2);
+      };
+      const segmentsTooClose = (a: THREE.Vector2, b: THREE.Vector2, c: THREE.Vector2, d: THREE.Vector2) => {
+        const o1 = orientation(a, b, c); const o2 = orientation(a, b, d);
+        const o3 = orientation(c, d, a); const o4 = orientation(c, d, b);
+        const eps = 1e-8;
+        const onSegment = (p: THREE.Vector2, from: THREE.Vector2, to: THREE.Vector2) => (
+          p.x >= Math.min(from.x, to.x) - eps && p.x <= Math.max(from.x, to.x) + eps
+          && p.y >= Math.min(from.y, to.y) - eps && p.y <= Math.max(from.y, to.y) + eps
+        );
+        const intersects = (o1 * o2 < 0 && o3 * o4 < 0)
+          || (Math.abs(o1) <= eps && onSegment(c, a, b))
+          || (Math.abs(o2) <= eps && onSegment(d, a, b))
+          || (Math.abs(o3) <= eps && onSegment(a, c, d))
+          || (Math.abs(o4) <= eps && onSegment(b, c, d));
+        if (intersects) return true;
+        if (spacingMm <= 0) return false;
+        const spacingSq = spacingMm * spacingMm;
+        return pointSegmentDistanceSq(a, c, d) <= spacingSq
+          || pointSegmentDistanceSq(b, c, d) <= spacingSq
+          || pointSegmentDistanceSq(c, a, b) <= spacingSq
+          || pointSegmentDistanceSq(d, a, b) <= spacingSq;
+      };
+
+      for (const polygonA of proxyA.footprint) {
+        for (const polygonB of proxyB.footprint) {
+          const ringsA = [polygonA.outer, ...polygonA.holes];
+          const ringsB = [polygonB.outer, ...polygonB.holes];
+          for (const ringA of ringsA) {
+            for (const ringB of ringsB) {
+              for (let i = 0; i < ringA.length; i += 1) {
+                const a = ringA[i]; const b = ringA[(i + 1) % ringA.length];
+                for (let j = 0; j < ringB.length; j += 1) {
+                  if (segmentsTooClose(a, b, ringB[j], ringB[(j + 1) % ringB.length])) return true;
+                }
+              }
+            }
+          }
+          if (contains([polygonA], polygonB.outer[0].x, polygonB.outer[0].y)
+            || contains([polygonB], polygonA.outer[0].x, polygonA.outer[0].y)) return true;
+        }
+      }
+      return false;
+    }
+
     for (const axis of proxyA.axes) {
       if (separatesOnAxis(proxyA.hull, centerA, proxyB.hull, centerB, axis, spacingMm)) {
         return false;
@@ -330,6 +511,7 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
     center: THREE.Vector2;
     hull: THREE.Vector2[];
     axes: THREE.Vector2[];
+    footprint: PolygonWithHoles[];
     halfW: number;
     halfD: number;
     localMinX: number;
@@ -527,6 +709,7 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
         center: new THREE.Vector2(t.position.x, t.position.y),
         hull: h.points,
         axes: h.axes,
+        footprint: h.footprint ?? [{ outer: h.points, holes: [] }],
         halfW: h.halfW,
         halfD: h.halfD,
         localMinX: h.localMinX,
@@ -540,7 +723,6 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
     if (!arrangeAllowRotateOnZ) return [currentZ];
     const options: number[] = [];
     const seen = new Set<number>();
-    const rotationStepDeg = PERF_COMPLEX_SCENE ? 30 : 15;
     const push = (angle: number) => {
       const twoPi = Math.PI * 2;
       let a = angle % twoPi;
@@ -552,6 +734,7 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
     };
 
     push(currentZ);
+    if (rotationStepDeg === 0) return options;
     for (let deg = 0; deg < 360; deg += rotationStepDeg) push(THREE.MathUtils.degToRad(deg));
     return options;
   };
@@ -614,8 +797,6 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
     && visibleModels.every((m) => m.geometry.geometry.uuid === visibleModels[0].geometry.geometry.uuid);
   const SAME_GEOMETRY_FAST_PATH = allShareSameGeometry && visibleModels.length >= 18;
   const USE_CONTACT_CANDIDATES = !(SAME_GEOMETRY_FAST_PATH && PERF_COMPLEX_SCENE);
-  const ENABLE_MULTI_ORDERING_RETRY = visibleModels.length <= 32;
-
   // Fast simulation pass used to pick a strong shared rotation in homogeneous batches.
   const simPackAtAngle = (angle: number): number => {
     const simPlaced: CollisionProxy[] = [...blockers];
@@ -625,7 +806,7 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
       const h = getHullAtRotation(model, angle);
       const proxy: CollisionProxy = {
         center: new THREE.Vector2(),
-        hull: h.points, axes: h.axes, halfW: h.halfW, halfD: h.halfD,
+        hull: h.points, axes: h.axes, footprint: h.footprint ?? [{ outer: h.points, holes: [] }], halfW: h.halfW, halfD: h.halfD,
         localMinX: h.localMinX, localMaxX: h.localMaxX,
         localMinY: h.localMinY, localMaxY: h.localMaxY,
       };
@@ -685,23 +866,32 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
     return bestAngle;
   })();
 
-  const areaAtBestAngle = (model: ArrangeModel) => {
+  const footprintSizes = new Map<string, { width: number; depth: number; area: number }>();
+  const footprintSizeAtBestAngle = (model: ArrangeModel) => {
+    const cached = footprintSizes.get(model.id);
+    if (cached) return cached;
     const angle = sharedBestRotation ?? (modelTransformById.get(model.id) ?? model.transform).rotation.z;
     const h = getHullAtRotation(model, angle);
-    return Math.max(1, (h.localMaxX - h.localMinX) * (h.localMaxY - h.localMinY));
+    const width = h.localMaxX - h.localMinX;
+    const depth = h.localMaxY - h.localMinY;
+    const size = { width, depth, area: Math.max(1, width * depth) };
+    footprintSizes.set(model.id, size);
+    return size;
   };
-  const modelOrder = [...visibleModels].sort((a, b) => areaAtBestAngle(b) - areaAtBestAngle(a));
+  const modelOrder = [...visibleModels].sort((a, b) => footprintSizeAtBestAngle(b).area - footprintSizeAtBestAngle(a).area);
 
   // Core constructive placer (standard or aggressive mode).
   // - standard: bounded candidate budget for interactivity
   // - aggressive: wider search budget to rescue fit rate
   const attemptPlacement = (order: ArrangeModel[], aggressive: boolean) => {
-    const MAX_CANDIDATE_NEIGHBORS = aggressive ? 999_999 : (PERF_COMPLEX_SCENE ? 20 : 36);
-    const MAX_VERTEX_PAIR_CANDIDATES = aggressive ? 1200 : (PERF_COMPLEX_SCENE ? 180 : 420);
-    const MAX_CONTACT_CANDIDATES = aggressive ? 2400 : (PERF_COMPLEX_SCENE ? 360 : 900);
-    const MAX_LATTICE_CANDIDATES = aggressive ? 4000 : (PERF_COMPLEX_SCENE ? 320 : 900);
-    const MAX_EVALUATED_CANDIDATES = aggressive ? 7000 : (PERF_COMPLEX_SCENE ? 420 : 1200);
-    const MAX_CANDIDATE_BUFFER = aggressive ? 10000 : (PERF_COMPLEX_SCENE ? 560 : 1500);
+    const searchScale = searchQuality === 'fast' ? 0.35 : searchQuality === 'best_fit' ? 1.6 : 1;
+    const budget = (base: number) => Math.max(1, Math.ceil(base * searchScale));
+    const MAX_CANDIDATE_NEIGHBORS = aggressive ? 999_999 : budget(PERF_COMPLEX_SCENE ? 20 : 36);
+    const MAX_VERTEX_PAIR_CANDIDATES = aggressive ? 1200 : budget(PERF_COMPLEX_SCENE ? 180 : 420);
+    const MAX_CONTACT_CANDIDATES = aggressive ? 2400 : budget(PERF_COMPLEX_SCENE ? 360 : 900);
+    const MAX_LATTICE_CANDIDATES = aggressive ? 4000 : budget(PERF_COMPLEX_SCENE ? 320 : 900);
+    const MAX_EVALUATED_CANDIDATES = aggressive ? 7000 : budget(PERF_COMPLEX_SCENE ? 420 : 1200);
+    const MAX_CANDIDATE_BUFFER = aggressive ? 10000 : budget(PERF_COMPLEX_SCENE ? 560 : 1500);
 
     const placed: Placed[] = [];
     const spills: Placed[] = [];
@@ -735,7 +925,7 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
         const h = getHullAtRotation(model, rotationZ);
         const candidateProxy: CollisionProxy = {
           center: new THREE.Vector2(),
-          hull: h.points, axes: h.axes, halfW: h.halfW, halfD: h.halfD,
+          hull: h.points, axes: h.axes, footprint: h.footprint ?? [{ outer: h.points, holes: [] }], halfW: h.halfW, halfD: h.halfD,
           localMinX: h.localMinX, localMaxX: h.localMaxX,
           localMinY: h.localMinY, localMaxY: h.localMaxY,
         };
@@ -867,6 +1057,7 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
           rotationZ: best.rotationZ,
           hull: best.proxy.hull,
           axes: best.proxy.axes,
+          footprint: best.proxy.footprint,
           halfW: best.proxy.halfW,
           halfD: best.proxy.halfD,
           localMinX: best.proxy.localMinX,
@@ -890,6 +1081,7 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
         rotationZ: t.rotation.z,
         hull: fallback.points,
         axes: fallback.axes,
+      footprint: fallback.footprint ?? [{ outer: fallback.points, holes: [] }],
         halfW: fallback.halfW,
         halfD: fallback.halfD,
         localMinX: fallback.localMinX,
@@ -902,56 +1094,110 @@ export function computeHighPrecisionArrangeResult(input: HighPrecisionArrangeInp
     return { placed, spills };
   };
 
-  // Phase 2: Multi-order constructive search (ordering is a major quality lever).
+  // Rank complete layouts, not only the number of models that spilled. The earlier
+  // retry logic discarded equally complete layouts even when another insertion order
+  // used a much smaller area of the plate.
+  type Attempt = ReturnType<typeof attemptPlacement>;
+  type AttemptScore = {
+    spills: number;
+    area: number;
+    depth: number;
+    width: number;
+    rotationChange: number;
+  };
+  const scoreAttempt = (attempt: Attempt): AttemptScore => {
+    const occupiedBounds = boundsFromProxies([...blockers, ...attempt.placed]);
+    const width = occupiedBounds ? occupiedBounds.maxX - occupiedBounds.minX : 0;
+    const depth = occupiedBounds ? occupiedBounds.maxY - occupiedBounds.minY : 0;
+    const rotationChange = attempt.placed.reduce((total, entry) => {
+      const originalZ = modelTransformById.get(entry.model.id)?.rotation.z ?? entry.model.transform.rotation.z;
+      let delta = (entry.rotationZ - originalZ) % (Math.PI * 2);
+      if (delta > Math.PI) delta -= Math.PI * 2;
+      if (delta < -Math.PI) delta += Math.PI * 2;
+      return total + Math.abs(delta);
+    }, 0);
+    return { spills: attempt.spills.length, area: width * depth, depth, width, rotationChange };
+  };
+  const isAttemptBetter = (candidate: AttemptScore, current: AttemptScore) => {
+    const EPS = 1e-5;
+    if (candidate.spills !== current.spills) return candidate.spills < current.spills;
+    if (candidate.area < current.area - EPS) return true;
+    if (candidate.area > current.area + EPS) return false;
+    if (candidate.depth < current.depth - EPS) return true;
+    if (candidate.depth > current.depth + EPS) return false;
+    if (candidate.width < current.width - EPS) return true;
+    if (candidate.width > current.width + EPS) return false;
+    return candidate.rotationChange < current.rotationChange - EPS;
+  };
+
+  // Search several deterministic starts even when the first arrangement fits. Area-first
+  // favors large parts, long-side-first handles strips, and the interleaved/reverse starts
+  // expose different gaps to the same contact and lattice search. Large sets use fewer
+  // starts so the extra search stays bounded while still comparing complete layouts.
+  const MAX_ORDERING_STARTS = searchQuality === 'fast' ? 1 : searchQuality === 'balanced' ? 3 : 5;
+  const longestSideOrder = [...visibleModels].sort((a, b) => {
+    const dimsA = footprintSizeAtBestAngle(a);
+    const dimsB = footprintSizeAtBestAngle(b);
+    return Math.max(dimsB.width, dimsB.depth) - Math.max(dimsA.width, dimsA.depth)
+      || dimsB.area - dimsA.area;
+  });
+  const elongatedOrder = [...visibleModels].sort((a, b) => {
+    const dimsA = footprintSizeAtBestAngle(a);
+    const dimsB = footprintSizeAtBestAngle(b);
+    const aspectA = Math.max(dimsA.width, dimsA.depth) / Math.max(1e-6, Math.min(dimsA.width, dimsA.depth));
+    const aspectB = Math.max(dimsB.width, dimsB.depth) / Math.max(1e-6, Math.min(dimsB.width, dimsB.depth));
+    return aspectB - aspectA || dimsB.area - dimsA.area;
+  });
+  const reversedOrder = [...modelOrder].reverse();
+  const interleavedOrder: ArrangeModel[] = [];
+  let interleaveLo = 0;
+  let interleaveHi = modelOrder.length - 1;
+  while (interleaveLo <= interleaveHi) {
+    interleavedOrder.push(modelOrder[interleaveLo++]);
+    if (interleaveLo <= interleaveHi) interleavedOrder.push(modelOrder[interleaveHi--]);
+  }
+  const standardOrders = visibleModels.length <= 32
+    ? [modelOrder, longestSideOrder, elongatedOrder, reversedOrder, interleavedOrder].slice(0, MAX_ORDERING_STARTS)
+    : [modelOrder, longestSideOrder, reversedOrder].slice(0, MAX_ORDERING_STARTS);
+
   let bestResult = attemptPlacement(modelOrder, false);
-
-  if (ENABLE_MULTI_ORDERING_RETRY && bestResult.spills.length > 0) {
-    const spillIds = new Set(bestResult.spills.map(s => s.model.id));
-    const spillFirstOrder = [
-      ...modelOrder.filter(m => spillIds.has(m.id)),
-      ...modelOrder.filter(m => !spillIds.has(m.id)),
-    ];
-    const attempt = attemptPlacement(spillFirstOrder, false);
-    if (attempt.spills.length < bestResult.spills.length) bestResult = attempt;
-  }
-
-  if (ENABLE_MULTI_ORDERING_RETRY && bestResult.spills.length > 0) {
-    const attempt = attemptPlacement([...modelOrder].reverse(), false);
-    if (attempt.spills.length < bestResult.spills.length) bestResult = attempt;
-  }
-
-  if (ENABLE_MULTI_ORDERING_RETRY && bestResult.spills.length > 0) {
-    const interleaved: typeof modelOrder = [];
-    let lo = 0; let hi = modelOrder.length - 1;
-    while (lo <= hi) {
-      interleaved.push(modelOrder[lo++]);
-      if (lo <= hi) interleaved.push(modelOrder[hi--]);
+  let bestScore = scoreAttempt(bestResult);
+  const orderKey = (order: ArrangeModel[], aggressive: boolean) =>
+    `${aggressive ? 'aggressive:' : 'standard:'}${order.map((model) => model.id).join('|')}`;
+  const attemptedOrders = new Set([orderKey(modelOrder, false)]);
+  const considerAttempt = (order: ArrangeModel[], aggressive = false) => {
+    const key = orderKey(order, aggressive);
+    if (attemptedOrders.has(key)) return;
+    attemptedOrders.add(key);
+    const attempt = attemptPlacement(order, aggressive);
+    const score = scoreAttempt(attempt);
+    if (isAttemptBetter(score, bestScore)) {
+      bestResult = attempt;
+      bestScore = score;
     }
-    const attempt = attemptPlacement(interleaved, false);
-    if (attempt.spills.length < bestResult.spills.length) bestResult = attempt;
+  };
+
+  for (const order of standardOrders.slice(1)) {
+    considerAttempt(order);
   }
 
-  // Fit-rate rescue pass: if standard searches still spill, run a denser,
-  // more exhaustive placement search over the same orderings.
   if (bestResult.spills.length > 0) {
-    const aggressiveOrders: ArrangeModel[][] = [
-      modelOrder,
-      [...modelOrder].reverse(),
-      (() => {
-        const interleaved: ArrangeModel[] = [];
-        let lo = 0; let hi = modelOrder.length - 1;
-        while (lo <= hi) {
-          interleaved.push(modelOrder[lo++]);
-          if (lo <= hi) interleaved.push(modelOrder[hi--]);
-        }
-        return interleaved;
-      })(),
+    const spillIds = new Set(bestResult.spills.map((s) => s.model.id));
+    const spillFirstOrder = [
+      ...modelOrder.filter((model) => spillIds.has(model.id)),
+      ...modelOrder.filter((model) => !spillIds.has(model.id)),
     ];
+    considerAttempt(spillFirstOrder);
+  }
+
+  // If standard starts still spill, run denser searches. Compare all three outcomes
+  // rather than stopping at the first full fit, since a full but sparse layout can
+  // still be improved by another ordering.
+  if (bestResult.spills.length > 0) {
+    const aggressiveOrders = [modelOrder, longestSideOrder, reversedOrder];
 
     for (const order of aggressiveOrders) {
-      const attempt = attemptPlacement(order, true);
-      if (attempt.spills.length < bestResult.spills.length) bestResult = attempt;
-      if (bestResult.spills.length === 0) break;
+      considerAttempt(order, true);
     }
   }
 

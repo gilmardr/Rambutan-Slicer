@@ -21,6 +21,7 @@ import {
   Plus,
   Blocks,
   Shapes,
+  Ruler,
   type LucideIcon,
 } from 'lucide-react';
 import { ContextMenu, type ContextMenuEntry } from '@/components/ui/ContextMenu';
@@ -44,6 +45,10 @@ export type EditorMenuAction =
   | 'link-models'
   | 'unlink-models'
   | 'scan-for-supports'
+  | 'align-x-center'
+  | 'align-y-center'
+  | 'align-z-center'
+  | 'align-z-bottom'
   // Organic-cut tool actions.
   | 'organic-cut-add-waypoint'
   | 'organic-cut-delete-waypoint';
@@ -142,6 +147,18 @@ export const MENU_ITEMS: MenuItemDef[] = [
     children: [
       { id: 'mark-as-support-geometry', label: msg`Mark as Support`, icon: LifeBuoy },
       { id: 'mark-as-model-geometry',   label: msg`Mark as Model`,   icon: Box },
+    ],
+  },
+  {
+    id: 'align-menu',
+    label: msg`Align selected models`,
+    icon: Ruler,
+    startsGroup: true,
+    children: [
+      { id: 'align-x-center', label: msg`Align centers on X`, icon: Ruler },
+      { id: 'align-y-center', label: msg`Align centers on Y`, icon: Ruler },
+      { id: 'align-z-center', label: msg`Align centers on Z`, icon: Ruler },
+      { id: 'align-z-bottom', label: msg`Align bottoms on Z`, icon: Ruler },
     ],
   },
   // { id: 'link-models',   label: msg`Link Selected Models`,   icon: Link },

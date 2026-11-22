@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { msg } from '@lingui/core/macro';
 import type { ScenePlate, useSceneCollectionManager } from '@/features/scene/useSceneCollectionManager';
 import type { useTransformManager } from '@/features/transform/useTransformManager';
-import type { ArrangeAnchorMode, ArrangeLayoutMode, ArrangePrecisionMode } from '@/components/controls/ArrangePanel';
+import type { ArrangeAnchorMode, ArrangeLayoutMode, ArrangePrecisionMode, ArrangeRotationStepDeg, ArrangeSearchQuality } from '@/components/controls/ArrangePanel';
 import type { DuplicateLayoutMode } from '@/components/controls/DuplicatePanel';
 import { type HullCacheEntry, type ArrangeModel as HighPrecisionArrangeModel } from '@/features/scene/arrange/highPrecisionArrange';
 import { computeHighPrecisionArrangeResultWorker } from '@/features/scene/arrange/highPrecisionArrangeWorkerClient';
@@ -65,6 +65,51 @@ function loneModelCenter(
   return { x: (frame.minX + frame.maxX) * 0.5, y: (frame.minY + frame.maxY) * 0.5 };
 }
 
+function chooseSingleModelRotation(
+  model: SceneModel,
+  transform: SceneModel['transform'],
+  frame: { minX: number; maxX: number; minY: number; maxY: number },
+  rotationStepDeg: number,
+  getDimensions: SupportAwareDimsFn,
+): { rotationZ: number; dims: ModelDimsMm } {
+  const candidates = [transform.rotation.z];
+  if (rotationStepDeg > 0) {
+    for (let degrees = 0; degrees < 360; degrees += rotationStepDeg) {
+      candidates.push(THREE.MathUtils.degToRad(degrees));
+    }
+  }
+
+  const frameWidth = frame.maxX - frame.minX;
+  const frameDepth = frame.maxY - frame.minY;
+  let best = { rotationZ: transform.rotation.z, dims: getDimensions(model, transform.rotation.z, transform) };
+  const score = (dims: ModelDimsMm, rotationZ: number) => {
+    const overflowX = Math.max(0, dims.width - frameWidth);
+    const overflowY = Math.max(0, dims.depth - frameDepth);
+    let rotationChange = Math.abs((rotationZ - transform.rotation.z) % (Math.PI * 2));
+    if (rotationChange > Math.PI) rotationChange = (Math.PI * 2) - rotationChange;
+    return [overflowX + overflowY, dims.width * dims.depth, rotationChange] as const;
+  };
+  let bestScore = score(best.dims, best.rotationZ);
+
+  for (const rotationZ of candidates) {
+    const rotation = new THREE.Euler(
+      transform.rotation.x,
+      transform.rotation.y,
+      rotationZ,
+      transform.rotation.order,
+    );
+    const dims = getDimensions(model, rotationZ, { ...transform, rotation });
+    const nextScore = score(dims, rotationZ);
+    if (nextScore.some((value, index) => value < bestScore[index] - 1e-5
+      && nextScore.slice(0, index).every((prior, priorIndex) => Math.abs(prior - bestScore[priorIndex]) <= 1e-5))) {
+      best = { rotationZ, dims };
+      bestScore = nextScore;
+    }
+  }
+
+  return best;
+}
+
 /**
  * The last resort, kept from the days of one bed: models that cannot be packed anywhere
  * are set down in a column beside the beds rather than left stacked at the origin.
@@ -118,8 +163,11 @@ export type UseArrangeManagerOptions = {
   setDisplayActiveModelId: React.Dispatch<React.SetStateAction<string | null>>;
   setSupportRenderRefreshNonce: React.Dispatch<React.SetStateAction<number>>;
   supportBoundsByModelId: Map<string, THREE.Box3>;
+  supportOnlyBoundsByModelId: Map<string, THREE.Box3>;
+  raftBoundsByModelId: Map<string, THREE.Box3>;
   arrangeSpacingMm: number;
   getArrangeTransform: (model: SceneModel) => SceneModel['transform'];
+  showArrangeOverflow: (count: number) => void;
   getModelSupportAwareDimensionsMm: SupportAwareDimsFn;
   getModelSupportAwareFootprintPolygonRef: React.MutableRefObject<FootprintPolygonFn>;
 };
@@ -132,15 +180,21 @@ export function useArrangeManager({
   setDisplayActiveModelId,
   setSupportRenderRefreshNonce,
   supportBoundsByModelId,
+  supportOnlyBoundsByModelId,
+  raftBoundsByModelId,
   arrangeSpacingMm,
   getArrangeTransform,
+  showArrangeOverflow,
   getModelSupportAwareDimensionsMm,
   getModelSupportAwareFootprintPolygonRef,
 }: UseArrangeManagerOptions) {
 
   const [arrangePrecisionMode, setArrangePrecisionMode] = React.useState<ArrangePrecisionMode>('standard');
+  const [arrangeSearchQuality, setArrangeSearchQuality] = React.useState<ArrangeSearchQuality>('balanced');
+  const [arrangeRotationStepDeg, setArrangeRotationStepDeg] = React.useState<ArrangeRotationStepDeg>(15);
   const [arrangePlateFillMode, setArrangePlateFillMode] = React.useState<ArrangePlateFillMode>('plates');
   const [arrangeAllowRotateOnZ, setArrangeAllowRotateOnZ] = React.useState(false);
+  const [arrangeAllowRaftOverlap, setArrangeAllowRaftOverlap] = React.useState(false);
   const [arrangeLayoutMode, setArrangeLayoutMode] = React.useState<ArrangeLayoutMode>('auto');
   const [arrangeAnchorMode, setArrangeAnchorMode] = React.useState<ArrangeAnchorMode>('center');
   const [arrangeArrayCountX, setArrangeArrayCountX] = React.useState(3);
@@ -281,64 +335,52 @@ export function useArrangeManager({
   ]);
   const isDuplicateSetupBlockingArrange = Boolean(scene.activeModel) && effectiveDuplicateTotalCopies > 1;
   const arrangeHullFootprintCacheRef = React.useRef<Map<string, HullCacheEntry>>(new Map());
-  React.useEffect(() => {
-    if (arrangePrecisionMode !== 'high_precision') return;
-    if (arrangeAllowRotateOnZ) return;
-    setArrangeAllowRotateOnZ(true);
-  }, [arrangePrecisionMode, arrangeAllowRotateOnZ]);
   const buildHighPrecisionArrangeSupportLocalPoints = React.useCallback((
     modelTransformById: Map<string, (typeof scene.models)[number]['transform']>,
   ) => {
-    const supportLocalPointsByModelId = new Map<string, { points: THREE.Vector3[]; key: string }>();
+    const supportLocalPointsByModelId = new Map<string, { points: THREE.Vector3[]; raftPoints: THREE.Vector3[]; key: string }>();
 
-    for (const model of scene.models) {
-      const supportBounds = supportBoundsByModelId.get(model.id);
-      if (!supportBounds || supportBounds.isEmpty()) continue;
-
-      const t = modelTransformById.get(model.id) ?? model.transform;
+    const toLocalBoundsCorners = (
+      bounds: THREE.Box3 | undefined,
+      transform: SceneModel['transform'],
+    ) => {
+      if (!bounds || bounds.isEmpty()) return [] as THREE.Vector3[];
       const worldMatrix = new THREE.Matrix4().compose(
-        t.position,
-        new THREE.Quaternion().setFromEuler(t.rotation),
-        t.scale,
+        transform.position,
+        new THREE.Quaternion().setFromEuler(transform.rotation),
+        transform.scale,
       );
       const invWorldMatrix = worldMatrix.clone().invert();
-
-      const xs = [supportBounds.min.x, supportBounds.max.x];
-      const ys = [supportBounds.min.y, supportBounds.max.y];
-      const zs = [supportBounds.min.z, supportBounds.max.z];
-
-      const points: THREE.Vector3[] = [];
-      const seen = new Set<string>();
+      const corners: THREE.Vector3[] = [];
       const tmp = new THREE.Vector3();
-      for (const x of xs) {
-        for (const y of ys) {
-          for (const z of zs) {
+      for (const x of [bounds.min.x, bounds.max.x]) {
+        for (const y of [bounds.min.y, bounds.max.y]) {
+          for (const z of [bounds.min.z, bounds.max.z]) {
             tmp.set(x, y, z).applyMatrix4(invWorldMatrix);
-            const dedupeKey = `${tmp.x.toFixed(4)}:${tmp.y.toFixed(4)}:${tmp.z.toFixed(4)}`;
-            if (seen.has(dedupeKey)) continue;
-            seen.add(dedupeKey);
-            points.push(tmp.clone());
+            corners.push(tmp.clone());
           }
         }
       }
+      return corners;
+    };
 
-      if (points.length === 0) continue;
+    for (const model of scene.models) {
+      const t = modelTransformById.get(model.id) ?? model.transform;
+      const points = toLocalBoundsCorners(supportOnlyBoundsByModelId.get(model.id), t);
+      const raftPoints = toLocalBoundsCorners(raftBoundsByModelId.get(model.id), t);
+      if (points.length === 0 && raftPoints.length === 0) continue;
 
       const key = [
-        supportBounds.min.x.toFixed(4),
-        supportBounds.min.y.toFixed(4),
-        supportBounds.min.z.toFixed(4),
-        supportBounds.max.x.toFixed(4),
-        supportBounds.max.y.toFixed(4),
-        supportBounds.max.z.toFixed(4),
-        points.length,
+        ...points.flatMap((point) => [point.x.toFixed(4), point.y.toFixed(4), point.z.toFixed(4)]),
+        'raft',
+        ...raftPoints.flatMap((point) => [point.x.toFixed(4), point.y.toFixed(4), point.z.toFixed(4)]),
       ].join('|');
 
-      supportLocalPointsByModelId.set(model.id, { points, key });
+      supportLocalPointsByModelId.set(model.id, { points, raftPoints, key });
     }
 
     return supportLocalPointsByModelId;
-  }, [scene.models, supportBoundsByModelId]);
+  }, [scene.models, supportOnlyBoundsByModelId, raftBoundsByModelId]);
 
   const buildHighPrecisionArrangeModels = React.useCallback((
     sourceModels: (typeof scene.models),
@@ -362,6 +404,7 @@ export function useArrangeManager({
           center: model.geometry.center.clone(),
           geometry: model.geometry.geometry,
           supportLocalPoints: supportLocal?.points,
+          raftLocalPoints: supportLocal?.raftPoints,
           supportHullKey: supportLocal?.key,
         },
       };
@@ -656,9 +699,14 @@ export function useArrangeManager({
       if (visibleModels.length === 1) {
         const model = visibleModels[0];
         const t = getArrangeTransform(model);
-        const dims = getModelSupportAwareDimensionsMm(model, undefined, t);
-
         const { minX, maxX, minY, maxY } = resolveArrangeFrame();
+        const { rotationZ, dims } = chooseSingleModelRotation(
+          model,
+          t,
+          { minX, maxX, minY, maxY },
+          allowRotateOnZForRun ? 90 : 0,
+          getModelSupportAwareDimensionsMm,
+        );
         const { x: centerX, y: centerY } = loneModelCenter({ minX, maxX, minY, maxY }, dims, arrangeAnchorMode);
 
         // Arrange and Duplicate previews should never overlap.
@@ -672,7 +720,7 @@ export function useArrangeManager({
           id: model.id,
           transform: {
             position: new THREE.Vector3(centerX, centerY, t.position.z),
-            rotation: t.rotation.clone(),
+            rotation: new THREE.Euler(t.rotation.x, t.rotation.y, rotationZ, t.rotation.order),
             scale: t.scale.clone(),
           },
         }]);
@@ -1141,6 +1189,7 @@ export function useArrangeManager({
       }
 
       if (pending.length > 0) {
+        showArrangeOverflow(pending.length);
         // A model bigger than a bed, or a set past the bed cap: the leftover goes beside
         // the active plate, which is what arrange has always done with it.
         passes.push({ placed: placeBesidePlate(pending), plateId: scene.activePlateId });
@@ -1198,7 +1247,7 @@ export function useArrangeManager({
       setActiveArrangeOperation(null);
       setArrangeOverlayModelCount(null);
     }
-  }, [arrangeAllowRotateOnZ, arrangeAnchorMode, arrangeSpacingMm, bedsEmptiedByRun, getArrangeTransform, getModelSupportAwareDimensionsMm, isAutoArranging, resolveArrangeBedTargets, resolveArrangeFrame, resolveArrangeVisibleModels, scene, sleep, transformMgr, applyArrangeTransforms]);
+  }, [arrangeAllowRotateOnZ, arrangeAnchorMode, arrangeSpacingMm, bedsEmptiedByRun, getArrangeTransform, getModelSupportAwareDimensionsMm, isAutoArranging, resolveArrangeBedTargets, resolveArrangeFrame, resolveArrangeVisibleModels, scene, showArrangeOverflow, sleep, transformMgr, applyArrangeTransforms]);
 
   const handleHighPrecisionArrangeModels = React.useCallback(async (scope: 'all' | 'selected', explicitSelectedIds?: string[]) => {
     if (isAutoArranging) return;
@@ -1214,9 +1263,14 @@ export function useArrangeManager({
       if (visibleModels.length === 1) {
         const model = visibleModels[0];
         const t = getArrangeTransform(model);
-        const dims = getModelSupportAwareDimensionsMm(model, undefined, t);
-
         const { minX, maxX, minY, maxY } = resolveArrangeFrame();
+        const { rotationZ, dims } = chooseSingleModelRotation(
+          model,
+          t,
+          { minX, maxX, minY, maxY },
+          arrangeRotationStepDeg,
+          getModelSupportAwareDimensionsMm,
+        );
         const { x: centerX, y: centerY } = loneModelCenter({ minX, maxX, minY, maxY }, dims, arrangeAnchorMode);
 
         // Arrange and Duplicate previews should never overlap.
@@ -1230,7 +1284,7 @@ export function useArrangeManager({
           id: model.id,
           transform: {
             position: new THREE.Vector3(centerX, centerY, t.position.z),
-            rotation: t.rotation.clone(),
+            rotation: new THREE.Euler(t.rotation.x, t.rotation.y, rotationZ, t.rotation.order),
             scale: t.scale.clone(),
           },
         }]);
@@ -1316,7 +1370,13 @@ export function useArrangeManager({
           }
 
           const t = getArrangeTransform(lone);
-          const dims = getModelSupportAwareDimensionsMm(lone, undefined, t);
+          const { rotationZ, dims } = chooseSingleModelRotation(
+            lone,
+            t,
+            rect,
+            arrangeRotationStepDeg,
+            getModelSupportAwareDimensionsMm,
+          );
           // Only where it fits. A lone model is not a reason to hang it over the edge of a
           // bed — the caller offers it the next rectangle, and a bed of its own if none of
           // the free space is big enough.
@@ -1328,7 +1388,7 @@ export function useArrangeManager({
               id: lone.id,
               transform: {
                 position: new THREE.Vector3(x, y, t.position.z),
-                rotation: t.rotation.clone(),
+                rotation: new THREE.Euler(t.rotation.x, t.rotation.y, rotationZ, t.rotation.order),
                 scale: t.scale.clone(),
               },
             }],
@@ -1350,7 +1410,10 @@ export function useArrangeManager({
           originMode: 'front_left',
           plateOffsetMm: { dxMm: rect.minX, dyMm: rect.minY },
           arrangeSpacingMm,
-          arrangeAllowRotateOnZ,
+          arrangeAllowRotateOnZ: arrangeRotationStepDeg !== 0,
+          searchQuality: arrangeSearchQuality,
+          rotationStepDeg: arrangeRotationStepDeg,
+          allowRaftOverlap: arrangeAllowRaftOverlap,
           arrangeAnchorMode,
           getArrangeTransform: (model) => model.transform,
           hullCache: arrangeHullFootprintCacheRef.current,
@@ -1395,6 +1458,7 @@ export function useArrangeManager({
       }
 
       if (pendingIds.length > 0) {
+        showArrangeOverflow(pendingIds.length);
         // A model bigger than a bed, or a set past the bed cap: the leftover goes in a
         // column beside the beds, which is what arrange has always done with it.
         const leftoverModels = visibleModels.filter((model) => pendingIds.includes(model.id));
@@ -1472,6 +1536,9 @@ export function useArrangeManager({
     arrangeAllowRotateOnZ,
     arrangeAnchorMode,
     arrangePlateOffset,
+    arrangeRotationStepDeg,
+    arrangeSearchQuality,
+    arrangeAllowRaftOverlap,
     arrangeSpacingMm,
     bedsEmptiedByRun,
     getArrangeTransform,
@@ -1480,6 +1547,7 @@ export function useArrangeManager({
     resolveArrangeFrame,
     resolveArrangeVisibleModels,
     scene,
+    showArrangeOverflow,
     sleep,
     transformMgr,
     buildHighPrecisionArrangeModels,
@@ -1844,6 +1912,7 @@ export function useArrangeManager({
             center: highPrecisionSourceModel.geometry.center.clone(),
             geometry: highPrecisionSourceModel.geometry.geometry,
             supportLocalPoints: highPrecisionSourceModel.geometry.supportLocalPoints?.map((point) => point.clone()),
+            raftLocalPoints: highPrecisionSourceModel.geometry.raftLocalPoints?.map((point) => point.clone()),
             supportHullKey: highPrecisionSourceModel.geometry.supportHullKey,
           },
         }));
@@ -1856,6 +1925,9 @@ export function useArrangeManager({
           originMode: scene.view3dSettings.originMode,
           arrangeSpacingMm: duplicateSpacingMm,
           arrangeAllowRotateOnZ: true,
+          searchQuality: arrangeSearchQuality,
+          rotationStepDeg: arrangeRotationStepDeg,
+          allowRaftOverlap: arrangeAllowRaftOverlap,
           arrangeAnchorMode: 'center',
           getArrangeTransform: (arrangeModel) => arrangeModel.transform,
           hullCache: arrangeHullFootprintCacheRef.current,
@@ -2025,6 +2097,9 @@ export function useArrangeManager({
     const targetCopies = Math.min(128, Math.max(1, capacity));
     setDuplicateTotalCopies(targetCopies);
   }, [
+    arrangeRotationStepDeg,
+    arrangeSearchQuality,
+    arrangeAllowRaftOverlap,
     buildHighPrecisionArrangeModels,
     duplicateLayoutMode,
     duplicatePrecisionMode,
@@ -2040,10 +2115,16 @@ export function useArrangeManager({
   return {
     arrangePrecisionMode,
     setArrangePrecisionMode,
+    arrangeSearchQuality,
+    setArrangeSearchQuality,
+    arrangeRotationStepDeg,
+    setArrangeRotationStepDeg,
     arrangePlateFillMode,
     setArrangePlateFillMode,
     arrangeAllowRotateOnZ,
     setArrangeAllowRotateOnZ,
+    arrangeAllowRaftOverlap,
+    setArrangeAllowRaftOverlap,
     arrangeLayoutMode,
     setArrangeLayoutMode,
     arrangeAnchorMode,

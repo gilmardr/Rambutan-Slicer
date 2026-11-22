@@ -14,6 +14,8 @@ import type { ArrangePlateFillMode } from '@/features/scene/arrange/useArrangeMa
 export type ArrangeAnchorMode = 'center' | 'front_left' | 'front_right' | 'back_left' | 'back_right';
 export type ArrangeLayoutMode = 'auto' | 'array';
 export type ArrangePrecisionMode = 'standard' | 'high_precision';
+export type ArrangeSearchQuality = 'fast' | 'balanced' | 'best_fit';
+export type ArrangeRotationStepDeg = 0 | 5 | 15 | 90;
 
 interface ArrangePanelProps {
   precisionMode: ArrangePrecisionMode;
@@ -26,6 +28,12 @@ interface ArrangePanelProps {
   onSpacingMmChange: (value: number) => void;
   allowRotateOnZ: boolean;
   onAllowRotateOnZChange: (value: boolean) => void;
+  searchQuality: ArrangeSearchQuality;
+  onSearchQualityChange: (value: ArrangeSearchQuality) => void;
+  rotationStepDeg: ArrangeRotationStepDeg;
+  onRotationStepDegChange: (value: ArrangeRotationStepDeg) => void;
+  allowRaftOverlap: boolean;
+  onAllowRaftOverlapChange: (value: boolean) => void;
   arrayCountX: number;
   arrayCountY: number;
   arrayCountZ: number;
@@ -66,6 +74,12 @@ export function ArrangePanel({
   onSpacingMmChange,
   allowRotateOnZ,
   onAllowRotateOnZChange,
+  searchQuality,
+  onSearchQualityChange,
+  rotationStepDeg,
+  onRotationStepDegChange,
+  allowRaftOverlap,
+  onAllowRaftOverlapChange,
   arrayCountX,
   arrayCountY,
   arrayCountZ,
@@ -229,15 +243,62 @@ export function ArrangePanel({
                   className="!h-8 whitespace-nowrap px-1.5 text-[10px] sm:text-[11px]"
                   onClick={() => {
                     onPrecisionModeChange('high_precision');
-                    onAllowRotateOnZChange(true);
+                    if (rotationStepDeg !== 0) onAllowRotateOnZChange(true);
                   }}
                   disabled={isApplying}
                   style={isApplying ? disabledModeStyle : (precisionMode === 'high_precision' ? activeModeStyle : undefined)}
-                  title={_(msg`Hull-based SAT packing for tighter fit`)}
+                  title={_(msg`Shape-aware footprint packing for tighter fit`)}
                 >
-                  <Trans>High-Precision</Trans>
+                  <Trans>High-Precision (Experimental)</Trans>
                 </Button>
               </div>
+            </div>
+          )}
+
+          {layoutMode === 'auto' && precisionMode === 'high_precision' && (
+            <div className="rounded-md border p-2 space-y-2" style={panelCardStyle}>
+              <div>
+                <label className="ui-meta" style={{ color: 'var(--text-muted)' }}><Trans>Search quality</Trans></label>
+                <Select
+                  value={searchQuality}
+                  onChange={(event) => onSearchQualityChange(event.target.value as ArrangeSearchQuality)}
+                  disabled={isApplying}
+                  className="mt-1 w-full !h-8 px-2 text-xs"
+                >
+                  <option value="fast">{_(msg`Fast`)}</option>
+                  <option value="balanced">{_(msg`Balanced`)}</option>
+                  <option value="best_fit">{_(msg`Best fit`)}</option>
+                </Select>
+              </div>
+              <div>
+                <label className="ui-meta" style={{ color: 'var(--text-muted)' }}><Trans>Z rotation step</Trans></label>
+                <Select
+                  value={rotationStepDeg}
+                  onChange={(event) => {
+                    const step = Number(event.target.value) as ArrangeRotationStepDeg;
+                    onRotationStepDegChange(step);
+                    onAllowRotateOnZChange(step !== 0);
+                  }}
+                  disabled={isApplying}
+                  className="mt-1 w-full !h-8 px-2 text-xs"
+                >
+                  <option value={0}>{_(msg`Keep current orientation`)}</option>
+                  <option value={5}>5°</option>
+                  <option value={15}>15°</option>
+                  <option value={90}>90°</option>
+                </Select>
+              </div>
+              <button
+                type="button"
+                className="w-full rounded-md border px-2 py-2 text-left transition-colors disabled:opacity-60"
+                style={allowRaftOverlap ? accentCardStyle : panelCardStyle}
+                onClick={() => onAllowRaftOverlapChange(!allowRaftOverlap)}
+                disabled={isApplying}
+                title={_(msg`Model bodies and support structures still keep clearance; only raft footprints may overlap`)}
+              >
+                <span className="text-xs font-medium" style={{ color: 'var(--text-strong)' }}><Trans>Allow raft overlap</Trans></span>
+                <span className="ml-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>{allowRaftOverlap ? _(msg`ON`) : _(msg`OFF`)}</span>
+              </button>
             </div>
           )}
 
@@ -317,7 +378,9 @@ export function ArrangePanel({
               onClick={() => onAllowRotateOnZChange(!allowRotateOnZ)}
               disabled={isApplying || precisionMode === 'high_precision'}
               title={precisionMode === 'high_precision'
-                ? _(msg`High-Precision mode requires Z-rotation and keeps it enabled`)
+                ? (rotationStepDeg === 0
+                  ? _(msg`Keep each model's current Z orientation`)
+                  : _(msg`The selected Z-rotation step is used by High-Precision mode`))
                 : _(msg`Allow auto-arrange to rotate models by 90° on Z when beneficial`)}
             >
               <div className="flex items-center justify-between gap-2">
@@ -336,7 +399,9 @@ export function ArrangePanel({
                     background: allowRotateOnZ ? 'color-mix(in srgb, var(--accent), transparent 88%)' : 'transparent',
                   }}
                 >
-                  {precisionMode === 'high_precision' ? _(msg`ON (Required)`) : (allowRotateOnZ ? _(msg`ON`) : _(msg`OFF`))}
+                  {precisionMode === 'high_precision'
+                    ? (rotationStepDeg === 0 ? _(msg`OFF (Kept)`) : _(msg`ON (Required)`))
+                    : (allowRotateOnZ ? _(msg`ON`) : _(msg`OFF`))}
                 </span>
               </div>
             </button>

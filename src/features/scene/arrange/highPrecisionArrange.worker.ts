@@ -26,6 +26,7 @@ const fromTransform = (t: SerializedArrangeTransform): ArrangeTransform => ({
 const deserializeModel = (m: SerializedArrangeModel): ArrangeModel => {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(m.geometry.positions, 3));
+  if (m.geometry.indices) geometry.setIndex(new THREE.BufferAttribute(m.geometry.indices, 1));
   Object.defineProperty(geometry, 'uuid', {
     value: m.geometry.uuid,
     writable: false,
@@ -44,6 +45,16 @@ const deserializeModel = (m: SerializedArrangeModel): ArrangeModel => {
         ? (() => {
             const points: THREE.Vector3[] = [];
             const arr = m.geometry.supportLocalPoints;
+            for (let i = 0; i + 2 < arr.length; i += 3) {
+              points.push(new THREE.Vector3(arr[i], arr[i + 1], arr[i + 2]));
+            }
+            return points;
+          })()
+        : undefined,
+      raftLocalPoints: m.geometry.raftLocalPoints
+        ? (() => {
+            const points: THREE.Vector3[] = [];
+            const arr = m.geometry.raftLocalPoints;
             for (let i = 0; i + 2 < arr.length; i += 3) {
               points.push(new THREE.Vector3(arr[i], arr[i + 1], arr[i + 2]));
             }
@@ -86,6 +97,9 @@ self.onmessage = (event: MessageEvent<HighPrecisionArrangeWorkerRequest>) => {
       plateOffsetMm: msg.input.plateOffsetMm,
       arrangeSpacingMm: msg.input.arrangeSpacingMm,
       arrangeAllowRotateOnZ: msg.input.arrangeAllowRotateOnZ,
+      searchQuality: msg.input.searchQuality,
+      rotationStepDeg: msg.input.rotationStepDeg,
+      allowRaftOverlap: msg.input.allowRaftOverlap,
       arrangeAnchorMode: msg.input.arrangeAnchorMode,
       safetyMarginMm: msg.input.safetyMarginMm,
       getArrangeTransform: (model) => model.transform,

@@ -136,6 +136,12 @@ export function PreparePanelStack({
     setArrangeLayoutMode,
     arrangeAllowRotateOnZ,
     setArrangeAllowRotateOnZ,
+    arrangeSearchQuality,
+    setArrangeSearchQuality,
+    arrangeRotationStepDeg,
+    setArrangeRotationStepDeg,
+    arrangeAllowRaftOverlap,
+    setArrangeAllowRaftOverlap,
     arrangeArrayCountX,
     arrangeArrayCountY,
     arrangeArrayCountZ,
@@ -329,6 +335,12 @@ export function PreparePanelStack({
           onSpacingMmChange={setArrangeSpacingMm}
           allowRotateOnZ={arrangeAllowRotateOnZ}
           onAllowRotateOnZChange={setArrangeAllowRotateOnZ}
+          searchQuality={arrangeSearchQuality}
+          onSearchQualityChange={setArrangeSearchQuality}
+          rotationStepDeg={arrangeRotationStepDeg}
+          onRotationStepDegChange={setArrangeRotationStepDeg}
+          allowRaftOverlap={arrangeAllowRaftOverlap}
+          onAllowRaftOverlapChange={setArrangeAllowRaftOverlap}
           arrayCountX={arrangeArrayCountX}
           arrayCountY={arrangeArrayCountY}
           arrayCountZ={arrangeArrayCountZ}

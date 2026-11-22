@@ -92,7 +92,8 @@ import {
   dispatchDeleteModelAction,
   resolveModelActionTargetIds,
 } from '@/features/scene/modelActionTargets';
-import { buildLiftDropUpdates, getModelLowestWorldZ, preserveModelBottom } from '@/features/scene/selectionLiftDrop';
+import { freeRectsForPlate, type PlateRect } from '@/features/scene/arrange/plateFreeSpace';
+import { buildLiftDropUpdates, preserveModelBottom } from '@/features/scene/selectionLiftDrop';
 import { dropOverlaySupportedFormats, dropOverlayUnsupportedFormats } from '@/features/scene/sceneImportMessages';
 import {
   buildCenterSelectionUpdates,
@@ -124,6 +125,7 @@ import { BlockingOverlay, Button, IconButton, Toast, ToastViewport } from '@/com
 import { EditorContextMenu, MENU_ITEMS, type EditorMenuAction } from '@/components/ui/EditorContextMenu';
 import { StructuredDialogModal } from '@/components/ui/StructuredDialogModal';
 import { eulerFromGlobalEuler, quaternionFromGlobalEuler } from '@/utils/rotation';
+import { computeAlignedModelTransforms, type ModelAlignment } from '@/features/scene/align/alignSelectedModels';
 import { DiagnosticsModal } from '@/components/modals/DiagnosticsModal';
 import { HistoryDebugModal } from '@/components/modals/HistoryDebugModal';
 import { ModelSupportsModal } from '@/components/modals/ModelSupportsModal';
@@ -442,7 +444,6 @@ import type {
 } from '@/features/mesh-modifiers/types';
 import { createJointLabel } from '@/supports/history/supportHistoryLabels';
 import {
-  APPLY_ORIENTATION_SUGGESTION_LABEL,
   deleteSupportsForModelLabel,
   deleteSupportsForModelsLabel,
   HOLLOWING_SETTINGS_LABEL,
@@ -484,6 +485,13 @@ function areSortedNumberArraysEqual(a: readonly number[], b: readonly number[]):
 // Module scope for the same React Compiler reason as the duration formatters below.
 function formatSelectedModelCount(translate: (descriptor: MessageDescriptor) => string, count: number): string {
   return translate(msg`${plural(count, { one: '# model', other: '# models' })}`);
+}
+
+function formatArrangeOverflowMessage(translate: (descriptor: MessageDescriptor) => string, count: number): string {
+  return translate(msg`${plural(count, {
+    one: '# model could not fit in the available build volume and was moved outside the plate. Scale or split it before printing.',
+    other: '# models could not fit in the available build volume and were moved outside the plate. Scale or split them before printing.',
+  })}`);
 }
 
 function isKeyboardTargetEditable(target: EventTarget | null): boolean {
@@ -769,6 +777,190 @@ function formatPlateLockedNotice(
     message: '{plateName} is locked.',
     comment: '{plateName} is the locked build plate, named as the Models panel names it: its own name, or "Plate 1".',
   }), { plateName });
+}
+
+function getLongPartPlateYaw(
+  geometry: GeometryWithBounds,
+  transform: Parameters<typeof computePreciseModelWorldBounds>[1],
+  plate: PlateRect,
+): number {
+  const plateWidth = plate.maxX - plate.minX;
+  const plateDepth = plate.maxY - plate.minY;
+  const position = geometry.geometry.getAttribute('position');
+  if (!position || position.count < 3 || Math.abs(plateWidth - plateDepth) < 0.01) return 0;
+
+  // Find the long axis of the projected mesh, including diagonal poses.
+  const rotation = quaternionFromGlobalEuler(transform.rotation);
+  const vertex = new THREE.Vector3();
+  const stride = Math.max(1, Math.floor(position.count / 2048));
+  let count = 0;
+  let x = 0;
+  let y = 0;
+  let xx = 0;
+  let xy = 0;
+  let yy = 0;
+  for (let i = 0; i < position.count; i += stride) {
+    vertex.fromBufferAttribute(position, i).sub(geometry.center).multiply(transform.scale).applyQuaternion(rotation);
+    x += vertex.x;
+    y += vertex.y;
+    xx += vertex.x * vertex.x;
+    xy += vertex.x * vertex.y;
+    yy += vertex.y * vertex.y;
+    count += 1;
+  }
+  const axis = Math.atan2(2 * (xy - x * y / count), (xx - x * x / count) - (yy - y * y / count)) / 2;
+  if (!Number.isFinite(axis)) return 0;
+  const { x: rx, y: ry, z: rz } = transform.rotation;
+  const size = computePreciseModelWorldBounds(geometry, {
+    ...transform,
+    rotation: eulerFromGlobalEuler({ x: rx, y: ry, z: rz - axis }),
+  }).getSize(vertex);
+  if (size.x < 1.6 * Math.max(size.y, size.z, 0.01)) return 0;
+
+  const target = plateWidth > plateDepth ? 0 : Math.PI / 2;
+  // The axis has no direction. Choose the equivalent turn closest to the current pose.
+  return THREE.MathUtils.euclideanModulo(target - axis + Math.PI / 2, Math.PI) - Math.PI / 2;
+}
+
+function computeArrangeSupportBounds(
+  supportStateSnapshot: HomeSupportCollectionsSnapshot,
+  raftSettingsSnapshot: ReturnType<typeof getRaftSettings>,
+  resolveModelRaftSettings?: typeof getRaftSettingsForModel,
+) {
+  const boundsByModelId = new Map<string, THREE.Box3>();
+  const supportOnlyBoundsByModelId = new Map<string, THREE.Box3>();
+  const raftBoundsByModelId = new Map<string, THREE.Box3>();
+
+  const expandInto = (
+    target: Map<string, THREE.Box3>,
+    modelId: string | null | undefined,
+    pos: { x: number; y: number; z: number } | null | undefined,
+    radiusMm = 0,
+  ) => {
+    if (!modelId || !pos) return;
+    let bounds = target.get(modelId);
+    if (!bounds) {
+      bounds = new THREE.Box3();
+      target.set(modelId, bounds);
+    }
+    const radius = Math.max(0, radiusMm);
+    bounds.expandByPoint(new THREE.Vector3(pos.x - radius, pos.y - radius, pos.z - radius));
+    bounds.expandByPoint(new THREE.Vector3(pos.x + radius, pos.y + radius, pos.z + radius));
+  };
+
+  const expand = (modelId: string | null | undefined, pos: { x: number; y: number; z: number } | null | undefined, radiusMm = 0) => {
+    expandInto(boundsByModelId, modelId, pos, radiusMm);
+    expandInto(supportOnlyBoundsByModelId, modelId, pos, radiusMm);
+  };
+
+  const expandRaft = (modelId: string, pos: { x: number; y: number; z: number }) => {
+    expandInto(boundsByModelId, modelId, pos);
+    expandInto(raftBoundsByModelId, modelId, pos);
+  };
+
+  // Which model each knot belongs to, from the `hostedBy knots` edges every
+  // type declares. A brace lands under both its ends because it declares two.
+  const knotModelById = new Map<string, string>();
+  for (const descriptor of SUPPORT_TYPES) {
+    const fields = knotFields(descriptor);
+    if (fields.length === 0) continue;
+
+    const collection = supportStateSnapshot[descriptor.location.key as SupportCollectionKey] as unknown as
+      Record<string, Record<string, unknown>>;
+    for (const entity of Object.values(collection ?? {})) {
+      const modelId = entity.modelId as string | undefined;
+      if (!modelId) continue;
+      for (const field of fields) {
+        const knotId = entity[field];
+        if (typeof knotId === 'string') knotModelById.set(knotId, modelId);
+      }
+    }
+  }
+
+  for (const root of Object.values(supportStateSnapshot.roots)) {
+    expand(root.modelId, root.transform?.pos, Math.max(0.001, root.diameter / 2));
+    expand(root.modelId, {
+      x: root.transform.pos.x,
+      y: root.transform.pos.y,
+      z: root.transform.pos.z + Math.max(0, root.diskHeight) + Math.max(0, root.coneHeight),
+    }, Math.max(0.001, root.diameter / 2));
+  }
+
+  if (resolveModelRaftSettings || raftSettingsSnapshot.bottomMode !== 'off') {
+    const rootsByModel = new Map<string, SupportBaseCircle[]>();
+
+    for (const root of Object.values(supportStateSnapshot.roots)) {
+      if (!root.modelId) continue;
+      if (!rootsByModel.has(root.modelId)) rootsByModel.set(root.modelId, []);
+      rootsByModel.get(root.modelId)!.push({
+        x: root.transform.pos.x,
+        y: root.transform.pos.y,
+        r: root.diameter / 2,
+      });
+    }
+
+    for (const [modelId, circles] of rootsByModel) {
+      const raft = resolveModelRaftSettings?.(modelId) ?? raftSettingsSnapshot;
+      if (circles.length === 0 || raft.bottomMode === 'off') continue;
+
+      const thickness = raft.bottomMode === 'line' ? raft.lineHeightMm : raft.thickness;
+      const chamferInset = Math.max(0, thickness) * Math.tan((Math.PI / 180) * (90 - Math.min(90, Math.max(45, raft.chamferAngle))));
+      const wallInset = raft.wallEnabled ? Math.max(0, raft.wallThickness) : 0;
+      const dynamicMargin = 0.2 + Math.max(chamferInset, wallInset);
+
+      const baseProfile = computeFootprint(circles, {
+        marginMm: dynamicMargin,
+        samplesPerCircle: 24,
+      });
+
+      if (!baseProfile || baseProfile.length < 3) continue;
+
+      const outerProfile = raft.wallEnabled
+        ? computeRaftOuterBoundary(baseProfile, raft)
+        : baseProfile;
+
+      const raftMaxZ = raftBandTopMm(raft);
+
+      for (const p of outerProfile) {
+        expandRaft(modelId, { x: p.x, y: p.y, z: 0 });
+        expandRaft(modelId, { x: p.x, y: p.y, z: raftMaxZ });
+      }
+    }
+  }
+
+  // Every type's joints and declared contacts, so each one grows the bounds.
+  for (const descriptor of SUPPORT_TYPES) {
+    const collection = supportStateSnapshot[descriptor.location.key as SupportCollectionKey] as unknown as
+      Record<string, { modelId?: string; segments?: Segment[] }>;
+
+    for (const entity of Object.values(collection ?? {})) {
+      const modelId = entity.modelId;
+      if (!modelId) continue;
+
+      for (const seg of entity.segments ?? []) {
+        expand(modelId, seg.topJoint?.pos, Math.max(0.001, (seg.topJoint?.diameter ?? seg.diameter) / 2));
+        expand(modelId, seg.bottomJoint?.pos, Math.max(0.001, (seg.bottomJoint?.diameter ?? seg.diameter) / 2));
+      }
+
+      for (const { kind, field } of contactEndpointsFor(descriptor.id)) {
+        const contact = (entity as unknown as Record<string, unknown>)[field];
+        if (!contact) continue;
+        // A disk carries its contact diameter directly; a cone in its profile.
+        const c = contact as { pos: { x: number; y: number; z: number }; contactDiameterMm?: number; profile?: { contactDiameterMm?: number } };
+        const diameter = kind === 'disk' ? c.contactDiameterMm : c.profile?.contactDiameterMm;
+        expand(modelId, c.pos, Math.max(0.001, (diameter ?? 0.002) / 2));
+      }
+    }
+  }
+
+  // A knot with no hosting entity falls back to the shaft it sits on.
+  for (const knot of Object.values(supportStateSnapshot.knots)) {
+    const modelId = knotModelById.get(knot.id)
+      ?? modelIdOfParentShaft(supportStateSnapshot, knot.parentShaftId);
+    expand(modelId, knot.pos, Math.max(0.001, (knot.diameter ?? 1.2) / 2));
+  }
+
+  return { all: boundsByModelId, supports: supportOnlyBoundsByModelId, rafts: raftBoundsByModelId };
 }
 
 export default function Home() {
@@ -2465,36 +2657,163 @@ export default function Home() {
     return false;
   }, [getSupportPrimitiveCountForModel, pendingDestructiveTransform, scene]);
 
-  // The scene-owned apply for the Auto Orientation panel, shared by whichever
-  // mode hosts it: re-seat the model to the plate clearance after the rotation
-  // (lift OR drop) so repeated orienting never drifts the model upward, and
-  // record rotate + lift as one history entry.
-  const handleApplyOrientation = React.useCallback((modelId: string, rotation: THREE.Euler) => {
+  const handleApplyOrientation = React.useCallback((
+    modelId: string,
+    rotation: THREE.Euler | undefined,
+    onComplete: (applied: boolean) => void,
+  ) => {
     const activeModel = scene.activeModel;
-    const current = activeModel?.transform;
-    if (!activeModel || !current) return;
-    const before = {
-      position: current.position.clone(),
-      rotation: current.rotation.clone(),
-      scale: current.scale.clone(),
-    };
-    const after = {
-      position: current.position.clone(),
-      rotation,
-      scale: current.scale.clone(),
-    };
-    // A new down-axis means new extents: seat to the plate clearance after
-    // orientation — lift OR drop — so repeated orienting never drifts the model
-    // upward. One history entry covers rotate + lift.
-    if (activeModel.id === modelId) {
-      const lowestWorldZ = getModelLowestWorldZ({ id: modelId, geometry: activeModel.geometry, transform: after });
-      after.position.z += transformMgr.liftDistance - lowestWorldZ;
+    const plateId = activeModel && scene.resolveModelPlateId(activeModel);
+    const frame = scene.plateFrames.find((candidate) => candidate.id === plateId);
+    if (!activeModel || activeModel.id !== modelId || !frame) {
+      onComplete(false);
+      return;
     }
-    scene.updateModelTransform(modelId, after);
-    scene.commitModelTransformHistory(modelId, before, after, APPLY_ORIENTATION_SUGGESTION_LABEL);
-  }, [scene, transformMgr.liftDistance]);
+    if (scene.isPlateLocked(frame.id)) {
+      notifyPlateLockedRef.current(frame.id);
+      onComplete(false);
+      return;
+    }
+    if (activeModel.linkGroupId) {
+      showOperationError(_(msg`Unlink the active model before using auto orientation.`));
+      onComplete(false);
+      return;
+    }
 
-  const handleMagicOrientation = React.useCallback((continueWithSupportRun: (orientationChanged: boolean) => void) => {
+    const margin = scene.view3dSettings.safetyMarginMm;
+    const plate = {
+      minX: frame.minX + Math.max(0, margin?.left ?? 0),
+      maxX: frame.maxX - Math.max(0, margin?.right ?? 0),
+      minY: frame.minY + Math.max(0, margin?.front ?? 0),
+      maxY: frame.maxY - Math.max(0, margin?.back ?? 0),
+    };
+    const supportBounds = computeArrangeSupportBounds(getSupportSnapshot(), getRaftSettings(), getRaftSettingsForModel).all;
+    const modelsOnPlate = scene.models.filter((model) => scene.resolveModelPlateId(model) === plateId);
+    const preferredYaw = getLongPartPlateYaw(activeModel.geometry, {
+      ...activeModel.transform,
+      rotation: rotation ?? activeModel.transform.rotation,
+    }, plate);
+
+    const planLayout = (plateYaw: number) => {
+      const occupied: PlateRect[] = [];
+      const candidates = modelsOnPlate.flatMap((model) => {
+        const orienting = model.id === modelId && rotation !== undefined;
+        const transform = {
+          position: model.transform.position.clone(),
+          rotation: orienting ? rotation.clone() : model.transform.rotation.clone(),
+          scale: model.transform.scale.clone(),
+        };
+        const yaw = model.id === modelId ? plateYaw : 0;
+        if (yaw !== 0) {
+          transform.rotation = eulerFromGlobalEuler({
+            x: transform.rotation.x,
+            y: transform.rotation.y,
+            z: transform.rotation.z + yaw,
+          });
+        }
+        const bounds = computePreciseModelWorldBounds(model.geometry, transform);
+        if (orienting) {
+          const targetZ = transformMgr.autoLift ? transformMgr.liftDistance : 0;
+          const lift = targetZ - bounds.min.z;
+          transform.position.z += lift;
+          bounds.translate(new THREE.Vector3(0, 0, lift));
+        } else {
+          let supports = supportBounds.get(model.id);
+          if (supports && yaw !== 0) {
+            const toPivot = transform.position.clone().negate();
+            supports = supports.clone().translate(toPivot)
+              .applyMatrix4(new THREE.Matrix4().makeRotationZ(yaw))
+              .translate(transform.position);
+          }
+          if (supports) {
+            bounds.min.x = Math.min(bounds.min.x, supports.min.x);
+            bounds.min.y = Math.min(bounds.min.y, supports.min.y);
+            bounds.max.x = Math.max(bounds.max.x, supports.max.x);
+            bounds.max.y = Math.max(bounds.max.y, supports.max.y);
+          }
+        }
+
+        if (model.id !== modelId && (!model.visible || model.linkGroupId)) {
+          occupied.push({ minX: bounds.min.x, maxX: bounds.max.x, minY: bounds.min.y, maxY: bounds.max.y });
+          return [];
+        }
+        const width = bounds.max.x - bounds.min.x;
+        const depth = bounds.max.y - bounds.min.y;
+        return [{ id: model.id, transform, bounds, width, depth }];
+      }).sort((a, b) => b.width * b.depth - a.width * a.depth);
+
+      const gapMm = Math.max(0, arrangeSpacingMm);
+      const hasFixedModels = occupied.length > 0;
+      const updates: Array<{ id: string; transform: typeof activeModel.transform }> = [];
+      for (const { id, transform, bounds, width, depth } of candidates) {
+        const free = freeRectsForPlate(plate, occupied, {
+          gapMm: gapMm * 2,
+          minSideMm: 0,
+          maxRects: Number.MAX_SAFE_INTEGER,
+        }).find((rect) => width <= rect.maxX - rect.minX && depth <= rect.maxY - rect.minY);
+        const validHeight = bounds.min.z >= -1e-5 && bounds.max.z <= scene.view3dSettings.maxZMm + 1e-5;
+        if (!free || !validHeight || !Number.isFinite(width + depth)) {
+          return null;
+        }
+
+        const centerSingle = candidates.length === 1 && occupied.length === 0;
+        const minX = centerSingle
+          ? THREE.MathUtils.clamp((frame.minX + frame.maxX - width) / 2, free.minX, free.maxX - width)
+          : free.minX;
+        const minY = centerSingle
+          ? THREE.MathUtils.clamp((frame.minY + frame.maxY - depth) / 2, free.minY, free.maxY - depth)
+          : free.minY;
+        transform.position.x += minX - bounds.min.x;
+        transform.position.y += minY - bounds.min.y;
+        occupied.push({ minX, minY, maxX: minX + width, maxY: minY + depth });
+        updates.push({ id, transform });
+      }
+
+      if (!hasFixedModels && updates.length > 1) {
+        const minX = Math.min(...occupied.map((rect) => rect.minX));
+        const maxX = Math.max(...occupied.map((rect) => rect.maxX));
+        const minY = Math.min(...occupied.map((rect) => rect.minY));
+        const maxY = Math.max(...occupied.map((rect) => rect.maxY));
+        const dx = (plate.minX + plate.maxX - minX - maxX) / 2;
+        const dy = (plate.minY + plate.maxY - minY - maxY) / 2;
+        for (const { transform } of updates) {
+          transform.position.x += dx;
+          transform.position.y += dy;
+        }
+      }
+      return updates;
+    };
+
+    const updates = planLayout(preferredYaw) ?? (preferredYaw !== 0 ? planLayout(0) : null);
+    if (!updates) {
+      showOperationError(_(msg`Auto orientation could not fit the models within this plate. Check their size, spacing and plate margins.`));
+      onComplete(false);
+      return;
+    }
+
+    const apply = () => {
+      const result = scene.updateModelTransforms(updates);
+      if (result.updated) {
+        const active = updates.find((update) => update.id === modelId)?.transform;
+        if (active) {
+          suppressTransformPersistenceCycles();
+          const { position, rotation: nextRotation } = active;
+          transformMgr.transformHook.setPosition(position.x, position.y, position.z);
+          transformMgr.transformHook.setRotation(nextRotation.x, nextRotation.y, nextRotation.z);
+        }
+        setSupportRenderRefreshNonce((value) => value + 1);
+      }
+      onComplete(result.updated || rotation === undefined);
+    };
+
+    // Check that the whole layout fits before asking to delete existing supports.
+    if (!rotation || requestOrientSupportDeletionWithContinuation(apply)) apply();
+  }, [
+    _, arrangeSpacingMm, requestOrientSupportDeletionWithContinuation, scene, showOperationError,
+    suppressTransformPersistenceCycles, transformMgr.autoLift, transformMgr.liftDistance, transformMgr.transformHook,
+  ]);
+
+  const handleMagicOrientation = React.useCallback((continueWithSupportRun: (orientationChanged: boolean) => void, layerHeightMm: number) => {
     const activeModel = scene.activeModel;
     const modelId = scene.activeModelId;
     if (!activeModel || !modelId) {
@@ -2503,10 +2822,18 @@ export default function Home() {
     }
 
     setOrientationBusy(true);
-    requestAnimationFrame(() => setTimeout(() => {
-      let suggestion: ReturnType<typeof getAutomaticOrientationSuggestion>;
+    requestAnimationFrame(() => { void (async () => {
+      let suggestion: Awaited<ReturnType<typeof getAutomaticOrientationSuggestion>>;
       try {
-        suggestion = getAutomaticOrientationSuggestion(modelId, activeModel.transform.rotation, 'supports');
+        suggestion = await getAutomaticOrientationSuggestion(
+          modelId,
+          activeModel.geometry.geometry,
+          activeModel.transform.rotation,
+          'safety',
+          activeModel.transform.scale,
+          transformMgr.autoLift,
+          layerHeightMm,
+        );
       } catch (error) {
         console.error('[MagicPrepare] orientation suggestion failed:', error);
         setOrientationBusy(false);
@@ -2519,28 +2846,20 @@ export default function Home() {
         continueWithSupportRun(false);
         return;
       }
-      if (suggestion.status === 'already-optimal') {
-        showOrientationToast({
-          status: 'already-optimal',
-          modelName: (activeModel.name ?? modelId).trim(),
-        });
-        continueWithSupportRun(false);
-        return;
-      }
-
-      const applyOrientation = () => {
-        handleApplyOrientation(modelId, suggestion.rotation);
-        showOrientationToast({
-          status: 'applied',
-          modelName: (activeModel.name ?? modelId).trim(),
-        });
-        requestAnimationFrame(() => requestAnimationFrame(() => continueWithSupportRun(true)));
-      };
-
-      if (!requestOrientSupportDeletionWithContinuation(applyOrientation)) return;
-      applyOrientation();
-    }, 0));
-  }, [handleApplyOrientation, requestOrientSupportDeletionWithContinuation, scene.activeModel, scene.activeModelId, showOrientationToast]);
+      const rotation = suggestion.status === 'suggested' ? suggestion.rotation : undefined;
+      handleApplyOrientation(modelId, rotation, (applied) => {
+        if (applied) {
+          showOrientationToast({
+            status: rotation ? 'applied' : 'already-optimal',
+            modelName: (activeModel.name ?? modelId).trim(),
+          });
+          requestAnimationFrame(() => requestAnimationFrame(() => continueWithSupportRun(Boolean(rotation))));
+        } else {
+          continueWithSupportRun(false);
+        }
+      });
+    })(); });
+  }, [handleApplyOrientation, scene.activeModel, scene.activeModelId, showOrientationToast, transformMgr.autoLift]);
 
   const handleConfirmDestructiveTransform = React.useCallback(() => {
     const pending = pendingDestructiveTransform;
@@ -2701,6 +3020,7 @@ export default function Home() {
       activeModelId: scene.activeModelId,
     }).length > 0;
     const canLink = scene.selectedModelIds.length >= 2;
+    const canAlignModels = scene.selectedModelIds.length >= 2;
     const selectedOrActiveModels = scene.selectedModelIds.length > 0
       ? scene.models.filter((m) => scene.selectedModelIds.includes(m.id))
       : (scene.activeModelId ? scene.models.filter((m) => m.id === scene.activeModelId) : []);
@@ -2712,6 +3032,7 @@ export default function Home() {
       ...(!hasTargetModel ? (['mark-as-support-geometry', 'mark-as-model-geometry'] as const) : []),
       ...(!canLink ? (['link-models'] as const) : []),
       ...(!canUnlink ? (['unlink-models'] as const) : []),
+      ...(!canAlignModels ? (['align-x-center', 'align-y-center', 'align-z-center', 'align-z-bottom'] as const) : []),
       ...(!scene.canPasteModel ? (['paste'] as const) : []),
       ...(!canSplitSupports ? (['split-supports'] as const) : []),
       ...(!canMergeSupports ? (['merge-supports'] as const) : []),
@@ -4489,7 +4810,7 @@ export default function Home() {
 
 
 
-  // Best-effort background cleanup of stale 3DRESIN temp artifacts from prior runs.
+  // Best-effort background cleanup of stale Rambutan Slicer temp artifacts from prior runs.
   React.useEffect(() => {
     void cleanupStalePrintTempArtifacts(3 * 24 * 60 * 60)
       .then((removed) => {
@@ -5053,7 +5374,7 @@ export default function Home() {
     }
     if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
     // Don't show recovery when the app was launched with a scene file (double-click VOXL etc.).
-    // In that case 3DRESIN is already in a loading state (pendingStartupSceneHandoff).
+    // In that case Rambutan Slicer is already in a loading state (pendingStartupSceneHandoff).
     if (pendingStartupSceneHandoff) {
       setAutosaveRecovery(null);
       return;
@@ -6528,6 +6849,27 @@ export default function Home() {
         }
         break;
       }
+      case 'align-x-center':
+      case 'align-y-center':
+      case 'align-z-center':
+      case 'align-z-bottom': {
+        const selected = scene.models.filter((model) => scene.selectedModelIds.includes(model.id));
+        const referenceId = selected.some((model) => model.id === scene.activeModelId)
+          ? scene.activeModelId
+          : selected[0]?.id;
+        if (referenceId && selected.length > 1) {
+          const alignment: ModelAlignment = action === 'align-x-center'
+            ? 'center-x'
+            : action === 'align-y-center'
+              ? 'center-y'
+              : action === 'align-z-center'
+                ? 'center-z'
+                : 'bottom-z';
+          const updates = computeAlignedModelTransforms(selected, referenceId, alignment);
+          scene.updateModelTransforms(updates);
+        }
+        break;
+      }
       default:
         break;
     }
@@ -7660,139 +8002,23 @@ export default function Home() {
       scene.mode !== 'prepare'
       || (transformMgr.transformMode !== 'arrange' && transformMgr.transformMode !== 'duplicate')
     ) {
-      return EMPTY_SUPPORT_BOUNDS_BY_MODEL_ID;
+      return {
+        all: EMPTY_SUPPORT_BOUNDS_BY_MODEL_ID,
+        supports: EMPTY_SUPPORT_BOUNDS_BY_MODEL_ID,
+        rafts: EMPTY_SUPPORT_BOUNDS_BY_MODEL_ID,
+      };
     }
 
-    const boundsByModelId = new Map<string, THREE.Box3>();
-
-    const ensureBounds = (modelId: string) => {
-      let bounds = boundsByModelId.get(modelId);
-      if (!bounds) {
-        bounds = new THREE.Box3();
-        boundsByModelId.set(modelId, bounds);
-      }
-      return bounds;
-    };
-
-    const expand = (modelId: string | null | undefined, pos: { x: number; y: number; z: number } | null | undefined, radiusMm = 0) => {
-      if (!modelId || !pos) return;
-      const bounds = ensureBounds(modelId);
-      const radius = Math.max(0, radiusMm);
-      bounds.expandByPoint(new THREE.Vector3(pos.x - radius, pos.y - radius, pos.z - radius));
-      bounds.expandByPoint(new THREE.Vector3(pos.x + radius, pos.y + radius, pos.z + radius));
-    };
-
-    // Which model each knot belongs to, from the `hostedBy knots` edges every
-    // type declares. A brace lands under both its ends because it declares two.
-    const knotModelById = new Map<string, string>();
-    for (const descriptor of SUPPORT_TYPES) {
-      const fields = knotFields(descriptor);
-      if (fields.length === 0) continue;
-
-      const collection = supportStateSnapshot[descriptor.location.key as SupportCollectionKey] as unknown as
-        Record<string, Record<string, unknown>>;
-      for (const entity of Object.values(collection ?? {})) {
-        const modelId = entity.modelId as string | undefined;
-        if (!modelId) continue;
-        for (const field of fields) {
-          const knotId = entity[field];
-          if (typeof knotId === 'string') knotModelById.set(knotId, modelId);
-        }
-      }
-    }
-
-    for (const root of Object.values(supportStateSnapshot.roots)) {
-      expand(root.modelId, root.transform?.pos, Math.max(0.001, root.diameter / 2));
-      expand(root.modelId, {
-        x: root.transform.pos.x,
-        y: root.transform.pos.y,
-        z: root.transform.pos.z + Math.max(0, root.diskHeight) + Math.max(0, root.coneHeight),
-      }, Math.max(0.001, root.diameter / 2));
-    }
-
-    if (raftSettingsSnapshot.bottomMode !== 'off') {
-      const rootsByModel = new Map<string, SupportBaseCircle[]>();
-
-      for (const root of Object.values(supportStateSnapshot.roots)) {
-        if (!root.modelId) continue;
-        if (!rootsByModel.has(root.modelId)) rootsByModel.set(root.modelId, []);
-        rootsByModel.get(root.modelId)!.push({
-          x: root.transform.pos.x,
-          y: root.transform.pos.y,
-          r: root.diameter / 2,
-        });
-      }
-
-      for (const [modelId, circles] of rootsByModel) {
-        if (circles.length === 0) continue;
-
-        const thickness = raftSettingsSnapshot.bottomMode === 'line' ? raftSettingsSnapshot.lineHeightMm : raftSettingsSnapshot.thickness;
-        const chamferInset = Math.max(0, thickness) * Math.tan((Math.PI / 180) * (90 - Math.min(90, Math.max(45, raftSettingsSnapshot.chamferAngle))));
-        const wallInset = raftSettingsSnapshot.wallEnabled ? Math.max(0, raftSettingsSnapshot.wallThickness) : 0;
-        const dynamicMargin = 0.2 + Math.max(chamferInset, wallInset);
-
-        const baseProfile = computeFootprint(circles, {
-          marginMm: dynamicMargin,
-          samplesPerCircle: 24,
-        });
-
-        if (!baseProfile || baseProfile.length < 3) continue;
-
-        const outerProfile = raftSettingsSnapshot.wallEnabled
-          ? computeRaftOuterBoundary(baseProfile, raftSettingsSnapshot)
-          : baseProfile;
-
-        const raftTopZ = raftSettingsSnapshot.bottomMode === 'line'
-          ? raftSettingsSnapshot.lineHeightMm
-          : raftSettingsSnapshot.thickness;
-        const raftMaxZ = raftTopZ + (raftSettingsSnapshot.wallEnabled ? raftSettingsSnapshot.wallHeight : 0);
-
-        for (const p of outerProfile) {
-          expand(modelId, { x: p.x, y: p.y, z: 0 }, 0);
-          expand(modelId, { x: p.x, y: p.y, z: raftMaxZ }, 0);
-        }
-      }
-    }
-
-    // Every type's joints and declared contacts, so each one grows the bounds.
-    for (const descriptor of SUPPORT_TYPES) {
-      const collection = supportStateSnapshot[descriptor.location.key as SupportCollectionKey] as unknown as
-        Record<string, { modelId?: string; segments?: Segment[] }>;
-
-      for (const entity of Object.values(collection ?? {})) {
-        const modelId = entity.modelId;
-        if (!modelId) continue;
-
-        for (const seg of entity.segments ?? []) {
-          expand(modelId, seg.topJoint?.pos, Math.max(0.001, (seg.topJoint?.diameter ?? seg.diameter) / 2));
-          expand(modelId, seg.bottomJoint?.pos, Math.max(0.001, (seg.bottomJoint?.diameter ?? seg.diameter) / 2));
-        }
-
-        for (const { kind, field } of contactEndpointsFor(descriptor.id)) {
-          const contact = (entity as unknown as Record<string, unknown>)[field];
-          if (!contact) continue;
-          // A disk carries its contact diameter directly; a cone in its profile.
-          const c = contact as { pos: { x: number; y: number; z: number }; contactDiameterMm?: number; profile?: { contactDiameterMm?: number } };
-          const diameter = kind === 'disk' ? c.contactDiameterMm : c.profile?.contactDiameterMm;
-          expand(modelId, c.pos, Math.max(0.001, (diameter ?? 0.002) / 2));
-        }
-      }
-    }
-
-    // A knot with no hosting entity falls back to the shaft it sits on.
-    for (const knot of Object.values(supportStateSnapshot.knots)) {
-      const modelId = knotModelById.get(knot.id)
-        ?? modelIdOfParentShaft(supportStateSnapshot, knot.parentShaftId);
-      expand(modelId, knot.pos, Math.max(0.001, (knot.diameter ?? 1.2) / 2));
-    }
-
-    return boundsByModelId;
+    return computeArrangeSupportBounds(supportStateSnapshot, raftSettingsSnapshot);
   }, [
     scene.mode,
     transformMgr.transformMode,
     supportStateSnapshot,
     raftSettingsSnapshot,
   ]);
+  const supportOnlyBoundsByModelId = supportBoundsByModelId.supports;
+  const raftBoundsByModelId = supportBoundsByModelId.rafts;
+  const combinedSupportBoundsByModelId = supportBoundsByModelId.all;
 
   const getModelSupportAwareDimensionsMm = React.useCallback((
     model: (typeof scene.models)[number],
@@ -7831,7 +8057,7 @@ export default function Home() {
     let minZ = meshApproxBounds.min.z;
     let maxZ = meshApproxBounds.max.z;
 
-    const supportBoundsBase = supportBoundsByModelId.get(model.id);
+    const supportBoundsBase = combinedSupportBoundsByModelId.get(model.id);
     if (supportBoundsBase && !supportBoundsBase.isEmpty()) {
       const sourceMatrix = new THREE.Matrix4().compose(
         model.transform.position,
@@ -7859,7 +8085,7 @@ export default function Home() {
       depth: Math.max(2, maxY - minY),
       height: Math.max(2, maxZ - minZ),
     };
-  }, [getArrangeTransform, supportBoundsByModelId]);
+  }, [combinedSupportBoundsByModelId, getArrangeTransform]);
 
   const getModelSupportAwareFootprintPolygon = React.useCallback((
     model: (typeof scene.models)[number],
@@ -7887,7 +8113,7 @@ export default function Home() {
       point.y + effectiveTransform.position.y,
     ));
 
-    const supportBoundsBase = supportBoundsByModelId.get(model.id);
+    const supportBoundsBase = combinedSupportBoundsByModelId.get(model.id);
     if (supportBoundsBase && !supportBoundsBase.isEmpty()) {
       const sourceMatrix = new THREE.Matrix4().compose(
         model.transform.position,
@@ -7942,7 +8168,7 @@ export default function Home() {
     upper.pop();
     lower.pop();
     return lower.concat(upper);
-  }, [getArrangeTransform, getModelSupportAwareDimensionsMm, supportBoundsByModelId]);
+  }, [combinedSupportBoundsByModelId, getArrangeTransform, getModelSupportAwareDimensionsMm]);
 
   const getModelSupportAwareFootprintPolygonRef = React.useRef(getModelSupportAwareFootprintPolygon);
   React.useEffect(() => {
@@ -7952,6 +8178,9 @@ export default function Home() {
   const sleep = React.useCallback((ms: number) => new Promise<void>((resolve) => {
     window.setTimeout(resolve, ms);
   }), []);
+  const showArrangeOverflow = React.useCallback((count: number) => {
+    showOperationError(formatArrangeOverflowMessage(_, count));
+  }, [_, showOperationError]);
 
   const arrange = useArrangeManager({
     scene,
@@ -7960,9 +8189,12 @@ export default function Home() {
     displayActiveModelId,
     setDisplayActiveModelId,
     setSupportRenderRefreshNonce,
-    supportBoundsByModelId,
+    supportBoundsByModelId: combinedSupportBoundsByModelId,
+    supportOnlyBoundsByModelId,
+    raftBoundsByModelId,
     arrangeSpacingMm,
     getArrangeTransform,
+    showArrangeOverflow,
     getModelSupportAwareDimensionsMm,
     getModelSupportAwareFootprintPolygonRef,
   });
@@ -8526,7 +8758,7 @@ export default function Home() {
     ? _(msg`Opening scene…`)
     : importOverlayState.label;
   const emptyStateLoadingDetail = pendingStartupSceneHandoff
-    ? _(msg`Letting 3DRESIN finish its startup animation before loading your scene.`)
+    ? _(msg`Letting Rambutan Slicer finish its startup animation before loading your scene.`)
     : importOverlayState.detail;
 
   // An empty scene has nothing to list, so the list is hidden outright. Otherwise
@@ -10634,9 +10866,12 @@ export default function Home() {
                 ? {
                   activeModelId: scene.activeModelId ?? undefined,
                   activeModelName: scene.activeModel?.name,
+                  geometry: scene.activeModel?.geometry.geometry,
+                  scale: scene.activeModel?.transform.scale,
+                  autoLift: transformMgr.autoLift,
+                  layerHeightMm: slicedLayerHeightMm,
                   currentRotation: scene.activeModel?.transform.rotation,
                   onApplyRotation: handleApplyOrientation,
-                  onBeforeOrientApply: requestOrientSupportDeletionWithContinuation,
                   onOrientationReport: showOrientationToast,
                 }
                 : null,
@@ -10764,7 +10999,7 @@ export default function Home() {
                   autoLift={transformMgr.autoLift}
                   onAutoLiftChange={handleAutoLiftChange}
                   onBeforeRun={requestModifierDecisionBeforeSupports}
-                  onOrientForMagic={handleMagicOrientation}
+                  onOrientForMagic={(continueWithSupportRun) => handleMagicOrientation(continueWithSupportRun, slicedLayerHeightMm)}
                 />
               </div>
             )}

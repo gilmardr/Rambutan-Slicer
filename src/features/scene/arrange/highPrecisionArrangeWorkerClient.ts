@@ -75,12 +75,13 @@ const serializeModel = (model: ArrangeModel, transform: ReturnType<HighPrecision
   const positions = rawArray instanceof Float32Array
     ? rawArray.slice()
     : new Float32Array(positionAttr ? Array.from(rawArray as ArrayLike<number>) : []);
-  const supportLocalPoints = model.geometry.supportLocalPoints;
-  const supportLocalPointArray = supportLocalPoints && supportLocalPoints.length > 0
+  const geometryIndex = model.geometry.geometry.getIndex();
+  const indices = geometryIndex ? Uint32Array.from(geometryIndex.array) : undefined;
+  const serializePoints = (points: THREE.Vector3[] | undefined) => points && points.length > 0
     ? (() => {
-        const arr = new Float32Array(supportLocalPoints.length * 3);
-        for (let i = 0; i < supportLocalPoints.length; i += 1) {
-          const p = supportLocalPoints[i];
+        const arr = new Float32Array(points.length * 3);
+        for (let i = 0; i < points.length; i += 1) {
+          const p = points[i];
           arr[(i * 3) + 0] = p.x;
           arr[(i * 3) + 1] = p.y;
           arr[(i * 3) + 2] = p.z;
@@ -101,7 +102,9 @@ const serializeModel = (model: ArrangeModel, transform: ReturnType<HighPrecision
       center: [model.geometry.center.x, model.geometry.center.y, model.geometry.center.z],
       uuid: model.geometry.geometry.uuid,
       positions,
-      supportLocalPoints: supportLocalPointArray,
+      indices,
+      supportLocalPoints: serializePoints(model.geometry.supportLocalPoints),
+      raftLocalPoints: serializePoints(model.geometry.raftLocalPoints),
       supportHullKey: model.geometry.supportHullKey,
     },
   };
@@ -116,6 +119,9 @@ const serializeInput = (input: HighPrecisionArrangeInput): HighPrecisionArrangeW
   plateOffsetMm: input.plateOffsetMm,
   arrangeSpacingMm: input.arrangeSpacingMm,
   arrangeAllowRotateOnZ: input.arrangeAllowRotateOnZ,
+  searchQuality: input.searchQuality,
+  rotationStepDeg: input.rotationStepDeg,
+  allowRaftOverlap: input.allowRaftOverlap,
   arrangeAnchorMode: input.arrangeAnchorMode,
   safetyMarginMm: input.safetyMarginMm,
 });
@@ -136,11 +142,10 @@ export async function computeHighPrecisionArrangeResultWorker(input: HighPrecisi
   const transferables: Transferable[] = [];
   for (const model of request.input.visibleModels) transferables.push(model.geometry.positions.buffer);
   for (const model of request.input.sceneModels) transferables.push(model.geometry.positions.buffer);
-  for (const model of request.input.visibleModels) {
+  for (const model of [...request.input.visibleModels, ...request.input.sceneModels]) {
+    if (model.geometry.indices) transferables.push(model.geometry.indices.buffer);
     if (model.geometry.supportLocalPoints) transferables.push(model.geometry.supportLocalPoints.buffer);
-  }
-  for (const model of request.input.sceneModels) {
-    if (model.geometry.supportLocalPoints) transferables.push(model.geometry.supportLocalPoints.buffer);
+    if (model.geometry.raftLocalPoints) transferables.push(model.geometry.raftLocalPoints.buffer);
   }
 
   return new Promise<HighPrecisionArrangeResult>((resolve, reject) => {

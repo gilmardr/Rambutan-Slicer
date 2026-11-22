@@ -1,4 +1,5 @@
 import type { EulerOrder } from 'three';
+import type { ArrangeRotationStepDeg, ArrangeSearchQuality } from '@/components/controls/ArrangePanel';
 
 export type SerializedVector3 = [number, number, number];
 export type SerializedEuler = [number, number, number, EulerOrder];
@@ -17,7 +18,9 @@ export type SerializedArrangeModel = {
     center: SerializedVector3;
     uuid: string;
     positions: Float32Array;
+    indices?: Uint32Array;
     supportLocalPoints?: Float32Array;
+    raftLocalPoints?: Float32Array;
     supportHullKey?: string;
   };
 };
@@ -42,6 +45,9 @@ export type HighPrecisionArrangeWorkerInput = {
   plateOffsetMm?: { dxMm: number; dyMm: number };
   arrangeSpacingMm: number;
   arrangeAllowRotateOnZ: boolean;
+  searchQuality?: ArrangeSearchQuality;
+  rotationStepDeg?: ArrangeRotationStepDeg;
+  allowRaftOverlap?: boolean;
   arrangeAnchorMode: 'center' | 'front_left' | 'front_right' | 'back_left' | 'back_right';
   safetyMarginMm?: { front: number; back: number; left: number; right: number };
 };
