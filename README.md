@@ -15,7 +15,7 @@
   <a href="https://github.com/Open-Resin-Alliance/DragonFruit"><img alt="Baseado no DragonFruit" src="https://img.shields.io/badge/baseado%20no-DragonFruit-e0115f"></a>
 </p>
 
-> **Aviso de modificação (AGPL-3.0, seção 5a):** este trabalho é uma versão modificada do DragonFruit, derivada do commit upstream [`8bb1a22`](https://github.com/Open-Resin-Alliance/DragonFruit/commit/8bb1a22657b8c004f935f9ea7925fb0d8bc4d1a9). Modificado por Gilmar Afonso Druciak a partir de novembro de 2026 (rebranding, novas ferramentas de suporte, medição, corte orgânico, hollowing e documentação). O histórico completo das alterações está no log do Git deste repositório.
+> **Aviso de modificação (AGPL-3.0, seção 5a):** este trabalho é uma versão modificada do DragonFruit, derivada do commit upstream [`8bb1a22`](https://github.com/Open-Resin-Alliance/DragonFruit/commit/8bb1a22657b8c004f935f9ea7925fb0d8bc4d1a9). Modificado por [gilmardr](https://github.com/gilmardr) a partir de novembro de 2026 (rebranding, novas ferramentas de suporte, medição, corte orgânico, hollowing e documentação). O histórico completo das alterações está no log do Git deste repositório.
 
 > [!WARNING]
 > O Rambutan Slicer é baseado em um projeto em desenvolvimento ativo. Valide os arquivos gerados antes de usá-los em impressões de produção e evite imprimir sem acompanhamento no primeiro uso.
