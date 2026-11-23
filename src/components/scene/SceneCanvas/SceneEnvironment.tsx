@@ -489,7 +489,7 @@ function PlateLayer({
             <meshBasicMaterial
               map={shared.logo.texture}
               transparent
-              opacity={0.4 * dimFactor}
+              opacity={0.65 * dimFactor}
               depthWrite={false}
               polygonOffset
               polygonOffsetFactor={-2}
@@ -938,9 +938,8 @@ export function Helpers({
   const axisHeadRadius = 1.3;
   const axisHeadLength = 1.9;
   const axisLabelLift = 1.0;
-  // Keep decal geometry in lockstep with the logo SVG's intrinsic viewBox ratio
-  // to avoid non-uniform stretching on the build plate.
-  const plateLogoAspect = 1772 / 304;
+  // Keep decal geometry in lockstep with the supplied PNG's 4:3 aspect ratio.
+  const plateLogoAspect = 4 / 3;
   const plateLogoBaseWidth = Math.max(16, Math.min(42, width * 0.2));
   const plateLogoScale = 1.0;
   const plateLogoWidth = plateLogoBaseWidth * plateLogoScale;
@@ -1051,41 +1050,21 @@ export function Helpers({
   }, []);
 
 
-  // Rasterize SVG to canvas and use as texture for robust WebGL support
+  // Use the full-colour Rambutan logo as the build-plate decal.
   const plateLogoTexture = React.useMemo(() => {
     const texture = new THREE.Texture();
-    fetch('/rambutan-wordmark.svg')
-      .then(res => res.text())
-      .then(svgText => {
-        const plateWordmark = svgText.replace('fill="#5DCAA5"', 'fill="#ED0921"');
-        // Create an image from SVG text
-        const svg = new Blob([plateWordmark], { type: 'image/svg+xml' });
-        const url = URL.createObjectURL(svg);
-        const img = new window.Image();
-        img.onload = () => {
-          // Draw SVG onto a canvas
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width || 1772;
-          canvas.height = img.height || 304;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            texture.image = canvas;
-            texture.needsUpdate = true;
-            texture.colorSpace = THREE.SRGBColorSpace;
-            texture.generateMipmaps = true;
-            texture.minFilter = THREE.LinearMipmapLinearFilter;
-            texture.magFilter = THREE.LinearFilter;
-            texture.wrapS = THREE.ClampToEdgeWrapping;
-            texture.wrapT = THREE.ClampToEdgeWrapping;
-          }
-          URL.revokeObjectURL(url);
-        };
-        img.onerror = () => {
-          URL.revokeObjectURL(url);
-        };
-        img.src = url;
-      });
+    const image = new window.Image();
+    image.onload = () => {
+      texture.image = image;
+      texture.needsUpdate = true;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.generateMipmaps = true;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+    };
+    image.src = '/rambutan-plate-logo.png';
     return texture;
   }, []);
 

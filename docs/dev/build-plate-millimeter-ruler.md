@@ -48,6 +48,10 @@ labels sit just inside the rim so they remain on the plate. This distinction
 keeps the displayed total useful for print placement without treating the
 decorative rim as printable area.
 
+`SceneEnvironment` also draws `public/rambutan-plate-logo.png` as the build
+plate's translucent brand decal. The plane follows the PNG's 4:3 aspect ratio,
+and, like the other plate helpers, it is not included in exported thumbnails.
+
 The ruler renders only when it is enabled, the plate is active, and the build
 plate is visible with non-zero opacity. Visibility is local UI state, not part
 of a saved scene or printer profile, and defaults off when the app page mounts.
