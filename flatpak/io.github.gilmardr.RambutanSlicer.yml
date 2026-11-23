@@ -11,11 +11,11 @@
 # The hermetic-build variant (required for Flathub) is tracked separately
 # in docs/internal/flathub-submission.md.
 
-app-id: org.openresinalliance.dragonfruit
+app-id: io.github.gilmardr.RambutanSlicer
 runtime: org.freedesktop.Platform
 runtime-version: "24.08"
 sdk: org.freedesktop.Sdk
-command: dragonfruit
+command: rambutan-slicer
 # Keep local/self-hosted builds working on minimal hosts where the legacy
 # `appstream-compose` executable is absent. We still validate metainfo explicitly
 # in flatpak/build.sh before invoking flatpak-builder.
@@ -54,40 +54,40 @@ finish-args:
   - --talk-name=org.freedesktop.portal.OpenURI
 
   # Writable app data dir (default; XDG_DATA_HOME-aware code in src-tauri
-  # writes to ~/.var/app/org.openresinalliance.dragonfruit/data/…)
+  # writes to ~/.var/app/io.github.gilmardr.RambutanSlicer/data/…)
 
 modules:
-  - name: dragonfruit
+  - name: rambutan-slicer
     buildsystem: simple
     build-commands:
       # Binary + CEF runtime under /app/lib/
-      - install -Dm755 staging/bin/dragonfruit-desktop /app/lib/dragonfruit/dragonfruit-desktop
-      - install -d /app/lib/dragonfruit/cef
-      - "cp -a staging/cef/. /app/lib/dragonfruit/cef/"
+      - install -Dm755 staging/bin/rambutan-slicer /app/lib/rambutan-slicer/rambutan-slicer
+      - install -d /app/lib/rambutan-slicer/cef
+      - "cp -a staging/cef/. /app/lib/rambutan-slicer/cef/"
 
       # CEF is built on Ubuntu and requests the Debian soname libbz2.so.1.0;
       # the freedesktop runtime only ships libbz2.so.1 (same library). Without
       # this link libcef.so fails to load and the app never starts.
-      - ln -s /usr/lib/x86_64-linux-gnu/libbz2.so.1 /app/lib/dragonfruit/cef/libbz2.so.1.0
+      - ln -s /usr/lib/x86_64-linux-gnu/libbz2.so.1 /app/lib/rambutan-slicer/cef/libbz2.so.1.0
 
-      # Launcher at /app/bin/dragonfruit
-      - install -Dm755 staging/launcher.sh /app/bin/dragonfruit
+      # Launcher at /app/bin/rambutan-slicer
+      - install -Dm755 staging/launcher.sh /app/bin/rambutan-slicer
 
       # Desktop entry
-      - install -Dm644 staging/org.openresinalliance.dragonfruit.desktop /app/share/applications/org.openresinalliance.dragonfruit.desktop
+      - install -Dm644 staging/io.github.gilmardr.RambutanSlicer.desktop /app/share/applications/io.github.gilmardr.RambutanSlicer.desktop
 
       # AppStream metainfo
-      - install -Dm644 staging/org.openresinalliance.dragonfruit.metainfo.xml /app/share/metainfo/org.openresinalliance.dragonfruit.metainfo.xml
+      - install -Dm644 staging/io.github.gilmardr.RambutanSlicer.metainfo.xml /app/share/metainfo/io.github.gilmardr.RambutanSlicer.metainfo.xml
 
       # MIME types for every file type the app declares
-      - install -Dm644 staging/dragonfruit-mime.xml /app/share/mime/packages/org.openresinalliance.dragonfruit.xml
+      - install -Dm644 staging/dragonfruit-mime.xml /app/share/mime/packages/io.github.gilmardr.RambutanSlicer.xml
 
       # Icons — hicolor theme
-      - install -Dm644 staging/icons/32x32.png   /app/share/icons/hicolor/32x32/apps/org.openresinalliance.dragonfruit.png
-      - install -Dm644 staging/icons/64x64.png   /app/share/icons/hicolor/64x64/apps/org.openresinalliance.dragonfruit.png
-      - install -Dm644 staging/icons/128x128.png /app/share/icons/hicolor/128x128/apps/org.openresinalliance.dragonfruit.png
-      - install -Dm644 staging/icons/256x256.png /app/share/icons/hicolor/256x256/apps/org.openresinalliance.dragonfruit.png
-      - install -Dm644 staging/icons/512x512.png /app/share/icons/hicolor/512x512/apps/org.openresinalliance.dragonfruit.png
+      - install -Dm644 staging/icons/32x32.png   /app/share/icons/hicolor/32x32/apps/io.github.gilmardr.RambutanSlicer.png
+      - install -Dm644 staging/icons/64x64.png   /app/share/icons/hicolor/64x64/apps/io.github.gilmardr.RambutanSlicer.png
+      - install -Dm644 staging/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.github.gilmardr.RambutanSlicer.png
+      - install -Dm644 staging/icons/256x256.png /app/share/icons/hicolor/256x256/apps/io.github.gilmardr.RambutanSlicer.png
+      - install -Dm644 staging/icons/512x512.png /app/share/icons/hicolor/512x512/apps/io.github.gilmardr.RambutanSlicer.png
     sources:
       - type: dir
         # Staged by flatpak/build.sh prior to invocation. Keeps the flatpak-builder

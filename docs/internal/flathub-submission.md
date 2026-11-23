@@ -47,7 +47,7 @@ Replace the fast-path manifest with a hermetic one:
 ## Metadata polish
 
 - [ ] **Screenshots (≥3, ≥1280×720)** — commit to `docs/screenshots/flathub-*.png`
-      and reference from `flatpak/org.openresinalliance.dragonfruit.metainfo.xml`
+      and reference from `flatpak/io.github.gilmardr.RambutanSlicer.metainfo.xml`
       `<screenshots>` via `raw.githubusercontent.com` URLs.
 - [ ] **Translated summary / description** — optional but welcomed.
 - [ ] **Release history** — fill `<releases>` with prior versions as the
@@ -75,7 +75,7 @@ Replace the fast-path manifest with a hermetic one:
 
 - [ ] Fork `flathub/flathub`
 - [ ] Open PR adding a new submission under `com.<id>` — for us,
-      `org.openresinalliance.dragonfruit/` containing the manifest + any
+      `io.github.gilmardr.RambutanSlicer/` containing the manifest + any
       patches
 - [ ] Flathub reviewer-bot runs automated checks; human review follows
       (expect 1–4 weeks)

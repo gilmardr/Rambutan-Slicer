@@ -1,5 +1,5 @@
 #!/bin/sh
-# /app/bin/dragonfruit — Flatpak launcher wrapper for DragonFruit.
+# /app/bin/rambutan-slicer — Flatpak launcher wrapper for Rambutan Slicer.
 #
 # CEF inside Flatpak notes:
 #   --no-first-run          Chromium switch that skips the first-run tasks and
@@ -14,19 +14,19 @@
 #   --ozone-platform-hint=auto  Picks Wayland when $WAYLAND_DISPLAY is set,
 #                               falls back to X11 via --socket=fallback-x11.
 #
-# CEF runtime data lives under /app/lib/dragonfruit/cef/. The bundled libcef.so
+# CEF runtime data lives under /app/lib/rambutan-slicer/cef/. The bundled libcef.so
 # and friends are resolved via LD_LIBRARY_PATH, not rpath, to avoid relinking.
 
 set -e
 
-DF_LIB=/app/lib/dragonfruit
+DF_LIB=/app/lib/rambutan-slicer
 export LD_LIBRARY_PATH="$DF_LIB/cef:${LD_LIBRARY_PATH:-}"
 
 # Suppress the "chrome-sandbox not SUID" warning spam even though --no-sandbox
 # means it isn't consulted. Harmless; improves log signal.
 export CHROME_DEVEL_SANDBOX="$DF_LIB/cef/chrome-sandbox"
 
-exec "$DF_LIB/dragonfruit-desktop" \
+exec "$DF_LIB/rambutan-slicer" \
     --no-first-run \
     --no-sandbox \
     --disable-dev-shm-usage \

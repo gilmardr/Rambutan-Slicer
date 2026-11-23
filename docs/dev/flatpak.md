@@ -1,6 +1,6 @@
-# DragonFruit Flatpak
+# Rambutan Slicer Flatpak
 
-Flatpak packaging for DragonFruit. Adds a sandboxed, auto-updating Linux
+Flatpak packaging for Rambutan Slicer. Adds a sandboxed, auto-updating Linux
 install path alongside the existing `.deb`, `.rpm`, and `.AppImage` bundles.
 
 ## Design summary
@@ -19,11 +19,11 @@ install path alongside the existing `.deb`, `.rpm`, and `.AppImage` bundles.
 
 | File | Purpose |
 |------|---------|
-| `org.openresinalliance.dragonfruit.yml` | flatpak-builder manifest (fast path — consumes pre-built binary) |
-| `org.openresinalliance.dragonfruit.metainfo.xml` | AppStream metadata |
-| `org.openresinalliance.dragonfruit.desktop` | Desktop entry |
+| `io.github.gilmardr.RambutanSlicer.yml` | flatpak-builder manifest (fast path — consumes pre-built binary) |
+| `io.github.gilmardr.RambutanSlicer.metainfo.xml` | AppStream metadata |
+| `io.github.gilmardr.RambutanSlicer.desktop` | Desktop entry |
 | `staging/dragonfruit-mime.xml` | MIME registrations for every declared file type (staged from the generated payload) |
-| `launcher.sh` | `/app/bin/dragonfruit` wrapper — sets CEF flags and `LD_LIBRARY_PATH` |
+| `launcher.sh` | `/app/bin/rambutan-slicer` wrapper — sets CEF flags and `LD_LIBRARY_PATH` |
 
 ## Building the bundle
 
@@ -47,7 +47,7 @@ flatpak install --user -y flathub \
 
 ### Build steps
 
-From the DragonFruit repo root, run the standard Tauri build:
+From the repo root, run the standard Tauri build:
 
 ```bash
 npm run tauri:build
@@ -66,13 +66,13 @@ PATH, `tauri-build.mjs` automatically:
 If any of the three tools are missing, the Flatpak step is silently skipped
 and the Tauri build completes normally with deb/rpm/AppImage bundles only.
 
-Output: `src-tauri/target/release/bundle/flatpak/dragonfruit-<version>-x86_64.flatpak`
+Output: `src-tauri/target/release/bundle/flatpak/rambutan-slicer-<version>-x86_64.flatpak`
 
 ### Install and run
 
 ```bash
-flatpak install --user -y src-tauri/target/release/bundle/flatpak/dragonfruit-*.flatpak
-flatpak run org.openresinalliance.dragonfruit
+flatpak install --user -y src-tauri/target/release/bundle/flatpak/rambutan-slicer-*.flatpak
+flatpak run io.github.gilmardr.RambutanSlicer
 ```
 
 ## Building inside the `cef-linux-build` Docker container
@@ -121,7 +121,7 @@ xdg-desktop-portal file chooser; the `rfd` crate detects Flatpak automatically.
 
 - **No file-manager thumbnails**: dropping the `dragonfruit-voxl-thumbnailer`
   binary; see [ADR-0041](../adr/0041-flatpak-thumbnailer.md).
-- **No USB/serial printer support**: DragonFruit talks to printers over
+- **No USB/serial printer support**: the app talks to printers over
   HTTP/LAN only, so this is not a regression — but worth knowing if that
   changes upstream.
 - **Single-architecture**: x86_64 only in v0.1.3 (mirrors current CI).

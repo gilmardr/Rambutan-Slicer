@@ -225,8 +225,8 @@ if (canBuildFlatpak) {
       console.error(cefResult.stderr?.toString());
     } else {
       // (c) Validate metadata
-      const metainfoPath = "flatpak/org.openresinalliance.dragonfruit.metainfo.xml";
-      const desktopPath = "flatpak/org.openresinalliance.dragonfruit.desktop";
+      const metainfoPath = "flatpak/io.github.gilmardr.RambutanSlicer.metainfo.xml";
+      const desktopPath = "flatpak/io.github.gilmardr.RambutanSlicer.desktop";
 
       const metaValid = spawnSync("appstreamcli", ["validate", "--no-net", metainfoPath], {
         cwd: repoRoot,
@@ -252,7 +252,7 @@ if (canBuildFlatpak) {
             repoRoot, "src-tauri", "target",
             explicitTarget ?? "x86_64-unknown-linux-gnu", "release"
           );
-          const binaryName = "dragonfruit-desktop";
+          const binaryName = "rambutan-slicer";
           const releaseDir = (explicitTarget ? [tripleRel, rel] : [rel, tripleRel])
             .map((dir) => ({ dir, binPath: path.join(dir, binaryName) }))
             .find(({ binPath }) => existsSync(binPath))?.dir;
@@ -303,12 +303,12 @@ if (canBuildFlatpak) {
             const flatpakDir = path.join(repoRoot, "flatpak");
             cpSync(path.join(flatpakDir, "launcher.sh"), path.join(staging, "launcher.sh"));
             cpSync(
-              path.join(flatpakDir, "org.openresinalliance.dragonfruit.desktop"),
-              path.join(staging, "org.openresinalliance.dragonfruit.desktop")
+              path.join(flatpakDir, "io.github.gilmardr.RambutanSlicer.desktop"),
+              path.join(staging, "io.github.gilmardr.RambutanSlicer.desktop")
             );
             cpSync(
-              path.join(flatpakDir, "org.openresinalliance.dragonfruit.metainfo.xml"),
-              path.join(staging, "org.openresinalliance.dragonfruit.metainfo.xml")
+              path.join(flatpakDir, "io.github.gilmardr.RambutanSlicer.metainfo.xml"),
+              path.join(staging, "io.github.gilmardr.RambutanSlicer.metainfo.xml")
             );
             cpSync(
               path.join(repoRoot, "rust", "dragonfruit-voxl-thumbnail", "generated", "dragonfruit-mime.xml"),
@@ -324,7 +324,7 @@ if (canBuildFlatpak) {
             cpSync(path.join(iconsDir, "icon.png"), path.join(staging, "icons", "512x512.png"));
 
             // (f) Run flatpak-builder
-            const manifest = path.join(flatpakDir, "org.openresinalliance.dragonfruit.yml");
+            const manifest = path.join(flatpakDir, "io.github.gilmardr.RambutanSlicer.yml");
             const builderFlags = process.env.FLATPAK_BUILDER_FLAGS ?? "--disable-rofiles-fuse";
             const buildDirPath = path.join(flatpakDir, "build-dir");
             rmSync(buildDirPath, { recursive: true, force: true });
@@ -350,8 +350,8 @@ if (canBuildFlatpak) {
               const arch = spawnSync("uname", ["-m"], { encoding: "utf8" }).stdout.trim() || process.arch;
               const bundleDir = path.join(rel, "bundle", "flatpak");
               mkdirSync(bundleDir, { recursive: true });
-              const bundlePath = path.join(bundleDir, `dragonfruit-${version}-${arch}.flatpak`);
-              const appId = "org.openresinalliance.dragonfruit";
+              const bundlePath = path.join(bundleDir, `rambutan-slicer-${version}-${arch}.flatpak`);
+              const appId = "io.github.gilmardr.RambutanSlicer";
 
               const exportResult = spawnSync(
                 "flatpak",
