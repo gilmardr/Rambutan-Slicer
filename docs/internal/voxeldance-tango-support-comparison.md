@@ -11,11 +11,9 @@ support scaling, automatic bracing and other support controls. Its Tango 4.0
 announcement specifically describes applying different support scripts to
 areas of one model and a branching tree-support script.
 
-No Tango executable appeared in the available installed-app inventory or in
-the Program Files locations checked on this computer. REA therefore could not
-inspect a local Tango package or observe its runtime; the product behavior below
-is based on VoxelDance's public documentation, not a local reverse-engineering
-capture.
+The product behavior below is based only on VoxelDance's public documentation.
+No Tango software was inspected, and no VoxelDance code or asset is used in this
+project.
 
 ## Feature comparison
 
@@ -52,10 +50,9 @@ saved manual-support profiles per area, one area at a time. Batch-queuing
 multiple painted areas would be a convenience improvement, not a capability
 clearly missing from Tango's documented manual-area workflow.
 
-Importing native Tango support scripts remains unsupported. Tango is not
-installed on this machine, so REA could not inspect its package or the script
-format; inventing a converter without format evidence would risk silently
-changing support geometry. The Support Projection interface has not received a
+Importing native Tango support scripts remains unsupported. The script format
+is not publicly documented, and inventing a converter without a published
+specification would risk silently changing support geometry. The Support Projection interface has not received a
 dedicated end-to-end desktop verification and remains **experimental**.
 
 The tree-support claim is covered by `src/supports/__tests__/autoPlace.test.ts`

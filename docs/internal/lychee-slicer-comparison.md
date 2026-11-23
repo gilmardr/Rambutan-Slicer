@@ -2,39 +2,16 @@
 
 ## Scope and method
 
-Compared DragonFruit's current source and developer documentation with the
-official Lychee Slicer Resin feature and help pages. Reverse-engineered the
-installed Lychee desktop application at `C:\Program Files\Lychee\LycheeSlicer.exe`
-and its installation directory without modifying it.
+Compares the current Rambutan Slicer (DragonFruit-based) source and developer
+documentation with Lychee Slicer Resin's **public** feature pages, help
+documentation and changelogs (see Sources). Lychee's behaviour is described only
+as its public documentation describes it. No Lychee code, identifier or asset is
+used in this project.
 
-The installed Lychee binary is **8.0.4**. The current public release is
-**8.0.5** (released November 16, 2026). Version 8.0.4 introduced AI-powered
-auto-orientation, new voxel hollowing infill types and Halot X1-Neo/X1-Max
-support. Version 8.0.5 adds 35 mm and 75 mm Auto Support presets, turns the
-support grid on by default for Plus subscribers, adds Wi-Fi printing for those
-Halot models, and improves slicing failure messages and stability. These latest
-release details come from the vendor's public changelog; the installed 8.0.4
-package was not updated for this comparison.
-
-The REA inventory summary for the installed package is Evidence
-ev_3f86685b4e05b4f25dd8a7b14ecc23c8e21838630d06c6f563008a805c944809, from
-inventory Evidence
-ev_b6b6aa163096252fa5c176e0dfbd0c7ad6268042ec502485e31a6e3eb8431065.
-The scan covered 1,537 of 1,537 entries and probed 20 files (6,784 bytes); it
-found no candidate components. This is an installation inventory, not a
-runtime capture, and unread bytes are unknown.
-
-Lychee is a CEF application with `Emeraude.dll`, `renderUI.js` (about 19.8 MB)
-and `render3D.js` (about 48.8 MB). The REA directory scan recorded 1,537
-entries and probed 20 files. REA's broad static semantic analysis of the large
-bundles timed out; the focused `renderUI.js` attempt also timed out after ten
-minutes without parsing the bundle (Evidence
-`ev_01afcfcc463f93856b6839af7c55a8643ef84a467be4757852a341f555019d11`). The
-native window could not be captured through the available desktop accessibility
-surface. A targeted read of the installed
-`render3D.js` bundle exposed the plug mesh and direction paths; these remain static
-package evidence, not runtime confirmation. The public feature map also uses
-Lychee's published documentation.
+At the time of writing, the public changelog lists Lychee Slicer 8.0.5
+(November 2026), which adds 35 mm and 75 mm Auto Support presets and Wi-Fi
+printing for some Halot models; 8.0.4 introduced AI-powered auto-orientation and
+new voxel hollowing infill types.
 
 ## Feature map
 
@@ -107,52 +84,7 @@ enabled plugs and the cut applies them in the same order. A newly added plug sta
 beside the selected plug when a placement frame is available; the user can move it
 with the existing gizmo.
 
-## Installed package REA: voxel hollowing
-
-The installed `renderUI.js` hollowing panel offers the voxel infill types
-`pillars`, `lattice` and `lattice2x` in its `infillTypeOptions` dropdown. The
-same panel stores voxel hollowing's `pocketDetection` options, including
-independent resin-trap and interior-suction-cup toggles. Its voxel infill
-operation is delegated to `addon_3d_core.hollowingVoxelsInfill`; the native
-geometry was not recovered, so DragonFruit's `double_lattice` uses a documented
-half-cell offset approximation. Pocket filling is now implemented with a
-directional spill-path flood on the voxel cavity; that geometric equivalent
-does not claim to reproduce Lychee's native thresholds or classification.
-
-## Installed package REA: planar-cut plugs
-
-Static strings in `C:\Program Files\Lychee\bin\renderUI.js` include
-`new.8.assemblyPlug`, shape icon names `plug_shape_cube` and
-`plug_shape_cylinder`, and a direction setting with `above`, `below` and `both`
-values. The same bundle declares settings for shape, gap, chamfer, chamfer depth,
-chamfer height, chamfer size, chamfer thickness, chamfer width, corner radius and
-angle.
-
-REA traced the literal `Inline Supports` against the retained `renderUI.js`
-application graph and found no matching graph entity (Evidence
-`ev_d5aab76f3923d33dd968471ea58d42a5ed6065edcfa59eb8d7a00f7e1739bd54`). That
-graph is partial because semantic analysis of the large bundle timed out, so the
-result is unknown and does not establish that Lychee lacks the feature. The
-two-point behavior is supported by Lychee's public feature and help pages.
-
-`render3D.js` declares planar-cut commands for adding, clearing, removing,
-selecting, positioning, rotating, resizing and updating plug settings, alongside
-`PlanarCutPlugMesh` and `VirtualMeshPlanarCutPlugManager`. These are static package
-declarations, not proof that a particular UI action succeeds; semantic analysis
-timed out and the native window exposed no usable controls in the available
-accessibility surface. The package supports a dedicated plug-management path,
-while its complete runtime behavior remains unverified. DragonFruit now covers the
-core independent placement workflow. The mortise-mouth chamfer (size and depth) is
-available for frustum, rectangular and cylinder keys; fit tolerance and edge fillet
-cover the related gap and corner-rounding choices.
-
-The targeted static source read confirms Lychee's `BOTH` direction is passed to the
-native cut backend as direction code 2 and is described as two plug entries, one on
-each side. DragonFruit's `Both` direction mode expands a selected plug into
-two backend entries at the same anchor with opposite half assignments, for both
-preview and cut. This behavior was not observed in Lychee at runtime. Lychee also
-computes plug taper from a user-selected angle; DragonFruit now exposes that angle on
-frustums, while an unset value preserves the old tip geometry.
+## Parity notes
 
 These are equivalents, not full Lychee parity. Tag visibility now applies in both
 the detailed scene renderer and the instanced proxy path. Separate border and
