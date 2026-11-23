@@ -86,8 +86,10 @@ jobs:
 
       - name: Fall back to ad-hoc signing if Developer ID cert is unavailable
         shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
-          if ! security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application: Pascal Krumme (MHNF3GA2MM)"; then
+          if [ -z "$APPLE_SIGNING_IDENTITY" ] || ! security find-identity -v -p codesigning 2>/dev/null | grep -qF "$APPLE_SIGNING_IDENTITY"; then
             echo "⚠️ Developer ID certificate not found in keychain — falling back to ad-hoc signing"
             node -e "
               const fs = require('fs');
@@ -101,7 +103,9 @@ jobs:
           fi
 
       - name: Export Apple Team ID for notarization
-        run: echo "APPLE_TEAM_ID=MHNF3GA2MM" >> "$GITHUB_ENV"
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
 
       # `swatinem/rust-cache` hashes every toolchain `rustup` lists, not only the
       # one the build uses, and the runner image ships its own `stable` (1.98.1
@@ -171,10 +175,11 @@ jobs:
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           echo "APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
           echo "APPLE_PASSWORD=$APPLE_PASSWORD" >> "$GITHUB_ENV"
-          echo "APPLE_TEAM_ID=MHNF3GA2MM" >> "$GITHUB_ENV"
+          echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
 
       - name: Generate plugin registry
         run: node scripts/generate-plugin-registry.mjs
@@ -244,7 +249,7 @@ jobs:
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: MHNF3GA2MM
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           if [ "${{ env.DF_BUILD_TARGET_TRIPLE }}" = "universal-apple-darwin" ]; then
             node scripts/macos-embed-appex.mjs --target universal-apple-darwin
