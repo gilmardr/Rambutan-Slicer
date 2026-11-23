@@ -123,6 +123,7 @@ const DEFAULT_PANEL_WIDTH = 320;
 const DEFAULT_PANEL_HEIGHT = 150;
 const PANEL_WIDTH_OVERRIDES: Record<string, number> = {
   'visual-settings': 48,
+  'prepare-text-label': 420,
   'transform-debug-overlay': 420,
 };
 // Panels the layout does not let the user move. `always` is the shell chrome. The
@@ -807,14 +808,16 @@ export function FloatingPanelStack({ children, leftInsetPx = 0, railIsColumn = t
     () => (panelIdsSignature.length > 0 ? panelIdsSignature.split('\u001f') : []),
     [panelIdsSignature],
   );
-  // Panel widths and gaps are fixed; no resolution-based scale factor is applied.
-  // Native webview DPI scaling (plus the user UI-scale setting via useUiScale)
-  // keeps the UI at a consistent physical size on every monitor.
+  // Keep each panel's preferred width, but shrink it to the viewport on narrow
+  // windows. Native webview DPI scaling (plus the user UI-scale setting via
+  // useUiScale) keeps the UI at a consistent physical size on every monitor.
   const panelGap = PANEL_GAP;
 
   const getPanelWidth = React.useCallback((panelId: string) => {
-    return getPanelBaseWidth(panelId);
-  }, []);
+    const baseWidth = getPanelBaseWidth(panelId);
+    const availableWidth = Math.max(180, viewportSize.width - (PANEL_MARGIN * 2));
+    return Math.min(baseWidth, availableWidth);
+  }, [viewportSize.width]);
 
   const getPanelSize = React.useCallback((panelId: string): PanelSize => {
     return panelSizesRef.current[panelId] ?? { width: getPanelWidth(panelId), height: DEFAULT_PANEL_HEIGHT };

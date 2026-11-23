@@ -3092,6 +3092,39 @@ export function useSceneCollectionManager(options?: {
     }));
   }, []);
 
+  /** Replaces transient preview geometry without history or background processing. */
+  const setModelGeometryRaw = useCallback((
+    id: string,
+    nextBufferGeometry: THREE.BufferGeometry,
+    transformAfter?: ModelTransform,
+  ) => {
+    const currentModels = modelsRef.current;
+    const target = currentModels.find((model) => model.id === id);
+    if (!target) return null;
+
+    if (!nextBufferGeometry.boundingBox) nextBufferGeometry.computeBoundingBox();
+    const bbox = nextBufferGeometry.boundingBox?.clone() ?? new THREE.Box3();
+    const center = bbox.getCenter(new THREE.Vector3());
+    const size = bbox.getSize(new THREE.Vector3());
+    const centerDelta = center.clone().sub(target.geometry.center);
+    const nextModel: LoadedModel = {
+      ...target,
+      geometry: { ...target.geometry, geometry: nextBufferGeometry, bbox, center, size },
+      transform: transformAfter ? cloneTransform(transformAfter) : {
+        position: target.transform.position.clone().add(centerDelta),
+        rotation: target.transform.rotation.clone(),
+        scale: target.transform.scale.clone(),
+      },
+      polygonCount: nextBufferGeometry.getAttribute('position')
+        ? countTriangles(nextBufferGeometry)
+        : target.polygonCount,
+    };
+    const nextModels = currentModels.map((model) => model.id === id ? nextModel : model);
+    modelsRef.current = nextModels;
+    setModels(nextModels);
+    return nextModel;
+  }, []);
+
   const updateModelTransform = useCallback((
     id: string,
     transform: ModelTransform,
@@ -8324,6 +8357,7 @@ export function useSceneCollectionManager(options?: {
     commitModelTransformsHistory,
     updateModelTransforms,
     setModelTransformRaw,
+    setModelGeometryRaw,
     replaceModelGeometry,
     addModelFromGeometry,
     commitSolidOperationResult,

@@ -3,6 +3,7 @@ import type { ModelTransform } from '@/hooks/useModelTransform';
 import { accelerateGeometry } from '@/utils/bvh';
 
 const WELD_TOLERANCE_MM = 1e-5;
+const BOOLEAN_SURFACE_OVERLAP_MM = 0.08;
 const MAX_REFINEMENT_PASSES = 10;
 const MAX_REFINED_TRIANGLES = 1_500_000;
 
@@ -102,7 +103,7 @@ export function subdivideGeometry(geometry: THREE.BufferGeometry, maxEdgeMm: num
 }
 
 
-/** Projects a centered engraving solid onto a picked model surface to make a Boolean cutter. */
+/** Projects centered text or image geometry onto a picked model surface for Difference or Union. */
 export function conformEngravingGeometryToSurface(
   engravingGeometry: THREE.BufferGeometry,
   targetGeometry: THREE.BufferGeometry,
@@ -112,7 +113,13 @@ export function conformEngravingGeometryToSurface(
   surfaceNormal: THREE.Vector3,
   heightMm: number,
   thicknessMm: number,
+  rotationDegrees = 0,
+  mode: 'engraving' | 'relief' = 'engraving',
 ): { geometry: THREE.BufferGeometry; transform: ModelTransform } | null {
+  const projectionThicknessMm = mode === 'relief' ? thicknessMm + BOOLEAN_SURFACE_OVERLAP_MM : thicknessMm;
+  if (mode === 'relief') {
+    engravingGeometry.scale(1, 1, projectionThicknessMm / thicknessMm);
+  }
   const tessellated = subdivideGeometry(engravingGeometry, Math.max(0.25, Math.min(1, heightMm / 4)));
   const position = tessellated.getAttribute('position');
   if (!position || position.count === 0) {
@@ -126,6 +133,11 @@ export function conformEngravingGeometryToSurface(
     : new THREE.Vector3(0, 1, 0);
   const tangentX = tangentReference.addScaledVector(normal, -tangentReference.dot(normal)).normalize();
   const tangentY = normal.clone().cross(tangentX).normalize();
+  const rotationRadians = THREE.MathUtils.degToRad(rotationDegrees);
+  const cosine = Math.cos(rotationRadians);
+  const sine = Math.sin(rotationRadians);
+  const rotatedTangentX = tangentX.clone().multiplyScalar(cosine).addScaledVector(tangentY, sine);
+  const rotatedTangentY = tangentY.clone().multiplyScalar(cosine).addScaledVector(tangentX, -sine);
   if (!targetGeometry.boundingSphere) targetGeometry.computeBoundingSphere();
   // One ray per cutter vertex: without a BVH each ray tests every model triangle.
   if (!targetGeometry.boundsTree) accelerateGeometry(targetGeometry);
@@ -142,7 +154,7 @@ export function conformEngravingGeometryToSurface(
   try {
     const targetRadius = (targetGeometry.boundingSphere?.radius ?? 0)
       * Math.max(Math.abs(targetTransform.scale.x), Math.abs(targetTransform.scale.y), Math.abs(targetTransform.scale.z));
-    const rayReach = Math.max(10, targetRadius * 2 + heightMm + thicknessMm);
+    const rayReach = Math.max(10, targetRadius * 2 + heightMm + projectionThicknessMm);
     const raycaster = new THREE.Raycaster();
     raycaster.near = 0;
     raycaster.far = rayReach * 2;
@@ -159,8 +171,8 @@ export function conformEngravingGeometryToSurface(
       let projected = pointCache.get(cacheKey);
       if (!projected) {
         raycaster.ray.origin.copy(anchor)
-          .addScaledVector(tangentX, x)
-          .addScaledVector(tangentY, y)
+          .addScaledVector(rotatedTangentX, x)
+          .addScaledVector(rotatedTangentY, y)
           .addScaledVector(normal, rayReach);
         const hit = raycaster.intersectObject(targetMesh, false)[0];
         if (!hit?.face) {
@@ -172,11 +184,25 @@ export function conformEngravingGeometryToSurface(
         pointCache.set(cacheKey, projected);
       }
 
-      const cutDepth = position.getZ(index) - thicknessMm / 2 + 0.08;
+      const surfaceDepth = mode === 'relief'
+        ? projectionThicknessMm / 2 - position.getZ(index) - BOOLEAN_SURFACE_OVERLAP_MM
+        : position.getZ(index) - projectionThicknessMm / 2 + BOOLEAN_SURFACE_OVERLAP_MM;
       projectedPosition.copy(projected.point)
-        .addScaledVector(projected.normal, cutDepth)
+        .addScaledVector(projected.normal, surfaceDepth)
         .sub(anchor);
       position.setXYZ(index, projectedPosition.x, projectedPosition.y, projectedPosition.z);
+    }
+
+    if (mode === 'relief') {
+      const index = tessellated.getIndex();
+      if (index) {
+        for (let triangle = 0; triangle < index.count; triangle += 3) {
+          const second = index.getX(triangle + 1);
+          index.setX(triangle + 1, index.getX(triangle + 2));
+          index.setX(triangle + 2, second);
+        }
+        index.needsUpdate = true;
+      }
     }
 
     position.needsUpdate = true;

@@ -660,7 +660,7 @@ msgstr ""
 msgid "A selected model changed while the operation was running. Run it again."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:536
+#: src/components/controls/TextLabelCard.tsx:708
 msgid "A source model or preview changed. Create the preview again."
 msgstr ""
 
@@ -1032,6 +1032,10 @@ msgstr ""
 msgid "Apply copied support settings"
 msgstr ""
 
+#: src/components/controls/TextLabelCard.tsx:953
+msgid "Apply engraving"
+msgstr ""
+
 #: src/features/slicing/components/SlicingPanel.tsx:3080
 msgid "Apply for Session"
 msgstr ""
@@ -1051,6 +1055,10 @@ msgstr ""
 #: src/features/scene/sceneHistoryLabels.ts:20
 msgctxt "Undo history entry"
 msgid "Apply orientation suggestion"
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:953
+msgid "Apply relief"
 msgstr ""
 
 #: src/supports/Settings/SupportSidebar.tsx:2032
@@ -1883,7 +1891,7 @@ msgstr ""
 msgid "Cancel Slicing"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:617
+#: src/components/controls/TextLabelCard.tsx:844
 msgid "Cancel surface selection"
 msgstr ""
 
@@ -1972,6 +1980,10 @@ msgstr ""
 #: src/features/organicCut/history/organicCutHistoryLabels.ts:16
 msgctxt "Undo history entry"
 msgid "Change cut settings"
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:795
+msgid "Change image"
 msgstr ""
 
 #: src/features/organicCut/history/organicCutHistoryLabels.ts:17
@@ -2076,10 +2088,6 @@ msgstr ""
 msgid "Choose a local backup directory before syncing."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:619
-msgid "Choose a new position on the model"
-msgstr ""
-
 #: src/components/layout/EmptySceneState.tsx:612
 msgid "Choose a printer profile and slice the scene."
 msgstr ""
@@ -2112,6 +2120,10 @@ msgstr ""
 msgid "Choose how to place imported models."
 msgstr ""
 
+#: src/components/controls/TextLabelCard.tsx:801
+msgid "Choose image"
+msgstr ""
+
 #: src/components/organisms/modals/PrintingModals.tsx:691
 msgid "Choose printer"
 msgstr ""
@@ -2126,10 +2138,6 @@ msgstr ""
 
 #: src/components/organisms/modals/PrintingModals.tsx:699
 msgid "Choose target printer"
-msgstr ""
-
-#: src/components/controls/TextLabelCard.tsx:560
-msgid "Choose text or an image, pick a point on the model, create a surface preview, then confirm to cut the engraving into the model."
 msgstr ""
 
 #: src/features/printing/components/PrintingPanel.tsx:255
@@ -2290,8 +2298,8 @@ msgstr ""
 msgid "Click points around the model to trace a curved seam that splits it in two — the cut follows your loop (3+ points). Turn on a Tenon to add a tenon/mortise so the halves index together."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:622
-msgid "Click the active model to choose the engraving center and direction."
+#: src/components/controls/TextLabelCard.tsx:850
+msgid "Click the active model to choose the center and facing direction."
 msgstr ""
 
 #: src/features/hollowing/HollowingPanel.tsx:447
@@ -2684,10 +2692,6 @@ msgstr ""
 msgid "Confirm Emergency Stop"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:685
-msgid "Confirm engraving"
-msgstr ""
-
 #: src/components/organisms/modals/PrintingModals.tsx:628
 msgid "Confirm printer is ready to print"
 msgstr ""
@@ -2782,6 +2786,10 @@ msgstr ""
 msgid "Contact point is lower than the stump root — the shaft would extend below the root joint."
 msgstr ""
 
+#: src/components/controls/TextLabelCard.tsx:737
+msgid "Content"
+msgstr ""
+
 #. Confirms proceeding with the profile change despite the re-slice warning above (paired with "Keep current profiles", which cancels).
 #: src/components/layout/FirstRunOnboarding.tsx:287
 #: src/components/layout/TopBar.tsx:1205
@@ -2869,7 +2877,7 @@ msgstr ""
 msgid "Could not confirm a hollow path"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:540
+#: src/components/controls/TextLabelCard.tsx:712
 msgid "Could not create the image cutter. Choose a smaller image, a transparent PNG, and a flatter surface."
 msgstr ""
 
@@ -2885,7 +2893,7 @@ msgstr ""
 msgid "Could not open {fileName}: unsupported VOXL version."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:539
+#: src/components/controls/TextLabelCard.tsx:711
 msgid "Could not project this text onto the selected surface. Pick a flatter area or reduce the text height."
 msgstr ""
 
@@ -2898,7 +2906,7 @@ msgstr ""
 msgid "Could not reopen this file from cache."
 msgstr "Diese Datei konnte nicht aus dem Cache erneut geöffnet werden."
 
-#: src/features/scene/useSceneCollectionManager.ts:7370
+#: src/features/scene/useSceneCollectionManager.ts:7403
 msgid "Could not restore the model."
 msgstr ""
 
@@ -2961,12 +2969,16 @@ msgstr "Hohlraum oder offene Schale erstellen"
 msgid "Create custom profile"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:700
+#: src/components/controls/TextLabelCard.tsx:963
 msgid "Create engraving preview"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:425
+#: src/components/controls/TextLabelCard.tsx:558
 msgid "Create image engraving cutter"
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:557
+msgid "Create image relief preview"
 msgstr ""
 
 #: src/features/slicing/components/LutCurveEditor.tsx:1484
@@ -2986,8 +2998,16 @@ msgstr ""
 msgid "Create profile"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:425
+#: src/components/controls/TextLabelCard.tsx:963
+msgid "Create relief preview"
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:558
 msgid "Create text label cutter"
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:557
+msgid "Create text relief preview"
 msgstr ""
 
 #: src/components/controls/autoSupport/AutoSupportPresets.tsx:479
@@ -3002,7 +3022,8 @@ msgstr ""
 msgid "Creates recovery snapshots while editing."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:697
+#: src/components/controls/TextLabelCard.tsx:937
+#: src/components/controls/TextLabelCard.tsx:962
 msgid "Creating…"
 msgstr ""
 
@@ -3389,10 +3410,6 @@ msgstr ""
 msgid "Depth of the angled lead-in at the mortise opening."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:668
-msgid "depth:"
-msgstr ""
-
 #: src/components/settings/SceneAutosaveSettingsTab.tsx:306
 msgid "Desktop-only diagnostics for autosave files and recovery state."
 msgstr ""
@@ -3489,7 +3506,7 @@ msgstr ""
 msgid "Discard every loop in this cut, not just the active one."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:688
+#: src/components/controls/TextLabelCard.tsx:956
 msgid "Discard preview"
 msgstr ""
 
@@ -3624,7 +3641,7 @@ msgctxt "Undo history entry"
 msgid "Drag cut point"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:681
+#: src/components/controls/TextLabelCard.tsx:934
 msgid "Drag the preview across the model surface to reposition it."
 msgstr ""
 
@@ -3861,12 +3878,18 @@ msgstr ""
 msgid "Engrave text or an image on the active model"
 msgstr ""
 
+#: src/components/controls/TextLabelCard.tsx:814
 #: src/components/controls/toolRailEntries.ts:70
 msgid "Engraving"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:636
+#: src/components/controls/TextLabelCard.tsx:867
 msgid "Engraving depth"
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:906
+#: src/components/controls/TextLabelCard.tsx:913
+msgid "Engraving rotation"
 msgstr ""
 
 #: src/components/printers/CustomPrinterProfileModal.tsx:150
@@ -4790,24 +4813,23 @@ msgstr ""
 msgid "If you want them, a few follow-up notes are tucked below."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:567
+#: src/components/controls/TextLabelCard.tsx:743
 msgid "Image"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:329
+#: src/components/controls/TextLabelCard.tsx:456
 msgid "Image engraving"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:584
-#: src/components/controls/TextLabelCard.tsx:589
+#: src/components/controls/TextLabelCard.tsx:768
 msgid "Image file"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:648
+#: src/components/controls/TextLabelCard.tsx:882
 msgid "Image width"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:652
+#: src/components/controls/TextLabelCard.tsx:887
 msgid "Image width in millimetres"
 msgstr ""
 
@@ -5965,12 +5987,20 @@ msgstr ""
 msgid "Maximum autosave interval"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:657
+#: src/components/controls/TextLabelCard.tsx:892
 msgid "Maximum depth"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:661
+#: src/components/controls/TextLabelCard.tsx:899
 msgid "Maximum image engraving depth in millimetres"
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:898
+msgid "Maximum image relief height in millimetres"
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:892
+msgid "Maximum relief height"
 msgstr ""
 
 #: src/components/controls/DistanceMeasurementCard.tsx:186
@@ -6368,13 +6398,17 @@ msgctxt "Undo history entry"
 msgid "Move cut point"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:307
+#: src/components/controls/TextLabelCard.tsx:426
 msgid "Move engraving preview"
 msgstr ""
 
 #: src/features/scene/sceneHistoryLabels.ts:30
 msgctxt "Undo history entry"
 msgid "Move hole"
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:426
+msgid "Move relief preview"
 msgstr ""
 
 #: src/supports/Settings/components/PresetSelector.tsx:698
@@ -6753,7 +6787,7 @@ msgstr ""
 msgid "No snapshots yet. Run \"Backup Now\" to create your first local snapshot."
 msgstr ""
 
-#: src/features/scene/useSceneCollectionManager.ts:7343
+#: src/features/scene/useSceneCollectionManager.ts:7376
 msgid "No source file to restore this model from."
 msgstr ""
 
@@ -7487,13 +7521,17 @@ msgstr ""
 msgid "Pick a model to export."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:620
+#: src/components/controls/TextLabelCard.tsx:847
 msgid "Pick engraving surface"
 msgstr ""
 
 #: src/features/scene/sceneHistoryLabels.ts:28
 msgctxt "Undo history entry"
 msgid "Pick open face"
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:847
+msgid "Pick relief surface"
 msgstr ""
 
 #: src/features/hollowing/hollowingMessages.ts:28
@@ -7748,6 +7786,10 @@ msgctxt "LUT curve point"
 msgid "Position"
 msgstr ""
 
+#: src/components/controls/TextLabelCard.tsx:822
+msgid "Position on model"
+msgstr ""
+
 #: src/features/scene/arrange/useArrangeManager.ts:238
 msgid "Positioning models and validating placement."
 msgstr ""
@@ -7854,6 +7896,7 @@ msgid "Press <0>{clearLabel}</0> to reset all, or <1>{doneLabel}</1> to apply."
 msgstr ""
 
 #. Heading of the right-click menu on the support anatomy preview card in the Support Studio.
+#: src/components/controls/TextLabelCard.tsx:853
 #: src/supports/Settings/AnatomyPreview/SupportAnatomyPreviewSlot.tsx:33
 msgid "Preview"
 msgstr ""
@@ -7866,9 +7909,8 @@ msgstr ""
 msgid "Preview points as you paint. Supports are placed when you release."
 msgstr ""
 
-#. placeholder {0}: pendingCutterModel.name
-#: src/components/controls/TextLabelCard.tsx:678
-msgid "Preview ready: <0>{0}</0>. Confirm to cut it into the source model."
+#: src/components/controls/TextLabelCard.tsx:933
+msgid "Preview ready"
 msgstr ""
 
 #: src/components/controls/IslandsPanel.tsx:233
@@ -8085,7 +8127,7 @@ msgid "Processing on device…"
 msgstr ""
 
 #: src/components/controls/SolidOperationsCard.tsx:137
-#: src/components/controls/TextLabelCard.tsx:685
+#: src/components/controls/TextLabelCard.tsx:952
 msgid "Processing…"
 msgstr ""
 
@@ -8447,6 +8489,14 @@ msgstr ""
 msgid "Release {releaseDate}"
 msgstr ""
 
+#: src/components/controls/TextLabelCard.tsx:817
+msgid "Relief"
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:867
+msgid "Relief height"
+msgstr ""
+
 #: src/components/organisms/modals/PrintingModals.tsx:1022
 msgid "Remaining"
 msgstr ""
@@ -8473,11 +8523,11 @@ msgstr ""
 msgid "Remesh confirmation"
 msgstr ""
 
-#: src/features/scene/useSceneCollectionManager.ts:7534
+#: src/features/scene/useSceneCollectionManager.ts:7567
 msgid "Remesh failed: {message}"
 msgstr ""
 
-#: src/features/scene/useSceneCollectionManager.ts:7507
+#: src/features/scene/useSceneCollectionManager.ts:7540
 msgid "Remesh needs the desktop app."
 msgstr ""
 
@@ -8762,8 +8812,8 @@ msgstr ""
 msgid "Repair stopped. Repaired {repaired} of {total} models; the rest are unchanged."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:530
-msgid "Repair the source mesh before applying the engraving."
+#: src/components/controls/TextLabelCard.tsx:700
+msgid "Repair the source mesh before applying this surface operation."
 msgstr ""
 
 #: src/features/scene/meshRepairMessages.ts:14
@@ -8800,6 +8850,10 @@ msgctxt "Undo history entry"
 msgid "Replace trunk"
 msgstr ""
 
+#: src/components/controls/TextLabelCard.tsx:846
+msgid "Reposition"
+msgstr ""
+
 #: src/features/printing/components/PrintingPanel.tsx:228
 #: src/features/printing/components/PrintingPanel.tsx:270
 msgid "Requires connected printer with supported upload capability and a generated print file"
@@ -8826,6 +8880,11 @@ msgstr ""
 msgid "Reset defaults"
 msgstr ""
 
+#: src/components/controls/TextLabelCard.tsx:920
+#: src/components/controls/TextLabelCard.tsx:921
+msgid "Reset engraving rotation to zero"
+msgstr ""
+
 #: src/features/scene/sceneHistoryLabels.ts:34
 msgctxt "Undo history entry"
 msgid "Reset hole punching"
@@ -8836,7 +8895,7 @@ msgctxt "Undo history entry"
 msgid "Reset hollowing"
 msgstr ""
 
-#: src/components/layout/FloatingPanelStack.tsx:1811
+#: src/components/layout/FloatingPanelStack.tsx:1814
 msgid "Reset Layout"
 msgstr ""
 
@@ -8863,7 +8922,7 @@ msgstr ""
 msgid "Reset stream slot"
 msgstr ""
 
-#: src/components/layout/FloatingPanelStack.tsx:1810
+#: src/components/layout/FloatingPanelStack.tsx:1813
 msgid "Reset Window"
 msgstr ""
 
@@ -10038,11 +10097,11 @@ msgstr ""
 msgid "Shrink-Wrap confirmation"
 msgstr ""
 
-#: src/features/scene/useSceneCollectionManager.ts:7588
+#: src/features/scene/useSceneCollectionManager.ts:7621
 msgid "Shrink-Wrap failed: {message}"
 msgstr ""
 
-#: src/features/scene/useSceneCollectionManager.ts:7561
+#: src/features/scene/useSceneCollectionManager.ts:7594
 msgid "Shrink-Wrap needs the desktop app."
 msgstr ""
 
@@ -10736,7 +10795,7 @@ msgstr ""
 msgid "Surface angle is upward facing. Supports cannot be placed here."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:552
+#: src/components/controls/TextLabelCard.tsx:726
 msgid "Surface engraving (experimental)"
 msgstr ""
 
@@ -10744,11 +10803,15 @@ msgstr ""
 msgid "Surface intersection"
 msgstr ""
 
+#: src/components/controls/TextLabelCard.tsx:826
+msgid "Surface not selected"
+msgstr ""
+
 #: src/components/controls/TerritoryVoxelControls.tsx:106
 msgid "Surface Priority Mode"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:623
+#: src/components/controls/TextLabelCard.tsx:826
 msgid "Surface selected"
 msgstr ""
 
@@ -10908,8 +10971,7 @@ msgstr ""
 msgid "Territory Voxels"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:564
-#: src/components/controls/TextLabelCard.tsx:572
+#: src/components/controls/TextLabelCard.tsx:740
 msgid "Text"
 msgstr ""
 
@@ -10917,24 +10979,25 @@ msgstr ""
 msgid "Text and icons shown on secondary fills."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:640
+#: src/components/controls/TextLabelCard.tsx:874
 msgid "Text engraving depth in millimetres"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:627
+#: src/components/controls/TextLabelCard.tsx:857
 msgid "Text height"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:631
+#: src/components/controls/TextLabelCard.tsx:862
 msgid "Text height in millimetres"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:668
-msgid "Text height:"
+#: src/components/controls/TextLabelCard.tsx:749
+#: src/components/controls/TextLabelCard.tsx:757
+msgid "Text label"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:578
-msgid "Text label"
+#: src/components/controls/TextLabelCard.tsx:873
+msgid "Text relief height in millimetres"
 msgstr ""
 
 #: src/app/home/useSceneLifecycle.ts:289
@@ -10974,7 +11037,7 @@ msgstr ""
 msgid "The cut line you draw."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:528
+#: src/components/controls/TextLabelCard.tsx:698
 msgid "The cutter did not reach the model. Increase the engraving depth or select the surface again."
 msgstr ""
 
@@ -10986,11 +11049,11 @@ msgstr ""
 msgid "The edits made in this dialog have not been saved."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:542
+#: src/components/controls/TextLabelCard.tsx:716
 msgid "The engraving failed. Repair the mesh and try again."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:532
+#: src/components/controls/TextLabelCard.tsx:704
 msgid "The engraving would remove the entire model. Reduce its size or depth."
 msgstr ""
 
@@ -11103,6 +11166,18 @@ msgstr ""
 msgid "The red-striped areas in the viewport mark the parts that failed validation."
 msgstr ""
 
+#: src/components/controls/TextLabelCard.tsx:697
+msgid "The relief did not join the model. Increase its height or select the surface again."
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:715
+msgid "The relief failed. Repair the mesh and try again."
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:703
+msgid "The relief result is empty. Increase its height or select another surface."
+msgstr ""
+
 #: src/components/organisms/modals/MeshRepairModals.tsx:348
 msgid "The repaired result will replace this model in your current scene. Large or badly damaged meshes can take longer, and some files may still need manual cleanup afterward."
 msgstr ""
@@ -11167,7 +11242,7 @@ msgstr ""
 msgid "The solid operation failed. Repair the mesh and retry."
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:534
+#: src/components/controls/TextLabelCard.tsx:706
 msgid "The source or cutter geometry could not be read."
 msgstr ""
 
@@ -11710,7 +11785,7 @@ msgstr ""
 msgid "Untitled Curve"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:577
+#: src/components/controls/TextLabelCard.tsx:756
 msgid "Up to 120 characters"
 msgstr ""
 
@@ -11734,7 +11809,7 @@ msgstr ""
 msgid "Update Available!"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:699
+#: src/components/controls/TextLabelCard.tsx:938
 msgid "Update engraving preview"
 msgstr ""
 
@@ -11745,6 +11820,10 @@ msgstr ""
 
 #: src/features/updater/UpdateCheckerSection.tsx:347
 msgid "Update installed. Rambutan Slicer will restart."
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:938
+msgid "Update relief preview"
 msgstr ""
 
 #: src/features/slicing/components/LutCurveEditor.tsx:1628
@@ -11829,8 +11908,12 @@ msgstr ""
 msgid "Use active support preset"
 msgstr ""
 
-#: src/components/controls/TextLabelCard.tsx:597
+#: src/components/controls/TextLabelCard.tsx:807
 msgid "Use an image under 20 MB. Dark pixels engrave deeper. Transparent pixels are left untouched; use a transparent PNG for logos."
+msgstr ""
+
+#: src/components/controls/TextLabelCard.tsx:806
+msgid "Use an image under 20 MB. Dark pixels raise higher. Transparent pixels are left untouched; use a transparent PNG for logos."
 msgstr ""
 
 #: src/components/settings/ExperimentsSettingsTab.tsx:70
@@ -12183,12 +12266,12 @@ msgid "winding {windingBefore} → {windingAfter}"
 msgstr ""
 
 #. Heading of the floating panel right-click menu that resets panel positions.
-#: src/components/layout/FloatingPanelStack.tsx:1819
+#: src/components/layout/FloatingPanelStack.tsx:1822
 msgid "Window"
 msgstr ""
 
 #. Accessible name of the floating panel right-click menu that resets panel positions.
-#: src/components/layout/FloatingPanelStack.tsx:1820
+#: src/components/layout/FloatingPanelStack.tsx:1823
 msgid "Window context menu"
 msgstr ""
 

@@ -986,3 +986,44 @@ input[type="number"]:not(.no-spinners):hover::-webkit-outer-spin-button,
   background: color-mix(in srgb, var(--surface-2), var(--accent) 16%);
 }
 
+@media (max-height: 860px) {
+  .engraving-panel-content {
+    padding-inline: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .engraving-panel-content > :not(:first-child) {
+    margin-block-start: 0.5rem;
+  }
+
+  .engraving-panel-content > section {
+    padding-bottom: 0.5rem;
+  }
+
+  .engraving-panel-content .engraving-mode-button {
+    height: 2rem;
+  }
+
+  .engraving-panel-content .engraving-image-card {
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .engraving-panel-content .engraving-image-preview {
+    width: 4.5rem;
+    height: 3.25rem;
+  }
+
+  .engraving-panel-content .engraving-text-input {
+    min-height: 4rem;
+  }
+
+  .engraving-panel-content .engraving-value-field {
+    height: 1.875rem;
+  }
+
+  .engraving-panel-content .engraving-action-button {
+    height: 2.25rem;
+  }
+}
+
