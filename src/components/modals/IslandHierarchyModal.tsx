@@ -27,7 +27,7 @@ type TreeNode = {
 type Translate = (descriptor: MessageDescriptor) => string;
 
 // Interpolating messages live at module level so React Compiler cannot rename their
-// placeholders (see AGENTS.md).
+// placeholders (see DEVELOPMENT.md).
 function formatLayerCount(translate: Translate, count: number): string {
   return translate(msg({ message: plural(count, { one: '(# layer)', other: '(# layers)' }), comment: 'How many layers an island spans, shown in parentheses after its layer range.' }));
 }

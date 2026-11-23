@@ -5,7 +5,7 @@ DragonFruit has a single, app-wide undo/redo history. Every editable domain
 pushes state through it. There is one history stack per session; Ctrl+Z / Ctrl+Shift+Z
 drive it.
 
-This page is the formal version of the guidance in `AGENTS.md` ("Undo/redo —
+This page is the formal version of the guidance in `DEVELOPMENT.md` ("Undo/redo —
 history handlers"). Read the invariants in **Constraints** before writing any
 history code.
 

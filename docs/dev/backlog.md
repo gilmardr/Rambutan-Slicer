@@ -1,9 +1,9 @@
 # Backlog and Known Gotchas
 
 A home for temporary rules, tradeoffs, gotchas, and desired architectural
-directions that `AGENTS.md` references tersely. When `AGENTS.md` points here,
+directions that `DEVELOPMENT.md` references tersely. When `DEVELOPMENT.md` points here,
 this page is the fleshed-out explanation. Add entries here when a rule is too
-long for `AGENTS.md`, is expected to be lifted once an upstream change lands,
+long for `DEVELOPMENT.md`, is expected to be lifted once an upstream change lands,
 or is a known refactor we intend to do.
 
 ## Known cost: support batches are one mesh per geometry-parameter set
@@ -354,7 +354,7 @@ follow.
 
 The rule they add up to is the one above: derive, never subtract. Two were
 invisible to the whole suite AND every golden, so passing tests are not
-evidence a flag is covered -- see AGENTS.md trap 4.
+evidence a flag is covered -- see DEVELOPMENT.md trap 4.
 
 ## Desired: route every native call through the IPC bridge
 

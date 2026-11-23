@@ -8,7 +8,7 @@
  * the locale (localeNumber.ts) before it is placed.
  *
  * The descriptors live at module scope with an explicit `{value}` placeholder,
- * so React Compiler has no interpolated local to rename (see AGENTS.md).
+ * so React Compiler has no interpolated local to rename (see DEVELOPMENT.md).
  * Components get these through `useLocaleFormat()`: `fmt.quantity(x, 2, 'mm')`.
  * The object is cached per `_`, which changes identity on a locale switch, so
  * React Compiler recomputes memoized output.

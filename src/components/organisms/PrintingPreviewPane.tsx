@@ -53,7 +53,7 @@ export type PrintingPreviewPaneProps = {
 type Translate = (descriptor: MessageDescriptor) => string;
 
 // Interpolating messages live at module level so React Compiler cannot rename their
-// placeholders (see AGENTS.md). Both reuse the wording of the slicing and print-monitor panels.
+// placeholders (see DEVELOPMENT.md). Both reuse the wording of the slicing and print-monitor panels.
 function formatLayerPreviewAlt(translate: Translate, layer: number): string {
   return translate(msg`Layer ${layer} preview`);
 }

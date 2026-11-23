@@ -13,7 +13,7 @@ DragonFruit is one desktop app assembled from four codebases that talk across tw
 
 `profiles/` holds printer and material presets, which plugins extend.
 
-The crates under `rust/` are **standalone — there is no workspace root**. `src-tauri/Cargo.toml` depends on each by path, which is why a stale `version` in a crate is invisible locally but breaks the lock file (see the crate-version rule in `AGENTS.md`).
+The crates under `rust/` are **standalone — there is no workspace root**. `src-tauri/Cargo.toml` depends on each by path, which is why a stale `version` in a crate is invisible locally but breaks the lock file (see the crate-version rule in `DEVELOPMENT.md`).
 
 ## The two seams
 

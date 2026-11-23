@@ -1,6 +1,6 @@
 # DragonFruit CLI Reference
 
-Two CLI tools expose the full DragonFruit pipeline for headless / LLM-agent use.
+Two CLI tools expose the full DragonFruit pipeline for headless and scripted use.
 Every command produces JSON output (`--json`) and reports timing metrics.
 
 ## Architecture
@@ -563,7 +563,7 @@ Kickstands moved into the shared support state (`src/supports/state.ts`) with th
 
 ### Gaps Worth Closing
 
-**High value (enables new LLM agent workflows):**
+**High value (enables new scripted workflows):**
 
 1. **`support update-*`** — update existing trunks/branches/leaves/braces (7 operations, pure state)
 2. **`support add-twig`** / **`support add-stick`** — twig and stick support types (2 operations)

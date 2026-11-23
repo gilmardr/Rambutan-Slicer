@@ -10,7 +10,7 @@ import * as registry from '../supportTypeRegistry';
  *
  * The registry exports 14 lists and 17 functions, and several coincide today.
  * Without a convention, each new consumer invents its own accessor and the
- * surface sprawls. These pin the shape rules from AGENTS.md.
+ * surface sprawls. These pin the shape rules from DEVELOPMENT.md.
  */
 
 const SOURCE = readFileSync(

@@ -2,7 +2,7 @@
  * Verifies that documentation still matches the code it describes.
  *
  * Docs rot silently: a path moves, a symbol is renamed, a line number drifts,
- * and the page keeps reading as authoritative. AGENTS.md tells agents to trust
+ * and the page keeps reading as authoritative. DEVELOPMENT.md tells contributors to trust
  * these pages over the source, so a stale claim is an active hazard rather than
  * a cosmetic defect. This check is what makes that instruction safe to give.
  *
@@ -22,7 +22,7 @@ import path from 'node:path';
 
 const projectRoot = process.cwd();
 
-const DEFAULT_DOC_FILES = ['AGENTS.md', 'CONTEXT.md', 'README.md'];
+const DEFAULT_DOC_FILES = ['DEVELOPMENT.md', 'CONTEXT.md', 'README.md'];
 const DEFAULT_DOC_DIRS = ['docs'];
 
 const CODE_ROOTS = ['src', 'src-tauri', 'rust', 'plugins', 'scripts', 'profiles', 'website', '.github'];

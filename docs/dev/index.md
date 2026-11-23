@@ -51,13 +51,13 @@ Three that are easy to get wrong and fail silently:
 
 1. **Register history handlers at app-root lifetime.** Gate them on a component and Ctrl+Z stops working depending on what is on screen — with no error.
 2. **Interpolating translations live in module-scope helpers.** React Compiler renames locals in production builds, desyncing the message id; dev looks fine. See [Backlog](backlog.md).
-3. **Bump a `rust/` crate's version when you change it.** Path dependencies always resolve, so a stale version is invisible locally and breaks the lock file. See `AGENTS.md`.
+3. **Bump a `rust/` crate's version when you change it.** Path dependencies always resolve, so a stale version is invisible locally and breaks the lock file. See `DEVELOPMENT.md`.
 
 ## Keeping these pages true
 
 `npm run check:docs` verifies that every path and symbol these pages cite still exists, bans pinned line numbers, and keeps the site nav in sync. It runs in CI. What it cannot check is whether a page's *description of behaviour* is still right — that needs a human reading the code beside the page, and it is where every real error found so far has been.
 
-New developer-facing interfaces ship with documentation here; that rule and its checklist are in `AGENTS.md`.
+New developer-facing interfaces ship with documentation here; that rule and its checklist are in `DEVELOPMENT.md`.
 
 ## Decision records
 

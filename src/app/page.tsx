@@ -253,8 +253,7 @@ import { useNativeSpaceMouseLifecycle } from '@/components/scene/camera/useNativ
 import { useSlicingManager } from '@/features/slicing/useSlicingManager';
 import { useTransformManager } from '@/features/transform/useTransformManager';
 import { useIslandManager } from '@/volumeAnalysis/IslandScan/useIslandManager';
-// Islands PoC (Support-tab unified islands panel). Tab-agnostic + modular — see
-// agents/Claude/20260613-1404-Implementation-dev-islands-islands-panel-...md.
+// Islands PoC (Support-tab unified islands panel). Tab-agnostic + modular.
 import { useIslands } from '@/volumeAnalysis/Islands/useIslands';
 import { setSupportProjectionIslandContacts } from '@/features/support-projection/supportProjection';
 import { IslandsPanel } from '@/components/controls/IslandsPanel';

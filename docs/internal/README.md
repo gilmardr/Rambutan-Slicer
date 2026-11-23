@@ -8,8 +8,6 @@ git and still reviewed in PRs — "internal" means unpublished, not unowned.
 
 - **Working inboxes** — `backlog.md`, the low-friction capture list for incidental
   findings. Short-lived by design: entries are deleted when closed or promoted.
-- **Agent operating instructions** — `agents/`, how coding agents should use the
-  issue tracker, the triage labels, and the domain glossary.
 - **Point-in-time research** — surveys and reports written to inform a decision,
   kept because the analysis was expensive. `release-strategies-report.md` is one:
   it fed the release model, but `dev/releases.md` is the contract that resulted.
@@ -30,6 +28,6 @@ seeing it, it is not internal.
 
 ## Related
 
-- `../../AGENTS.md` — agent behavioural guidelines and hard rules
+- `../../DEVELOPMENT.md` — contributor guidelines and hard rules
 - `../../CONTEXT.md` — domain glossary
 - `../dev/index.md` — the published developer guide

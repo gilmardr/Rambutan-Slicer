@@ -21,7 +21,7 @@ const FOUND_GLOW_DURATION_MS = 5000;
 type Translate = (descriptor: MessageDescriptor) => string;
 
 // Interpolating messages live at module level so React Compiler cannot rename the
-// placeholder (see AGENTS.md); `executableLabel` keeps the catalog ids unchanged.
+// placeholder (see DEVELOPMENT.md); `executableLabel` keeps the catalog ids unchanged.
 function formatExecutablePathHint(translate: Translate, executableLabel: string): string {
   return translate(msg`Use auto-discover or enter the path to ${executableLabel} manually.`);
 }

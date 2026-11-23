@@ -15,7 +15,7 @@ import {
   type PrinterPreset,
 } from '@/features/profiles/profileStore';
 
-// Interpolated message helpers MUST stay at module scope (see AGENTS.md): React
+// Interpolated message helpers MUST stay at module scope (see DEVELOPMENT.md): React
 // Compiler renames interpolated locals inside component bodies, desyncing Lingui
 // message ids in production builds. Static strings can use `_(msg`...`)` inline.
 

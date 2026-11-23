@@ -51,7 +51,7 @@
 > `docs`.
 >
 > **Lifecycle.** This file lists only what is OPEN. When an item is done or
-> promoted to a GitHub Issue (`needs-triage`/`ready-for-agent`), **delete** it
+> promoted to a GitHub Issue (`needs-triage`), **delete** it
 > from here (git keeps the history); if promoted, leave the issue number in the
 > commit message. Keep the list short and actionable — inbox, not graveyard.
 
@@ -135,7 +135,7 @@
   `setState` inside the localStorage-loading effect (`react-hooks/set-state-in-effect`).
 - Why: `npm run lint` (= `eslint`, tests not ignored) already flags these.
   src/hotkeys/ cannot join `scripts/lint-clean-dirs.json` (the per-directory
-  lint gate in CI, see AGENTS.md) until this is cleared. Predates #435.
+  lint gate in CI, see DEVELOPMENT.md) until this is cleared. Predates #435.
 - Careful: (b) is not mechanical — typing the merge touches the shape of the
   persisted config.
 

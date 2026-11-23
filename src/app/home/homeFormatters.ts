@@ -112,7 +112,7 @@ export function formatLastSuccessfulAutosave(
   }), { timestamp });
 }
 
-// Static ICU pattern in a module-level formatter (see AGENTS.md): written inside the
+// Static ICU pattern in a module-level formatter (see DEVELOPMENT.md): written inside the
 // component, the React Compiler renames the interpolated local and the message id stops
 // matching the compiled catalogue.
 export function formatPlateLockedNotice(

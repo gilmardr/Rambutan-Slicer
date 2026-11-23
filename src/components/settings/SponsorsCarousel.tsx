@@ -50,7 +50,7 @@ export function getSponsorRank(total?: number | null): { tier: string; borderCol
 // Fallback mark for a sponsor with no avatar image — first letter of the first and
 // last word, with camelCase split so "WickedGrey" → WG and "Kryz Slaughter" → KS.
 // A lone word keeps one letter ("ben" → B), so the mark stays a monogram.
-/** Module-level so React Compiler cannot rename the placeholder (see AGENTS.md). */
+/** Module-level so React Compiler cannot rename the placeholder (see DEVELOPMENT.md). */
 function formatOpenSponsorProfile(translate: (descriptor: MessageDescriptor) => string, name: string): string {
   return translate(msg`${name} — open sponsor profile`);
 }

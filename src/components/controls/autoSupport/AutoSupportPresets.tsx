@@ -125,7 +125,7 @@ const SAVED_STYLE = {
 /**
  * Interpolating `msg` templates live at module scope: React Compiler renames the
  * interpolated locals inside a component, which desyncs the message id from the
- * compiled catalog in production (see AGENTS.md).
+ * compiled catalog in production (see DEVELOPMENT.md).
  */
 /** Interpolating template — module scope for the same reason as above. */
 function formatDeletePresetTitle(presetName: string, translate: Translate): string {

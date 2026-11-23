@@ -16,7 +16,7 @@ type Translate = (descriptor: MessageDescriptor) => string;
 
 /**
  * Tooltip on the minimal rail. Module-level so React Compiler cannot rename the interpolated
- * locals and desync the message ids (see AGENTS.md).
+ * locals and desync the message ids (see DEVELOPMENT.md).
  */
 function formatMinimalRailTitle(translate: Translate, layer: number, height: string, crossSection: 'none' | 'on' | 'off'): string {
   if (crossSection === 'on') {

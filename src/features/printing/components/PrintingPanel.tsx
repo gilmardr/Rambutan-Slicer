@@ -37,7 +37,7 @@ type PrintingPanelProps = {
 
 type Translate = (descriptor: MessageDescriptor) => string;
 
-// Module level so React Compiler cannot rename the placeholder (see AGENTS.md).
+// Module level so React Compiler cannot rename the placeholder (see DEVELOPMENT.md).
 function formatExportAsLabel(translate: Translate, format: string): string {
   return translate(msg({ message: `Export as ${format}`, comment: 'Button that saves the sliced file. {format} is its extension, e.g. ".ctb".' }));
 }

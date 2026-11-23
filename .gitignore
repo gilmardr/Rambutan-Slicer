@@ -111,5 +111,7 @@ src-tauri/binaries/dragonfruit-voxl-thumbnailer*
 # (see plugins/creality/README.md). Kept local only; UI falls back to "No image".
 /plugins/creality/assets/
 
-# Directory-scoped agent notes: local working aids, not project docs.
+# Local working notes, not project docs.
 src/**/AGENTS.md
+/AGENTS.md
+/CLAUDE.md

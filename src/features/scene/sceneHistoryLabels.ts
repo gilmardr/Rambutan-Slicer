@@ -3,7 +3,7 @@
  *
  * Module level on purpose: React Compiler renames locals inside the scene hooks
  * before the Lingui macro derives the message id, so a message that interpolates
- * a model name has to be built out here (see AGENTS.md).
+ * a model name has to be built out here (see DEVELOPMENT.md).
  */
 
 import type { MessageDescriptor } from '@lingui/core';

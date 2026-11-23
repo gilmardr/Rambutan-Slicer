@@ -1,8 +1,9 @@
-# AGENTS.md
+# Development guide
 
-Instructions for coding agents working in this repo. `CLAUDE.md` points here.
+Rules and conventions for anyone changing this repository. Read it together with
+[CONTRIBUTING.md](CONTRIBUTING.md) and the developer docs in `docs/dev/`.
 
-## Main behavioral guidelines
+## Working principles
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
@@ -42,7 +43,7 @@ When your changes create orphans:
 - Remove imports/variables/functions that YOUR changes made unused.
 - Don't remove pre-existing dead code unless asked.
 
-The test: Every changed line should trace directly to the user's request.
+The test: every changed line should trace directly to the issue or request being addressed.
 
 ### 4. Goal-driven execution
 
@@ -60,7 +61,7 @@ For multi-step tasks, state a brief plan:
 3. [Step] → verify: [check]
 ```
 
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+Strong success criteria let you work independently. Weak criteria ("make it work") require constant clarification.
 
 ---
 
@@ -162,17 +163,17 @@ the question.
 
 | Location | Holds | Published |
 | --- | --- | --- |
-| `AGENTS.md` | Agent guidelines and hard rules | no |
+| `DEVELOPMENT.md` | Contributor guidelines and hard rules | no |
 | `CONTEXT.md` | Domain glossary — use its terms, not synonyms | no |
 | `docs/dev/`, `docs/reference/` | Contracts, invariants, frameworks | yes |
 | `docs/adr/` | Decisions and the reasoning behind them | yes |
-| `docs/internal/` | Working inboxes, agent instructions, research, plans | **no** |
-| `src/**/AGENTS.md` | Directory-scoped notes. Gitignored — local working aids, may not exist | no |
+| `docs/internal/` | Working inboxes, research, plans | **no** |
 
 Documentation goes under `docs/`, never beside the code it describes. The only
 Markdown elsewhere is what has to be elsewhere: the root files (`README.md`,
-`AGENTS.md`/`CLAUDE.md`, `CONTEXT.md`, `CODE_OF_CONDUCT.md`), GitHub's issue
-templates and instructions under `.github/`, each plugin's own `README.md` (the
+`DEVELOPMENT.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CONTEXT.md`,
+`CODE_OF_CONDUCT.md`, `README-LICENCIAMENTO.md`), GitHub's issue and pull
+request templates under `.github/`, each plugin's own `README.md` (the
 app serves `plugins/<id>/README.md` to the Plugin Studio at runtime), and the
 licence or provenance notes beside a separately licensed or vendored crate.
 
@@ -186,20 +187,23 @@ and desired architectural directions; `docs/internal/backlog.md` is the
 unpublished capture inbox for incidental findings, whose entries are deleted
 when closed. Read the header of either before adding to it.
 
-## Agent skills
+## Issues and triage
 
-### Issue tracker
+Issues live in GitHub Issues; pull requests are not a place to request work.
 
-Issues live in GitHub Issues (external PRs are not a triage surface). See `docs/internal/agents/issue-tracker.md`.
+- Triage labels: `needs-triage` (a maintainer still has to evaluate it),
+  `needs-info` (waiting on the reporter) and `wontfix`.
+- The kind of issue (bug, feature, task) is the issue **type**, not a label.
+- The area of the app is a `guts: <area>` label, added by a bot when the issue
+  is opened (see [Issue Guts Labels](docs/dev/issue-guts.md)). Correct it when
+  the report says otherwise, using only the areas in `.github/guts/areas.json`.
 
-### Triage labels
+## Domain vocabulary
 
-Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/internal/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context repo — one `CONTEXT.md` at the root plus `docs/adr/`. See
-`docs/internal/agents/domain.md`.
+This is a single-context repo: one `CONTEXT.md` glossary at the root plus the
+decision records in `docs/adr/`. Name domain concepts (in issues, code, tests)
+with the glossary's terms, not the synonyms it lists under _Avoid_, and call out
+a change that contradicts an existing ADR instead of overriding it silently.
 
 ## i18n / Lingui — every user-visible string goes through the catalog
 
@@ -286,16 +290,8 @@ git show origin/dev:rust/<crate>/Cargo.toml | sed -n '3p'
   **every** lockfile that records the crate stale, including other crates'
   (`cargo update --workspace --manifest-path <crate>/Cargo.toml` refreshes one).
 
-## App version — do not bump unprompted
+## App version — bumped only for a release
 
-NEVER bump the DragonFruit main app version unprompted — `package.json` `version`, `src-tauri/tauri.conf.json` `version`, and `src-tauri/Cargo.toml` `[package] version` must stay on the current release (currently `0.1.15`) unless the user explicitly asks for a release/version bump. The `rust/*` crate bumps above are allowed; the main app version is release-driven and user-controlled.
+Do not change the main app version outside a release: `package.json` `version`, `src-tauri/tauri.conf.json` `version` and `src-tauri/Cargo.toml` `[package] version` stay on the current release until a release is cut. The `rust/*` crate bumps above are allowed; the main app version is release-driven.
 
-<!-- BEGIN:nextjs-agent-rules -->
-
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
+Next.js in this repo is a recent major version with breaking changes. Check the guides in `node_modules/next/dist/docs/` before relying on older conventions, and heed deprecation notices.
