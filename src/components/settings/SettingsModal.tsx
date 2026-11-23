@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useLingui } from '@lingui/react';
+import { Trans } from '@lingui/react/macro';
 import { msg } from '@lingui/core/macro';
 import { GeneralSettingsTab } from '@/components/settings/GeneralSettingsTab';
 import { useLocale } from '@/components/I18nClientProvider';
@@ -1625,7 +1626,7 @@ export function SettingsModal({
                               background: 'linear-gradient(135deg, #3b0764 0%, #991b1b 50%, #9a3412 100%)',
                             }}
                           >
-                            An Open Resin Alliance Project
+                            <Trans>Independent fork based on DragonFruit</Trans>
                           </span>
                         </div>
 

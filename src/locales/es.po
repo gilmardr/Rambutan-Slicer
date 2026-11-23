@@ -12351,3 +12351,7 @@ msgstr "Zigzag"
 #: src/supports/autoBracing/AutoBracingSettingsCard.tsx:164
 msgid "Zigzag chains step by their own rise — interval has no effect"
 msgstr "Las cadenas en zigzag avanzan según su propia subida; el intervalo no tiene efecto"
+
+#: src/components/settings/SettingsModal.tsx:1631
+msgid "Independent fork based on DragonFruit"
+msgstr ""

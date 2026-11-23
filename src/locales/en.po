@@ -12351,3 +12351,7 @@ msgstr "Zig Zag"
 #: src/supports/autoBracing/AutoBracingSettingsCard.tsx:164
 msgid "Zigzag chains step by their own rise — interval has no effect"
 msgstr "Zigzag chains step by their own rise — interval has no effect"
+
+#: src/components/settings/SettingsModal.tsx:1631
+msgid "Independent fork based on DragonFruit"
+msgstr "Independent fork based on DragonFruit"
