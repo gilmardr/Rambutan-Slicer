@@ -4,7 +4,7 @@
   "name": "Creality Resin Printer Profiles",
   "version": "0.2.0",
   "description": "Creality LD and HALOT-series resin printer presets.",
-  "author": "Druciak Tech",
+  "author": "gilmardr",
   "printerPresets": [
     {
       "presetId": "creality-ld-002r-ctb-v2",

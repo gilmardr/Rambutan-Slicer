@@ -8249,8 +8249,8 @@ msgid "Rambutan Slicer first-time setup"
 msgstr "Rambutan Slicer first-time setup"
 
 #: src/components/settings/SettingsModal.tsx:1677
-msgid "Rambutan Slicer fork and modifications by Druciak Tech"
-msgstr "Rambutan Slicer fork and modifications by Druciak Tech"
+msgid "Rambutan Slicer fork and modifications by gilmardr"
+msgstr "Rambutan Slicer fork and modifications by gilmardr"
 
 #: src/components/layout/FirstRunOnboarding.tsx:177
 msgid "Rambutan Slicer is a free, open-source slicer for resin 3D printing. Load a model, orient it, add supports, and slice it for your printer."

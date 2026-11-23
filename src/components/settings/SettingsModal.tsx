@@ -1674,7 +1674,7 @@ export function SettingsModal({
                         </h5>
 
                         <p className="mt-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                          {_(msg`Rambutan Slicer fork and modifications by Druciak Tech`)}
+                          {_(msg`Rambutan Slicer fork and modifications by gilmardr`)}
                         </p>
 
                         <div className="mt-2.5 space-y-2">

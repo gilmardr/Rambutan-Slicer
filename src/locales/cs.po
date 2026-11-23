@@ -8248,7 +8248,7 @@ msgid "Rambutan Slicer first-time setup"
 msgstr ""
 
 #: src/components/settings/SettingsModal.tsx:1677
-msgid "Rambutan Slicer fork and modifications by Druciak Tech"
+msgid "Rambutan Slicer fork and modifications by gilmardr"
 msgstr ""
 
 #: src/components/layout/FirstRunOnboarding.tsx:177
