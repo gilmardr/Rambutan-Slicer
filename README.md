@@ -24,6 +24,7 @@
 
 - [Download](#download)
 - [Funcionalidades](#funcionalidades)
+- [O que muda em relação ao DragonFruit](#o-que-muda-em-relação-ao-dragonfruit)
 - [Começando](#começando)
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Documentação](#documentação)
@@ -51,15 +52,53 @@ Herdadas do DragonFruit:
 - **Reparo de malha** e **fatiamento nativo em Rust**, com exportação para vários formatos de impressora por plugins.
 - **App desktop via Tauri**, com perfis de impressora e material.
 
-Adicionadas no Rambutan Slicer:
+O que o Rambutan Slicer acrescenta está na seção seguinte.
 
-- **Auto-suporte em grade por padrão**, com tocos compactos perto da plataforma e relatório por modelo (candidatos rejeitados e ilhas sem cobertura).
-- **Verificação de regiões flutuantes**, que fatia o modelo junto com os suportes.
-- **Raft com contorno** que acompanha as bases dos suportes.
-- **Auto-orientação** com análise de camadas em segundo plano.
+## O que muda em relação ao DragonFruit
+
+O Rambutan Slicer parte do DragonFruit no commit [`8bb1a22`](https://github.com/Open-Resin-Alliance/DragonFruit/commit/8bb1a22657b8c004f935f9ea7925fb0d8bc4d1a9) e mantém o mesmo motor de fatiamento, os mesmos formatos de arquivo (`.voxl` e os formatos de impressora) e o mesmo sistema de plugins. Projetos do DragonFruit abrem no Rambutan. As diferenças estão nas ferramentas abaixo. A documentação técnica de cada uma está em `docs/dev/`.
+
+<!-- Capturas de tela: salve as imagens em docs/assets/screenshots/ com os nomes
+     indicados em cada item e troque o comentário pela linha de imagem, por exemplo:
+     ![Gravação em relevo](docs/assets/screenshots/gravacao.png) -->
+
+### Suportes
+
+- **Auto-suporte em grade por padrão.** Um tronco por nó de uma grade de 4 mm, com os demais contatos ramificando perto do modelo. As bases ficam mais espaçadas na plataforma, e pontas muito próximas da plataforma recebem tocos compactos em vez de ficarem sem suporte. A densidade de contatos do DragonFruit foi mantida.
+- **Relatório por modelo** depois de cada geração: candidatos rejeitados e ilhas que ficaram sem cobertura, com um botão para verificar o modelo na hora.
+- **Verificação de regiões flutuantes.** Fatia o modelo junto com os suportes e o raft, com a mesma geometria usada na impressão, e aponta toda região sem nada embaixo. Gerar suportes em modo "adicionar" cobre essas regiões.
+- **Raft com contorno.** O raft acompanha as bases dos suportes em vez de cobrir o fecho convexo de todas elas, sem placa em áreas vazias. O formato antigo continua disponível.
+- **Novas formas de posicionar contatos:** pintura de suportes (arrastar sobre a superfície), projeção de um padrão sobre uma área e suportes em linha entre dois pontos.
+- **Diagnósticos:** proximidade entre suportes e modelo (hastes perto demais aparecem em vermelho) e detecção de ventosas, as regiões côncavas que fazem efeito de sucção e precisam de drenagem.
+
+<!-- Capturas: docs/assets/screenshots/suportes-grade.png, verificacao-regioes.png, raft-contorno.png, pintura-suportes.png -->
+
+### Preparação do modelo
+
+- **Gravação e relevo.** Texto ou imagem (PNG, JPEG ou WebP) aplicados num ponto da superfície do modelo, gravados para dentro ou em relevo para fora. A prévia pode ser girada e reposicionada antes de confirmar, e o resultado é uma única ação de desfazer.
+- **Auto-orientação** que avalia cada pose pela área das camadas, calculada em segundo plano sem travar a interface.
 - **Arranjo de alta precisão** e alinhamento dos modelos selecionados.
-- **Gravação de texto** na superfície do modelo, além de medição, corte orgânico e hollowing.
-- **Interface traduzida** para português do Brasil, inglês, espanhol, francês, alemão, tcheco e eslovaco.
+- **Corte orgânico com encaixe:** espiga e encaixe para as duas metades se alinharem depois de impressas.
+- **Hollowing com preenchimento interno** e verificação dos furos de drenagem, que confere se cada furo alcança a cavidade.
+
+<!-- Capturas: docs/assets/screenshots/gravacao.png, auto-orientacao.png, corte-encaixe.png, hollowing.png -->
+
+### Análise e cena
+
+- **Medição** entre dois pontos, de um ponto a um plano ou entre dois planos paralelos.
+- **Colisão entre modelos:** avisa quando dois modelos na mesma placa se tocam ou se sobrepõem e vão imprimir como uma peça só.
+- **Régua milimétrica** nas bordas da plataforma, com o logotipo do Rambutan na placa.
+- **Painel de estatísticas do modelo** redesenhado.
+- **Sombreamento** com oclusão de ambiente também na versão web.
+
+<!-- Capturas: docs/assets/screenshots/medicao.png, colisao.png, regua-plataforma.png, estatisticas.png -->
+
+### Distribuição e idioma
+
+- **Identidade visual própria:** nome, ícones, instalador e tema. Os temas salvos do DragonFruit são migrados.
+- **Interface em português do Brasil**, além dos idiomas do DragonFruit (inglês, espanhol, francês, alemão, tcheco e eslovaco).
+- **Releases deste fork** sem a assinatura nem o canal de atualização automática do DragonFruit.
+- **Tela Sobre** com o link para o código-fonte desta versão e o crédito ao DragonFruit.
 
 ## Começando
 
