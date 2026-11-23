@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Reportar uma vulnerabilidade de segurança
+    url: https://github.com/gilmardr/Rambutan-Slicer/security/advisories/new
+    about: Problemas de segurança devem ser reportados de forma privada, não em issues públicas.
+  - name: Problema que também existe no DragonFruit
+    url: https://github.com/Open-Resin-Alliance/DragonFruit/issues
+    about: Se o problema acontece também no projeto original, reporte lá.

@@ -1,5 +1,5 @@
 name: Bug report
-description: Report something in DragonFruit that isn't working as expected.
+description: Report something in Rambutan Slicer that isn't working as expected.
 title: "[BUG] "
 type: Bug
 labels: ["form-v1"]
@@ -14,9 +14,9 @@ body:
   - type: input
     id: version
     attributes:
-      label: DragonFruit version
-      description: Copy the full version line from the app - Settings->About , e.g. "DragonFruit 0.1.16 (beta) — dev @ 5362aed · macOS/arm64".
-      placeholder: DragonFruit 0.1.16 (beta) — dev @ 5362aed · macOS/arm64
+      label: Rambutan Slicer version
+      description: Copy the full version line from the app - Settings->About , e.g. "Rambutan Slicer 0.5.0 (release) — main @ 1a2b3c4 · win32/x64".
+      placeholder: Rambutan Slicer 0.5.0 (release) — main @ 1a2b3c4 · win32/x64
     validations:
       required: true
 
@@ -81,7 +81,7 @@ body:
   - type: dropdown
     id: area
     attributes:
-      label: Where in DragonFruit did it happen?
+      label: Where in Rambutan Slicer did it happen?
       description: Your best guess is fine.
       multiple: true
       options:

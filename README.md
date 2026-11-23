@@ -1,109 +1,139 @@
-# Rambutan Slicer
+<p align="center">
+  <img src="public/splash-hero.jpg" alt="Rambutan Slicer" width="720">
+</p>
 
-> Downstream build of [DragonFruit](https://github.com/Open-Resin-Alliance/DragonFruit) — Open Resin Alliance · AGPL-3.0-or-later
+<h1 align="center">Rambutan Slicer</h1>
 
-Rambutan Slicer é um fork editável do DragonFruit, o slicer de resina de código aberto da Open Resin Alliance. Mantém a licença AGPL-3.0-or-later e a atribuição upstream. O app desktop combina frontend Next.js + React com backends de fatiamento nativos em Rust e runtime Tauri.
+<p align="center">
+  Slicer de resina para impressão 3D (MSLA/DLP), de código aberto, derivado do
+  <a href="https://github.com/Open-Resin-Alliance/DragonFruit">DragonFruit</a> da Open Resin Alliance.
+</p>
 
-A menos que um subdiretório ou submódulo declare o contrário, o conteúdo Rambutan Slicer neste repositório é licenciado sob **AGPL-3.0-or-later**.
+<p align="center">
+  <a href="LICENSE"><img alt="Licença: AGPL-3.0-or-later" src="https://img.shields.io/badge/licen%C3%A7a-AGPL--3.0--or--later-blue"></a>
+  <a href="https://github.com/gilmardr/Rambutan-Slicer/releases"><img alt="Última versão" src="https://img.shields.io/github/v/release/gilmardr/Rambutan-Slicer?include_prereleases&label=vers%C3%A3o"></a>
+  <a href="https://github.com/Open-Resin-Alliance/DragonFruit"><img alt="Baseado no DragonFruit" src="https://img.shields.io/badge/baseado%20no-DragonFruit-e0115f"></a>
+</p>
 
 > **Aviso de modificação (AGPL-3.0, seção 5a):** este trabalho é uma versão modificada do DragonFruit, derivada do commit upstream [`8bb1a22`](https://github.com/Open-Resin-Alliance/DragonFruit/commit/8bb1a22657b8c004f935f9ea7925fb0d8bc4d1a9). Modificado por Gilmar Afonso Druciak a partir de novembro de 2026 (rebranding, novas ferramentas de suporte, medição, corte orgânico, hollowing e documentação). O histórico completo das alterações está no log do Git deste repositório.
 
-> ⚠️ **Este build do Rambutan Slicer é baseado em um projeto em desenvolvimento ativo. Valide os outputs antes de usar em fluxos de impressão em produção e evite impressão desacompanhada no primeiro uso.**
+> [!WARNING]
+> O Rambutan Slicer é baseado em um projeto em desenvolvimento ativo. Valide os arquivos gerados antes de usá-los em impressões de produção e evite imprimir sem acompanhamento no primeiro uso.
 
 ## Sumário
 
-- [Sobre o DragonFruit](#sobre-o-dragonfruit)
+- [Download](#download)
 - [Funcionalidades](#funcionalidades)
 - [Começando](#começando)
-  - [Variante 1: Desenvolvimento frontend (Next.js)](#variante-1-desenvolvimento-frontend-nextjs)
-  - [Variante 2: Desenvolvimento desktop (Tauri + Rust)](#variante-2-desenvolvimento-desktop-tauri--rust)
-  - [Variante 3: Build de produção e bundling](#variante-3-build-de-produção-e-bundling)
-- [Localização (i18n)](docs/dev/localization.md)
 - [Estrutura do projeto](#estrutura-do-projeto)
+- [Documentação](#documentação)
 - [Contribuindo](#contribuindo)
+- [Créditos](#créditos)
 - [Licença](#licença)
 
-## Sobre o DragonFruit
+## Download
 
-O DragonFruit foca em fluxos práticos de preparação de impressão em resina, incluindo inspeção de modelos, análise de ilhas, ferramentas de transformação, autoria de suportes e integração de fatiamento nativo. É projetado como uma toolchain desktop-first mantendo o frontend altamente iterativo para desenvolvimento rápido de features.
+Os instaladores ficam na página de [Releases](https://github.com/gilmardr/Rambutan-Slicer/releases):
+
+- **Windows:** `Rambutan Slicer_<versão>_x64-setup.exe`.
+- **macOS e Linux:** ainda sem instalador publicado; compile a partir do código-fonte (veja [Começando](#começando)).
+
+Como exige a AGPL, o código-fonte correspondente a cada versão está neste repositório, na tag da release.
 
 ## Funcionalidades
 
-O Rambutan Slicer inclui um conjunto crescente de capacidades para impressão 3D em resina:
+Herdadas do DragonFruit:
 
-- **Workspace 3D Interativo:** Visualização e manipulação de modelos de alto desempenho usando `three.js` + `react-three-fiber`.
-- **Ferramentas de Transformação Avançadas:** Fluxos Move/Rotate/Scale com controles de precisão e gizmos de viewport.
-- **Análise de Ilhas e Ferramentas de Volume:** Detecção e análise de regiões sem suporte por camada.
-- **Sistemas de Autoria de Suportes:** Fluxos de suporte branch/grid/raft com infraestrutura de renderização e snapping.
-- **Runtime Desktop via Tauri:** Pipeline de app desktop nativo com integração de backend Rust.
-- **Arquitetura Extensível:** Sistemas de plugins e perfis para materiais, impressoras e integrações de ecossistema.
+- **Workspace 3D interativo** com `three.js` e `react-three-fiber`.
+- **Transformações** mover, rotacionar e escalar com controles de precisão e gizmos.
+- **Análise de ilhas e de volume** para encontrar regiões sem suporte camada a camada.
+- **Suportes** em árvore, grade e raft, com posicionamento manual e automático.
+- **Reparo de malha** e **fatiamento nativo em Rust**, com exportação para vários formatos de impressora por plugins.
+- **App desktop via Tauri**, com perfis de impressora e material.
+
+Adicionadas no Rambutan Slicer:
+
+- **Auto-suporte em grade por padrão**, com tocos compactos perto da plataforma e relatório por modelo (candidatos rejeitados e ilhas sem cobertura).
+- **Verificação de regiões flutuantes**, que fatia o modelo junto com os suportes.
+- **Raft com contorno** que acompanha as bases dos suportes.
+- **Auto-orientação** com análise de camadas em segundo plano.
+- **Arranjo de alta precisão** e alinhamento dos modelos selecionados.
+- **Gravação de texto** na superfície do modelo, além de medição, corte orgânico e hollowing.
+- **Interface traduzida** para português do Brasil, inglês, espanhol, francês, alemão, tcheco e eslovaco.
 
 ## Começando
 
-Escolha uma das variantes abaixo de acordo com seu fluxo de trabalho.
+### Submódulos de plugins
 
-### Nota sobre submódulos (desenvolvimento de plugins)
+Os plugins de impressora ficam em submódulos Git (por exemplo `plugins/ctb`). Clone com `git clone --recurse-submodules` ou rode `git submodule update --init --recursive` depois. Se algum submódulo faltar, o build continua com os plugins disponíveis e avisa quais ficaram de fora.
 
-O DragonFruit suporta plugins como submódulos Git (por exemplo `plugins/ctb`). Se sua clone local estiver com pastas de plugins faltando, o build continuará com os plugins disponíveis (submódulos ausentes são ignorados com avisos). Inicialize/atualize os submódulos quando precisar desenvolver ou validar integrações específicas de plugins.
+### Desenvolvimento da interface (Next.js)
 
-### Variante 1: Desenvolvimento frontend (Next.js)
+Para trabalhar só na interface, sem o app desktop:
 
-Para desenvolvimento de UI e interação apenas (sem empacotamento desktop completo):
+1. Instale o Node.js (versão em `.nvmrc`) e o npm.
+2. Na raiz do repositório, rode `npm install`.
+3. Inicie o servidor com `npm run dev`.
+4. Abra `http://localhost:3005`.
 
-1. **Pré-requisitos:** Instale Node.js (LTS recomendado) e npm.
-2. **Instale dependências:** Na raiz do repositório, execute `npm install`.
-3. **Execute o servidor dev:** Inicie com `npm run dev`.
-4. **Abra no navegador:** Acesse `http://localhost:3005`.
+### Desenvolvimento desktop (Tauri + Rust)
 
-### Variante 2: Desenvolvimento desktop (Tauri + Rust)
+1. Instale o Node.js, a toolchain Rust (versão em `rust-toolchain.toml`) e as [dependências do Tauri](https://tauri.app/start/prerequisites/) para o seu sistema.
+2. Rode `npm install`.
+3. Inicie com `npm run tauri:dev`. Alterações na interface e no Rust são testadas pelo mesmo fluxo.
 
-Para desenvolvimento desktop completo com ligação do backend nativo:
+### Build de produção
 
-1. **Pré-requisitos:** Instale Node.js, toolchain Rust e dependências de sistema Tauri para sua plataforma.
-2. **Instale dependências JS:** Execute `npm install` na raiz do projeto.
-3. **Execute o modo dev desktop:** Inicie com `npm run tauri:dev`.
-4. **Itere entre as stacks:** Alterações no frontend e backend Rust podem ser testadas pelo mesmo fluxo dev do Tauri.
-
-### Variante 3: Build de produção e bundling
-
-Para builds e bundles estilo release:
-
-1. **Build do frontend:** Execute `npm run build` (ou `npm run build:tauri` para artefatos Tauri preparados).
-2. **Build desktop:** Compile binários desktop com `npm run tauri:build`.
-3. **Bundle targets:** Use `npm run tauri:bundle` para o target da máquina atual. Targets específicos por plataforma:
+1. **Frontend:** `npm run build` (ou `npm run build:tauri` para os artefatos do Tauri).
+2. **Desktop:** `npm run tauri:build`.
+3. **Instaladores:** `npm run tauri:bundle` para a máquina atual, ou um alvo específico:
    - `npm run tauri:bundle:windows`
    - `npm run tauri:bundle:linux`
-   - `npm run tauri:bundle:macos:universal` — **target canônico macOS/release.** Produz um `.dmg` universal para Intel e Apple Silicon.
-   - `npm run tauri:bundle:macos` / `npm run tauri:bundle:macos:arm64` — atalhos single-arch para dev local apenas.
+   - `npm run tauri:bundle:macos:universal`: `.dmg` universal para Intel e Apple Silicon.
+   - `npm run tauri:bundle:macos` / `npm run tauri:bundle:macos:arm64`: atalhos de uma arquitetura, só para desenvolvimento local.
 
 ## Estrutura do projeto
 
-Layout de alto nível das principais áreas do projeto:
+- `src/` — app Next.js: componentes React, cena 3D, sistemas de suporte, hooks, catálogos de tradução e utilitários.
+- `src-tauri/` — host desktop Tauri e integração nativa.
+- `rust/` — crates nativos: fatiamento, reparo de malha, ilhas, corte orgânico, CLI e outros.
+- `plugins/` — plugins de impressoras e integrações (licenças próprias).
+- `profiles/` — perfis de impressora e material.
+- `docs/` — guias de uso, referência, documentação de desenvolvimento e decisões de arquitetura (`docs/adr/`).
 
-- `docs/` — Notas de arquitetura, guias de implementação e documentação de domínio.
-- `plugins/` — Arquitetura de plugins e integrações de ecossistema (veja LICENSE).
-- `profiles/` — Definições de perfis de impressora e material.
-- `rust/dragonfruit-slicing-engine/` — Workspace do backend slicer em Rust.
-- `src/` — App Next.js, componentes React, controles de cena, sistemas de suporte, hooks, catálogos i18n e utilitários.
-- `src-tauri/` — Host desktop Tauri e pontos de integração nativos.
+## Documentação
+
+- [Guia de uso e referência](docs/index.md)
+- [Guia de desenvolvimento](DEVELOPMENT.md) — regras do projeto, i18n, lint, histórico de desfazer/refazer e versões dos crates.
+- [Localização (i18n)](docs/dev/localization.md)
+- [Glossário do domínio](CONTEXT.md)
 
 ## Contribuindo
 
-Contribuições são bem-vindas e apreciadas!
+Contribuições são bem-vindas. Leia o [guia de contribuição](CONTRIBUTING.md) e o [Código de Conduta](CODE_OF_CONDUCT.md) antes de abrir um pull request. Falhas de segurança devem ser reportadas de forma privada, conforme a [política de segurança](SECURITY.md).
 
-1. **Fork do Repositório:** Crie um fork pessoal e uma branch para sua feature/fix.
-2. **Implemente as Mudanças:** Mantenha as mudanças focadas e alinhadas com as convenções do projeto.
-3. **Execute as Verificações:** Valide com `npm run lint` e `npm run test` onde aplicável.
-4. **Envie um Pull Request:** Abra um PR com resumo claro, justificativa e notas de validação.
+Se o problema também existe no DragonFruit, considere corrigi-lo no [projeto original](https://github.com/Open-Resin-Alliance/DragonFruit).
+
+## Créditos
+
+O Rambutan Slicer só existe graças ao trabalho de outras pessoas:
+
+- **[DragonFruit](https://github.com/Open-Resin-Alliance/DragonFruit)**, da **[Open Resin Alliance](https://github.com/Open-Resin-Alliance)** e de todos os seus [colaboradores](https://github.com/Open-Resin-Alliance/DragonFruit/graphs/contributors): a base de todo o aplicativo, do workspace 3D ao motor de fatiamento. O histórico de commits deles está preservado neste repositório.
+- **[TetGen](https://codeberg.org/TetGen/TetGen)**, de Hang Si e do WIAS Berlin (AGPL-3.0), usado na malha tetraédrica.
+- **Plugins de impressora** em `plugins/`, cada um com seus autores e licença (MIT nos plugins verificados).
+- **Bibliotecas de código aberto**, entre elas [three.js](https://threejs.org/), [React Three Fiber](https://github.com/pmndrs/react-three-fiber), [Next.js](https://nextjs.org/), [React](https://react.dev/), [Tauri](https://tauri.app/), [Lingui](https://lingui.dev/), [Manifold](https://github.com/elalish/manifold), [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh), [Zustand](https://github.com/pmndrs/zustand) e [Lucide](https://lucide.dev/). As licenças de cada dependência estão nos respectivos pacotes.
+- **Tradutores** do DragonFruit e do Rambutan Slicer.
+
+Para apoiar o projeto original, veja o [Open Collective da Open Resin Alliance](https://opencollective.com/openresinalliance).
 
 ## Licença
 
-A menos que declarado de outra forma em um subdiretório ou submódulo, o Rambutan Slicer é licenciado sob **AGPL-3.0-or-later**. Veja o arquivo `LICENSE` na raiz para os termos completos.
+A menos que um subdiretório ou submódulo declare o contrário, o Rambutan Slicer é licenciado sob a **GNU Affero General Public License, versão 3 ou posterior (AGPL-3.0-or-later)**, a mesma do DragonFruit. Veja o arquivo [`LICENSE`](LICENSE) para os termos completos.
 
-Os submódulos de plugins em `plugins/` são licenciados separadamente sob **MIT**. Cada repositório de plugin inclui seu próprio arquivo `LICENSE`.
+Os submódulos de plugins em `plugins/` têm licença própria, declarada no `LICENSE` de cada repositório.
 
-Veja também [README-LICENCIAMENTO.md](README-LICENCIAMENTO.md) para entender a relação com a licença upstream, os avisos de modificação e os limites da análise REA.
+O [README-LICENCIAMENTO.md](README-LICENCIAMENTO.md) explica a relação com a licença upstream, os avisos de modificação e as obrigações ao distribuir o aplicativo.
 
 ---
 
-*Rambutan Slicer é um fork downstream do [DragonFruit](https://github.com/Open-Resin-Alliance/DragonFruit) da Open Resin Alliance. Todo crédito upstream preservado conforme AGPL-3.0-or-later.*
+<sub>Rambutan Slicer é um fork independente do DragonFruit e não é um produto oficial da Open Resin Alliance. Todos os créditos upstream estão preservados conforme a AGPL-3.0-or-later.</sub>

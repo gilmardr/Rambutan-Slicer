@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest a new feature or an improvement to DragonFruit.
+description: Suggest a new feature or an improvement to Rambutan Slicer.
 title: "[FEAT] "
 type: Feature
 labels: ["form-v1"]
@@ -29,7 +29,7 @@ body:
   - type: textarea
     id: proposal
     attributes:
-      label: What would you like DragonFruit to do?
+      label: What would you like Rambutan Slicer to do?
       description: Describe the feature or change you have in mind. Sketches, mockups, or examples from other slicers are welcome.
     validations:
       required: true
@@ -37,7 +37,7 @@ body:
   - type: dropdown
     id: area
     attributes:
-      label: Which part of DragonFruit does this affect?
+      label: Which part of Rambutan Slicer does this affect?
       description: Your best guess is fine.
       multiple: true
       options:
@@ -79,9 +79,9 @@ body:
   - type: input
     id: version
     attributes:
-      label: DragonFruit version (optional)
+      label: Rambutan Slicer version (optional)
       description: The version you're using, in case the feature already partly exists. Copied from Settings->About
-      placeholder: DragonFruit 0.1.16 (beta) — dev @ 5362aed · macOS/arm64
+      placeholder: Rambutan Slicer 0.5.0 (release) — main @ 1a2b3c4 · win32/x64
 
   - type: textarea
     id: attachments

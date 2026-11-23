@@ -1,6 +1,7 @@
 {
   "exclude": [
-    "internal"
+    "internal",
+    "brand"
   ],
   "items": [
     {
