@@ -166,6 +166,8 @@ const DRAGONFRUIT_GIT_BUILD_LABEL = DRAGONFRUIT_GIT_COMMIT
   : '';
 const ORA_LOGO_DARK_URL = '/dragonfruit_assets/branding/open_resin_alliance_logo_darkmode.png';
 const DRAGONFRUIT_REPO_URL = 'https://github.com/Open-Resin-Alliance/DragonFruit';
+// Corresponding source for this build (AGPL-3.0-or-later, sections 6 and 13).
+const RAMBUTAN_REPO_URL = 'https://github.com/gilmardr/Rambutan-Slicer';
 const DEFAULT_SLICING_THUMBNAIL_RENDER_SETTINGS: SlicingThumbnailRenderSettings = {
   includeGradient: false,
   includeBuildPlate: false,
@@ -1761,6 +1763,28 @@ export function SettingsModal({
                       <div className="min-w-0 flex-1 space-y-2 text-center">
                         <div className="flex items-center justify-center gap-2 text-[12px]">
                           <Github className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
+                          <span style={{ color: 'var(--text-muted)' }}>{_(msg`Source code:`)}</span>
+                          <button
+                            onClick={async () => {
+                              const url = RAMBUTAN_REPO_URL;
+                              try {
+                                const { invoke } = await import('@tauri-apps/api/core');
+                                await invoke('open_external_url', { url });
+                              } catch {
+                                window.open(url, '_blank');
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 underline underline-offset-2 font-mono tracking-tighter"
+                            style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          >
+                            gilmardr/Rambutan-Slicer
+                            <ExternalLink className="h-3 w-3" />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-center gap-2 text-[12px]">
+                          <Github className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
+                          <span style={{ color: 'var(--text-muted)' }}>{_(msg`Based on:`)}</span>
                           <button
                             onClick={async () => {
                               const url = DRAGONFRUIT_REPO_URL;
