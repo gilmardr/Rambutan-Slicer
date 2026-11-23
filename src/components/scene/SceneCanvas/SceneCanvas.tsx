@@ -371,7 +371,7 @@ function getModelBaseColor(color: string | undefined, fallback: string): string 
 }
 
 function usesLogoRedModelColor(mode: SupportMode | undefined, supportModelColorMapEnabled: boolean): boolean {
-  return mode === 'export' || (mode === 'support' && !supportModelColorMapEnabled);
+  return mode === 'export' || mode === 'printing' || (mode === 'support' && !supportModelColorMapEnabled);
 }
 
 const FLOATING_PANEL_RIGHT_INSET_PX = 12;

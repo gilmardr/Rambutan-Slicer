@@ -29,21 +29,18 @@ export const BAKED_OCCLUSION_ATTRIBUTE = 'aBakedAo';
  * How much of the baked occlusion the material applies.
  *
  * Paired with the falloff in `dragonfruit-mesh-core`: this maps the weighted
- * field's range back to the contrast the surface wants. Measured on the model the
- * report came from, 0.75 renders its deepest 5% at 0.57 against 0.55 for the
- * unweighted bake at 0.6, so folds look as they did, while a flat base under them
- * renders at 0.98 against 0.95, which is the part that was reading as dirt.
- * Changing either constant without the other makes the model flat or dirty.
+ * field's range to the surface contrast. The current 0.85 strength with the
+ * default intensity of 1.0 emphasizes folds more than the previous 0.75/0.85
+ * pair without changing the baked field itself.
  */
-export const BAKED_OCCLUSION_STRENGTH = 0.75;
+export const BAKED_OCCLUSION_STRENGTH = 0.85;
 
 /**
  * What the Ambient Occlusion slider starts at, and what Restore Defaults sets it
- * to. With the strength below, 0.85 renders a little lighter than the value the
- * two constants were tuned to match, which is the default the shading was asked
- * for.
+ * to. Paired with `BAKED_OCCLUSION_STRENGTH`, the default makes folds more
+ * pronounced while leaving the native bake and its smoothing recipe untouched.
  */
-export const DEFAULT_BAKED_OCCLUSION_INTENSITY = 0.85;
+export const DEFAULT_BAKED_OCCLUSION_INTENSITY = 1;
 
 /** How much of the baked occlusion to apply for a user-set intensity. */
 export function bakedOcclusionStrength(intensity: number): number {

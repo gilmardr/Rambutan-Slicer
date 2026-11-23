@@ -142,6 +142,10 @@ different fields.
 
 ## Constraints to keep
 
+- The current look uses `BAKED_OCCLUSION_STRENGTH = 0.85` with a default slider
+  intensity of `1.0`. This deliberately emphasizes surface folds more than the
+  previous `0.75` strength and `0.85` intensity. The mesh bake and its estimator
+  are unchanged; users can still tune the slider from 0 to 2.
 - **A new ray count is a look change.** The field's mean moves when the ray count
   or the fan changes; the material's `BAKED_OCCLUSION_STRENGTH` and the slider
   default were tuned as a pair with the estimator, so re-tune them together.
