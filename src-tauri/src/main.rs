@@ -4474,17 +4474,43 @@ async fn discover_uvtools_path(candidates: Vec<String>) -> Result<Option<String>
     Ok(None)
 }
 
-/// Open a URL in the default system browser (cross-platform).
-#[tauri::command]
-async fn open_external_url(url: String) -> Result<(), String> {
-    let url = url.trim().to_string();
-    if url.is_empty() {
+/// Schemes `open_external_url` may hand to the operating system.
+const EXTERNAL_URL_SCHEMES: &[&str] = &["http", "https", "mailto"];
+
+/// Validates a URL before it leaves the app. Only absolute http(s)/mailto URLs
+/// are accepted, so the command can never be used to launch a local file,
+/// executable or custom protocol handler. Returns the normalized URL; its
+/// serialization percent-encodes spaces and quotes.
+fn validate_external_url(raw: &str) -> Result<String, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
         return Err("URL is empty".to_string());
     }
+    if trimmed.chars().any(|c| c.is_control()) {
+        return Err("URL contains control characters".to_string());
+    }
+    let parsed = url::Url::parse(trimmed).map_err(|e| format!("Invalid URL: {e}"))?;
+    if !EXTERNAL_URL_SCHEMES.contains(&parsed.scheme()) {
+        return Err(format!("URL scheme '{}' is not allowed", parsed.scheme()));
+    }
+    if parsed.scheme() != "mailto" && parsed.host_str().map_or(true, str::is_empty) {
+        return Err("URL has no host".to_string());
+    }
+    Ok(parsed.to_string())
+}
+
+/// Open a URL in the default system browser (cross-platform).
+///
+/// The URL is validated first and is never passed through a shell: on
+/// Windows `cmd /c start` would re-parse characters such as `&` and `|` as
+/// command separators.
+#[tauri::command]
+async fn open_external_url(url: String) -> Result<(), String> {
+    let url = validate_external_url(&url)?;
 
     #[cfg(target_os = "windows")]
-    let result = std::process::Command::new("cmd")
-        .args(["/c", "start", &url])
+    let result = std::process::Command::new("rundll32.exe")
+        .args(["url.dll,FileProtocolHandler", &url])
         .spawn();
     #[cfg(target_os = "macos")]
     let result = std::process::Command::new("open").arg(&url).spawn();
@@ -6367,5 +6393,44 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // -----------------------------------------------------------------------
+    // open_external_url validation
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn external_url_accepts_web_and_mailto() {
+        assert_eq!(
+            super::validate_external_url(" https://github.com/gilmardr/Rambutan-Slicer ").unwrap(),
+            "https://github.com/gilmardr/Rambutan-Slicer"
+        );
+        assert!(super::validate_external_url("http://example.com/a?b=1&c=2").is_ok());
+        assert!(super::validate_external_url("mailto:security@example.com").is_ok());
+    }
+
+    #[test]
+    fn external_url_rejects_local_and_unsafe_targets() {
+        for bad in [
+            "",
+            "calc.exe",
+            "C:\\Windows\\System32\\calc.exe",
+            "file:///C:/Windows/System32/calc.exe",
+            "javascript:alert(1)",
+            "ms-settings:privacy",
+            "https://example.com/\nfoo",
+            "http://",
+        ] {
+            assert!(
+                super::validate_external_url(bad).is_err(),
+                "should reject {bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn external_url_encodes_shell_metacharacters() {
+        let url = super::validate_external_url("https://example.com/a b\"c").unwrap();
+        assert!(!url.contains(' ') && !url.contains('"'), "{url}");
     }
 }
