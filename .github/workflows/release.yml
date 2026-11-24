@@ -434,6 +434,7 @@ jobs:
             src-tauri/target/*/release/bundle/macos/*.app.tar.gz
             src-tauri/target/*/release/bundle/macos/*.app.tar.gz.sig
           if-no-files-found: error
+          retention-days: 3
 
       - name: Upload Windows installer + updater artifacts
         if: matrix.build_kind == 'tauri' && matrix.platform == 'windows-latest'
@@ -442,6 +443,7 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: src-tauri/target/*/release/bundle/nsis/*
           if-no-files-found: error
+          retention-days: 3
 
       - name: Upload flatpak artifact
         if: matrix.build_kind == 'flatpak'
@@ -450,6 +452,7 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: src-tauri/target/release/bundle/flatpak/*.flatpak
           if-no-files-found: error
+          retention-days: 3
 
       - name: Upload import verification and guide
         uses: actions/upload-artifact@v7
@@ -457,6 +460,7 @@ jobs:
           name: ${{ matrix.artifact_name }}-import-verification
           path: release-verification/VERIFICACAO-*.md
           if-no-files-found: error
+          retention-days: 30
 
   publish-release:
     name: Publish release

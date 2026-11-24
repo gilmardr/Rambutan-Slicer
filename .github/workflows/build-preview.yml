@@ -461,6 +461,7 @@ jobs:
           name: dragonfruit-macos-universal
           path: macos-artifacts/*_DragonFruit_preview.dmg
           if-no-files-found: error
+          retention-days: 3
 
   # ── Build matrix ────────────────────────────────────────────────────────
   build-tauri:
@@ -650,6 +651,7 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: src-tauri/target/*/release/bundle/nsis/*_DragonFruit_preview.exe
           if-no-files-found: error
+          retention-days: 3
 
       - name: Upload flatpak artifact
         if: matrix.build_kind == 'flatpak'
@@ -658,6 +660,7 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: src-tauri/target/release/bundle/flatpak/*_DragonFruit_preview.flatpak
           if-no-files-found: error
+          retention-days: 3
 
   # ── Fallback: build macOS Universal natively (manual dispatch, no PR check) ─
   build-macos-fallback:
@@ -812,6 +815,7 @@ jobs:
           name: dragonfruit-macos-universal
           path: src-tauri/target/*/release/bundle/dmg/*_DragonFruit_preview.dmg
           if-no-files-found: error
+          retention-days: 3
 
   # ── Publish preview prerelease ──────────────────────────────────────────
   publish-preview:

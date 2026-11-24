@@ -279,3 +279,4 @@ jobs:
           name: macos-dmg
           path: src-tauri/target/*/release/bundle/dmg/*_DragonFruit_preview.dmg
           if-no-files-found: error
+          retention-days: 3
