@@ -8,13 +8,13 @@
   "printerPresets": [
     {
       "presetId": "creality-ld-002r-ctb-v2",
-      "profileVersion": 2,
+      "profileVersion": 3,
       "manufacturer": "Creality",
       "name": "LD-002R (CTB v2)",
       "family": "LD-002R",
       "imageAssetPath": "./illustrations/ld-002r.svg",
-      "buildVolumeMm": { "width": 65, "depth": 119, "height": 160 },
-      "pixelSize": { "x": 45.1, "y": 46.5 },
+      "buildVolumeMm": { "width": 68.04, "depth": 120.96, "height": 160 },
+      "pixelSize": { "x": 47.25, "y": 47.25 },
       "display": {
         "resolutionX": 1440,
         "resolutionY": 2560,
@@ -25,13 +25,13 @@
     },
     {
       "presetId": "creality-ld-002r-ctb-v4",
-      "profileVersion": 2,
+      "profileVersion": 3,
       "manufacturer": "Creality",
       "name": "LD-002R (CTB v4 firmware)",
       "family": "LD-002R",
       "imageAssetPath": "./illustrations/ld-002r.svg",
-      "buildVolumeMm": { "width": 65, "depth": 119, "height": 160 },
-      "pixelSize": { "x": 45.1, "y": 46.5 },
+      "buildVolumeMm": { "width": 68.04, "depth": 120.96, "height": 160 },
+      "pixelSize": { "x": 47.25, "y": 47.25 },
       "display": {
         "resolutionX": 1440,
         "resolutionY": 2560,
@@ -42,12 +42,12 @@
     },
     {
       "presetId": "creality-ld-002h-ctb-v4",
-      "profileVersion": 2,
+      "profileVersion": 3,
       "manufacturer": "Creality",
       "name": "LD-002H (CTB v4)",
       "family": "LD-002H",
       "imageAssetPath": "./illustrations/ld-002h.svg",
-      "buildVolumeMm": { "width": 82, "depth": 130, "height": 160 },
+      "buildVolumeMm": { "width": 82.62, "depth": 130.56, "height": 160 },
       "pixelSize": { "x": 51, "y": 51 },
       "display": {
         "resolutionX": 1620,
@@ -59,12 +59,12 @@
     },
     {
       "presetId": "creality-ld-006-ctb-v4",
-      "profileVersion": 2,
+      "profileVersion": 3,
       "manufacturer": "Creality",
       "name": "LD-006 (CTB v4)",
       "family": "LD-006",
       "imageAssetPath": "./illustrations/ld-006.svg",
-      "buildVolumeMm": { "width": 192, "depth": 120, "height": 250 },
+      "buildVolumeMm": { "width": 192, "depth": 120, "height": 245 },
       "pixelSize": { "x": 50, "y": 50 },
       "display": {
         "resolutionX": 3840,
@@ -91,12 +91,12 @@
     },
     {
       "presetId": "creality-halot-mage-pro-cxdlpv4",
-      "profileVersion": 1,
+      "profileVersion": 2,
       "manufacturer": "Creality",
       "name": "HALOT-MAGE PRO",
       "family": "HALOT-MAGE PRO",
       "imageAssetPath": "./illustrations/halot-mage-pro.svg",
-      "buildVolumeMm": { "width": 228, "depth": 128, "height": 230 },
+      "buildVolumeMm": { "width": 228.096, "depth": 128.304, "height": 230 },
       "pixelSize": { "x": 29.7, "y": 29.7 },
       "display": {
         "resolutionX": 7680,
@@ -121,12 +121,12 @@
     },
     {
       "presetId": "creality-halot-mage-ctb-v4",
-      "profileVersion": 1,
+      "profileVersion": 2,
       "manufacturer": "Creality",
       "name": "HALOT-MAGE",
       "family": "HALOT-MAGE",
       "imageAssetPath": "./illustrations/halot-mage.svg",
-      "buildVolumeMm": { "width": 228, "depth": 128, "height": 230 },
+      "buildVolumeMm": { "width": 228.096, "depth": 128.304, "height": 230 },
       "pixelSize": { "x": 29.7, "y": 29.7 },
       "display": {
         "resolutionX": 7680,
@@ -153,13 +153,13 @@
     },
     {
       "presetId": "creality-halot-one-pro-cxdlp",
-      "profileVersion": 1,
+      "profileVersion": 2,
       "manufacturer": "Creality",
       "name": "HALOT-ONE PRO",
       "family": "HALOT-ONE PRO",
       "imageAssetPath": "./illustrations/halot-one-pro.svg",
-      "buildVolumeMm": { "width": 130, "depth": 122, "height": 160 },
-      "pixelSize": { "x": 50, "y": 50 },
+      "buildVolumeMm": { "width": 130.56, "depth": 122.4, "height": 160 },
+      "pixelSize": { "x": 51, "y": 51 },
       "display": {
         "resolutionX": 2560,
         "resolutionY": 2400,
@@ -213,13 +213,13 @@
     },
     {
       "presetId": "creality-halot-ray-cxdlp",
-      "profileVersion": 1,
+      "profileVersion": 2,
       "manufacturer": "Creality",
       "name": "HALOT-RAY",
       "family": "HALOT-RAY",
       "imageAssetPath": "./illustrations/halot-ray.svg",
-      "buildVolumeMm": { "width": 198, "depth": 123, "height": 210 },
-      "pixelSize": { "x": 34, "y": 34 },
+      "buildVolumeMm": { "width": 198.14, "depth": 123.84, "height": 210 },
+      "pixelSize": { "x": 34.4, "y": 34.4 },
       "display": {
         "resolutionX": 5760,
         "resolutionY": 3600,

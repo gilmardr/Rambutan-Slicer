@@ -38,6 +38,6 @@ test('HALOT-MAGE profile assembles an export job for its CTB v4 screen', () => {
   assert.equal(job.formatVersion, 'v4');
   assert.equal(job.sourceWidthPx, 7680);
   assert.equal(job.sourceHeightPx, 4320);
-  assert.equal(job.buildWidthMm, 228);
-  assert.equal(job.buildDepthMm, 128);
+  assert.equal(job.buildWidthMm, 228.096);
+  assert.equal(job.buildDepthMm, 128.304);
 });
