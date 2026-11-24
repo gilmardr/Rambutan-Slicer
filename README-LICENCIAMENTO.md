@@ -47,6 +47,23 @@ licença no commit exato de cada submódulo e mantenha os avisos exigidos. As
 dependências npm, Rust e outros ativos também podem ter termos próprios; este
 arquivo não substitui a revisão de seus avisos.
 
+### Importação STEP (OCCT, LGPL-2.1)
+
+A importação STEP usa o Open CASCADE Technology compilado para WebAssembly pelo
+`occt-import-js` (pacote `@sunbox/occt-import-js`), sob a LGPL-2.1 com a exceção
+do OCCT. O módulo é distribuído como arquivos separados em
+`public/vendor/occt-import-js/` (o `.wasm` e os scripts que o carregam), junto
+com os textos das licenças, e pode ser substituído por outra versão compatível
+sem recompilar o aplicativo. Ao distribuir uma build, mantenha esses avisos e
+os arquivos separados, e informe onde obter o código-fonte da versão usada.
+
+### Ilustrações e dados de referência
+
+As ilustrações do mascote em `docs/assets/cards/` explicam as funcionalidades e
+não são capturas de tela da interface. Os presets públicos do UVtools foram
+usados só como referência de fatos técnicos (resolução e tamanho da tela);
+nenhum arquivo do UVtools foi copiado para o repositório.
+
 ## Análise de concorrentes e REA
 
 O uso do REA para observar documentação, interfaces ou artefatos de outros

@@ -15,24 +15,26 @@
   <a href="https://github.com/Open-Resin-Alliance/DragonFruit"><img alt="Baseado no DragonFruit" src="https://img.shields.io/badge/baseado%20no-DragonFruit-e0115f"></a>
 </p>
 
-[English](README.en.md) · [Galeria do astronauta](#o-astronauta-no-rambutan-slicer)
+<p align="center"><a href="README.en.md">English</a> · <strong>Português (Brasil)</strong></p>
 
-> **Aviso de modificação (AGPL-3.0, seção 5a):** este trabalho é uma versão modificada do DragonFruit, derivada do commit upstream [`8bb1a22`](https://github.com/Open-Resin-Alliance/DragonFruit/commit/8bb1a22657b8c004f935f9ea7925fb0d8bc4d1a9). Modificado por [gilmardr](https://github.com/gilmardr) a partir de novembro de 2026 (rebranding, novas ferramentas de suporte, medição, corte orgânico, hollowing e documentação). O histórico completo das alterações está no log do Git deste repositório.
+> **Aviso de modificação (AGPL-3.0, seção 5a):** este trabalho é uma versão modificada do DragonFruit, derivada do commit upstream [`8bb1a22`](https://github.com/Open-Resin-Alliance/DragonFruit/commit/8bb1a22657b8c004f935f9ea7925fb0d8bc4d1a9). Modificado por [gilmardr](https://github.com/gilmardr) a partir de novembro de 2026: identidade visual, ferramentas de suporte, medição, corte orgânico, hollowing, importação STEP, edição de camadas depois do fatiamento, correções de perfis de impressora e documentação. O histórico completo das alterações está no log do Git deste repositório.
 
 > [!WARNING]
-> O Rambutan Slicer é baseado em um projeto em desenvolvimento ativo. Valide os arquivos gerados antes de usá-los em impressões de produção e evite imprimir sem acompanhamento no primeiro uso.
+> O Rambutan Slicer é baseado em um projeto em desenvolvimento ativo. Valide os arquivos gerados antes de usá-los em impressões de produção e acompanhe a primeira impressão em cada impressora.
 
 ## Sumário
 
 - [Download](#download)
-- [Funcionalidades](#funcionalidades)
+- [Como funciona](#como-funciona)
+- [Outras ferramentas](#outras-ferramentas)
 - [O que muda em relação ao DragonFruit](#o-que-muda-em-relação-ao-dragonfruit)
-- [Galeria do astronauta](#o-astronauta-no-rambutan-slicer)
+- [Impressoras e formatos](#impressoras-e-formatos)
 - [Começando](#começando)
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Documentação](#documentação)
 - [Contribuindo](#contribuindo)
 - [Créditos](#créditos)
+- [Marcas](#marcas)
 - [Licença](#licença)
 
 ## Download
@@ -40,123 +42,96 @@
 Os instaladores ficam na página de [Releases](https://github.com/gilmardr/Rambutan-Slicer/releases):
 
 - **Windows:** `Rambutan Slicer_<versão>_x64-setup.exe`.
-- **macOS e Linux:** ainda sem instalador publicado; compile a partir do código-fonte (veja [Começando](#começando)).
+- **macOS e Linux:** ainda sem instalador publicado. Compile a partir do código-fonte (veja [Começando](#começando)).
 
 Como exige a AGPL, o código-fonte correspondente a cada versão está neste repositório, na tag da release.
 
-## Funcionalidades
+## Como funciona
 
-Herdadas do DragonFruit:
+O caminho de um modelo no Rambutan, do arquivo de CAD até a conferência das camadas. As imagens são ilustrações do mascote do Rambutan Slicer para explicar cada etapa; não são capturas de tela da interface.
 
-- **Workspace 3D interativo** com `three.js` e `react-three-fiber`.
-- **Transformações** mover, rotacionar e escalar com controles de precisão e gizmos.
-- **Análise de ilhas e de volume** para encontrar regiões sem suporte camada a camada.
-- **Suportes** em árvore, grade e raft, com posicionamento manual e automático.
-- **Reparo de malha** e **fatiamento nativo em Rust**, com exportação para vários formatos de impressora por plugins.
-- **App desktop via Tauri**, com perfis de impressora e material.
+### 1. Importação STEP e STP
 
-O que o Rambutan Slicer acrescenta está na seção seguinte.
+![Mascote segurando uma peça de CAD convertida de um arquivo .STEP/.STP em malha](docs/assets/cards/pt-BR/step.webp)
+
+Abra arquivos `.step` e `.stp` direto na mesa, junto com STL, OBJ e 3MF (também dentro de arquivos ZIP). A conversão em malha roda em segundo plano, sem travar a interface. Se a importação falhar, a janela de diagnóstico mostra em que etapa o arquivo parou. [Formatos aceitos](docs/reference/file-formats.md)
+
+### 2. Arranjo de precisão
+
+![Três cópias do mascote alinhadas na plataforma com espaçamento igual](docs/assets/cards/pt-BR/arrange.webp)
+
+Organize vários modelos na placa com espaçamento uniforme e alinhe os modelos selecionados. Confira a folga entre as peças antes de gerar suportes. [Guia de arranjo](docs/workflows/arrange-models.md)
+
+### 3. Detecção de colisões
+
+![Dois mascotes com peças que se sobrepõem, com a interseção destacada em vermelho](docs/assets/cards/pt-BR/collision.webp)
+
+O Rambutan avisa quando dois modelos na mesma placa se tocam ou se sobrepõem e sairiam impressos como uma peça só. [Como a colisão é calculada](docs/dev/model-collision.md)
+
+### 4. Corte e encaixe
+
+![Mascote encaixando duas metades de uma peça cortada com pinos de alinhamento](docs/assets/cards/pt-BR/cut.webp)
+
+Corte modelos grandes em partes e adicione espiga e encaixe para alinhar as metades depois da impressão. Confira as faces de união na prévia e faça um teste de montagem a seco. [Como funciona o encaixe](docs/dev/organic-cut-registration.md)
+
+### 5. Cavidade e drenagem
+
+![Mascote mostrando a parte interna oca de uma peça com dois furos de drenagem](docs/assets/cards/pt-BR/hollow.webp)
+
+Deixe o modelo oco, ajuste a espessura da parede e o preenchimento interno e acrescente furos de drenagem. A verificação de conectividade confirma que cada furo alcança a cavidade, para a resina sair e não haver efeito de sucção. [Guia de hollowing](docs/workflows/hollowing.md)
+
+### 6. Posicionamento de suportes
+
+![Mascote apoiado em suportes ramificados com os pontos de contato destacados](docs/assets/cards/pt-BR/placement.webp)
+
+Coloque contatos um a um, pinte suportes arrastando sobre a superfície, projete um padrão numa área ou distribua uma linha de suportes entre dois pontos. O alerta de proximidade mostra em vermelho as hastes perto demais do modelo. [Guia de posicionamento](docs/workflows/support-placement.md)
+
+### 7. Suportes treliçados
+
+![Mascote inclinado a 30 graus sobre uma estrutura de suportes em grade](docs/assets/cards/pt-BR/lattice.webp)
+
+O auto-suporte usa por padrão uma grade de 4 mm: um tronco por nó e ramificações perto do modelo, com bases espaçadas na plataforma. O contraventamento automático liga as hastes para dar rigidez em peças inclinadas. [Grade e ramificação](docs/dev/grid-and-branching.md)
+
+### 8. Suportes e raft
+
+![Mascote sobre suportes ligados a um raft que acompanha o contorno das bases](docs/assets/cards/pt-BR/raft.webp)
+
+O raft acompanha o contorno das bases dos suportes, sem placa em áreas vazias; o formato antigo continua disponível. Depois de gerar os suportes, o relatório do modelo lista candidatos rejeitados e ilhas sem cobertura. [Raft e exportação](docs/workflows/raft-and-export.md)
+
+### 9. Prévia de camadas
+
+![Mascote cortado por um plano de camada, mostrando a seção fatiada](docs/assets/cards/pt-BR/layers.webp)
+
+Percorra o arquivo fatiado camada por camada antes de enviar para a impressora. Em arquivos CTB, é possível editar os pixels de uma camada e procurar ou remover ilhas sem suporte em todas as camadas. Uma revisão final roda antes da exportação. [Prévia e envio](docs/workflows/printing-preview-and-send.md)
+
+## Outras ferramentas
+
+- **Gravação e relevo:** texto ou imagem (PNG, JPEG ou WebP) aplicados num ponto da superfície, para dentro ou para fora. A ferramenta é experimental. [Guia de gravação](docs/workflows/text-labels.md)
+- **Auto-orientação** que avalia cada pose pela área das camadas, em segundo plano. [Detalhes](docs/dev/auto-orientation.md)
+- **Medição** entre dois pontos, de um ponto a um plano ou entre dois planos paralelos, e régua milimétrica nas bordas da plataforma. [Ferramenta de medição](docs/dev/measurement.md)
+- **Verificação de regiões flutuantes,** que fatia modelo, suportes e raft juntos e aponta toda região sem nada embaixo, e **detecção de ventosas,** as cavidades que fazem efeito de sucção. [Análise de ilhas](docs/features/island-analysis.md)
 
 ## O que muda em relação ao DragonFruit
 
-O Rambutan Slicer parte do DragonFruit no commit [`8bb1a22`](https://github.com/Open-Resin-Alliance/DragonFruit/commit/8bb1a22657b8c004f935f9ea7925fb0d8bc4d1a9) e mantém o mesmo motor de fatiamento, os mesmos formatos de arquivo (`.voxl` e os formatos de impressora) e o mesmo sistema de plugins. Projetos do DragonFruit abrem no Rambutan. As diferenças estão nas ferramentas abaixo. A documentação técnica de cada uma está em `docs/dev/`.
+O Rambutan Slicer parte do DragonFruit no commit [`8bb1a22`](https://github.com/Open-Resin-Alliance/DragonFruit/commit/8bb1a22657b8c004f935f9ea7925fb0d8bc4d1a9) e mantém o mesmo motor de fatiamento, os mesmos formatos de arquivo (`.voxl` e os formatos de impressora) e o mesmo sistema de plugins. Projetos do DragonFruit abrem no Rambutan.
 
-### Suportes
+Herdado do DragonFruit: o workspace 3D interativo (`three.js` e React Three Fiber), as transformações com gizmos, a análise de ilhas e de volume, os suportes em árvore, grade e raft, o reparo de malha, o fatiamento nativo em Rust, os plugins de impressora e o app desktop via Tauri.
 
-- **Auto-suporte em grade por padrão.** Um tronco por nó de uma grade de 4 mm, com os demais contatos ramificando perto do modelo. As bases ficam mais espaçadas na plataforma, e pontas muito próximas da plataforma recebem tocos compactos em vez de ficarem sem suporte. A densidade de contatos do DragonFruit foi mantida.
-- **Relatório por modelo** depois de cada geração: candidatos rejeitados e ilhas que ficaram sem cobertura, com um botão para verificar o modelo na hora.
-- **Verificação de regiões flutuantes.** Fatia o modelo junto com os suportes e o raft, com a mesma geometria usada na impressão, e aponta toda região sem nada embaixo. Gerar suportes em modo "adicionar" cobre essas regiões.
-- **Raft com contorno.** O raft acompanha as bases dos suportes em vez de cobrir o fecho convexo de todas elas, sem placa em áreas vazias. O formato antigo continua disponível.
-- **Novas formas de posicionar contatos:** pintura de suportes (arrastar sobre a superfície), projeção de um padrão sobre uma área e suportes em linha entre dois pontos.
-- **Diagnósticos:** proximidade entre suportes e modelo (hastes perto demais aparecem em vermelho) e detecção de ventosas, as regiões côncavas que fazem efeito de sucção e precisam de drenagem.
+Acrescentado pelo Rambutan:
 
-### Preparação do modelo
-
-- **Importação STEP e STP.** Abra modelos de CAD diretamente na mesa de preparação.
-- **Gravação e relevo.** Texto ou imagem (PNG, JPEG ou WebP) aplicados num ponto da superfície do modelo, gravados para dentro ou em relevo para fora. A prévia pode ser girada e reposicionada antes de confirmar, e o resultado é uma única ação de desfazer.
-- **Auto-orientação** que avalia cada pose pela área das camadas, calculada em segundo plano sem travar a interface.
-- **Arranjo de alta precisão** e alinhamento dos modelos selecionados.
-- **Corte orgânico com encaixe:** espiga e encaixe para as duas metades se alinharem depois de impressas.
-- **Hollowing com preenchimento interno** e verificação dos furos de drenagem, que confere se cada furo alcança a cavidade.
-
-### Análise e cena
-
-- **Medição** entre dois pontos, de um ponto a um plano ou entre dois planos paralelos.
-- **Colisão entre modelos:** avisa quando dois modelos na mesma placa se tocam ou se sobrepõem e vão imprimir como uma peça só.
-- **Régua milimétrica** nas bordas da plataforma, com o logotipo do Rambutan na placa.
-- **Painel de estatísticas do modelo** redesenhado.
-- **Sombreamento** com oclusão de ambiente também na versão web.
-
-### Distribuição e idioma
-
+- As ferramentas de [Como funciona](#como-funciona) e [Outras ferramentas](#outras-ferramentas): importação STEP, arranjo de precisão, colisões, corte com encaixe, hollowing com verificação de drenagem, novas formas de posicionar suportes, auto-suporte em grade, raft de contorno, relatório por modelo e edição de camadas CTB depois do fatiamento.
+- **Regras de múltiplos parâmetros do CTB,** que ajustam a exposição das camadas normais.
 - **Identidade visual própria:** nome, ícones, instalador e tema. Os temas salvos do DragonFruit são migrados.
-- **Interface em português do Brasil**, além dos idiomas do DragonFruit (inglês, espanhol, francês, alemão, tcheco e eslovaco).
-- **Releases deste fork** sem a assinatura nem o canal de atualização automática do DragonFruit.
-- **Tela Sobre** com o link para o código-fonte desta versão e o crédito ao DragonFruit.
+- **Interface em português do Brasil,** além de inglês, espanhol, francês, alemão, tcheco e eslovaco.
+- **Releases deste fork** sem a assinatura nem o canal de atualização automática do DragonFruit, e uma tela Sobre com o link para o código-fonte e o crédito ao DragonFruit.
 
-## O astronauta no Rambutan Slicer
+A documentação técnica de cada ferramenta está em [`docs/dev/`](docs/dev/).
 
-De um capacete CAD a uma miniatura pronta para inspecionar camada por camada. As dez imagens são ilustrações promocionais baseadas na referência do astronauta. Os exemplos abaixo descrevem como usar cada ferramenta.
+## Impressoras e formatos
 
-### 01 · Importação STEP e STP
+Os perfis de impressora vêm dos plugins em `plugins/` e cobrem modelos de Anycubic, Concepts3D (Athena), Creality, Elegoo e UniFormation, além de um perfil genérico. Os formatos de saída incluem CTB, GOO, os formatos Photon da Anycubic, CXDLP, NanoDLP e LUMEN.
 
-![Capacete do astronauta ilustrando a importação de CAD](docs/assets/astronaut/step.webp)
-
-Abra o capacete em `.step` ou `.stp` e confira as dimensões na mesa. Importe o corpo separadamente para preparar as duas peças no mesmo projeto. [Formatos aceitos](docs/reference/file-formats.md)
-
-### 02 · Gravação e alto-relevo
-
-![Insígnia rebaixada e insígnia saliente no traje do astronauta](docs/assets/astronaut/engraving.webp)
-
-Escolha a placa do peito, carregue uma insígnia em PNG transparente e gere a prévia. Use **Gravação** para rebaixar a marca ou **Relevo** para fazê-la sobressair. Ajuste a largura, a profundidade e a rotação antes de aplicar. Depois do fatiamento, confira como a marca aparece nas camadas. A ferramenta é experimental.
-
-### 03 · Auto-orientação
-
-![Duas poses comparáveis do astronauta na plataforma](docs/assets/astronaut/orientation.webp)
-
-Compare uma pose mais vertical com outra mais inclinada. A ferramenta analisa a área das camadas em segundo plano. Confira a pose sugerida e inspecione as ilhas antes de colocar os suportes. [Detalhes da auto-orientação](docs/dev/auto-orientation.md)
-
-### 04 · Arranjo de precisão e alinhamento
-
-![Astronauta e acessórios dispostos na plataforma](docs/assets/astronaut/arrange.webp)
-
-Selecione o corpo e os acessórios, organize-os na placa e alinhe as peças selecionadas. Confira a folga entre elas antes de gerar suportes. [Guia de arranjo](docs/workflows/arrange-models.md)
-
-### 05 · Corte com encaixe
-
-![Corte na perna do traje com encaixe e as duas botas completas](docs/assets/astronaut/cut.webp)
-
-Posicione o corte na perna, acima da bota, e adicione uma espiga com seu encaixe correspondente. As duas botas ficam inteiras. Confira as faces de união na prévia e faça um encaixe a seco depois da impressão. [Como funciona o encaixe](docs/dev/organic-cut-registration.md)
-
-### 06 · Oco, preenchimento e drenagem
-
-![Seção do torso mostrando a cavidade, a estrutura interna e os drenos](docs/assets/astronaut/hollow.webp)
-
-Deixe o torso oco, ajuste a parede e o preenchimento interno e acrescente furos de drenagem. Use a verificação de conectividade para confirmar que os furos alcançam a cavidade. [Guia de hollowing](docs/workflows/hollowing.md)
-
-### 07 · Suportes automáticos e raft de contorno
-
-![Astronauta inclinado sobre suportes ramificados e raft de contorno](docs/assets/astronaut/supports.webp)
-
-Gere suportes em grade para a pose escolhida. Os contatos se ramificam a partir dos troncos e o raft de contorno acompanha as bases. Abra o relatório do modelo para revisar candidatos rejeitados e ilhas sem cobertura. [Suportes automáticos](docs/dev/auto-supports.md)
-
-### 08 · Pintura, projeção e suportes em linha
-
-![Contatos localizados no braço e no ombro do astronauta](docs/assets/astronaut/contacts.webp)
-
-Pinte contatos sob o ombro, projete um padrão numa área do traje ou distribua uma linha entre dois pontos do antebraço. Confira os contatos de perto para evitar marcas em áreas de destaque. [Guia de posicionamento](docs/workflows/support-placement.md)
-
-### 09 · Diagnóstico de impressão
-
-![Regiões do astronauta e dos suportes destacadas para inspeção](docs/assets/astronaut/diagnostics.webp)
-
-Verifique regiões flutuantes com modelo, suportes e raft juntos. Revise as ilhas sem cobertura no relatório, o alerta de hastes próximas demais e as cavidades suscetíveis à sucção. Em seguida, confira as camadas no fatiamento.
-
-### 10 · Medição, colisões e leitura da cena
-
-![Linha de medição e indicação de interferência na cena do astronauta](docs/assets/astronaut/measure.webp)
-
-Meça a largura do capacete entre dois pontos, a distância até um plano ou o vão entre planos paralelos. Use a régua da placa para posicionar as peças, verifique avisos de colisão e confira as estimativas no painel do modelo. A oclusão de ambiente ajuda a ler a cena também na versão web. [Ferramenta de medição](docs/dev/measurement.md)
+As dimensões de tela dos perfis foram conferidas com os presets públicos do [UVtools](https://github.com/sn4k3/UVtools) e com as especificações dos fabricantes. Quando um perfil é corrigido, o app oferece a atualização a quem já usa o perfil salvo. Mesmo assim, imprima uma peça de calibração ao usar uma impressora pela primeira vez.
 
 ## Começando
 
@@ -203,9 +178,11 @@ A build desktop testa as extensões anunciadas pela interface antes de empacotar
 ## Documentação
 
 - [Guia de uso e referência](docs/index.md)
+- [Primeiros passos](docs/getting-started/quick-start.md) e [compilação a partir do código-fonte](docs/getting-started/building-from-source.md)
 - [Guia de desenvolvimento](DEVELOPMENT.md) — regras do projeto, i18n, lint, histórico de desfazer/refazer e versões dos crates.
 - [Localização (i18n)](docs/dev/localization.md)
 - [Glossário do domínio](CONTEXT.md)
+- [Licenciamento e conformidade](README-LICENCIAMENTO.md)
 
 ## Contribuindo
 
@@ -217,13 +194,19 @@ Se o problema também existe no DragonFruit, considere corrigi-lo no [projeto or
 
 O Rambutan Slicer só existe graças ao trabalho de outras pessoas:
 
-- **[DragonFruit](https://github.com/Open-Resin-Alliance/DragonFruit)**, da **[Open Resin Alliance](https://github.com/Open-Resin-Alliance)** e de todos os seus [colaboradores](https://github.com/Open-Resin-Alliance/DragonFruit/graphs/contributors): a base de todo o aplicativo, do workspace 3D ao motor de fatiamento. O histórico de commits deles está preservado neste repositório.
+- **[DragonFruit](https://github.com/Open-Resin-Alliance/DragonFruit)**, da **[Open Resin Alliance](https://github.com/Open-Resin-Alliance)** e de todas as [pessoas que contribuíram](https://github.com/Open-Resin-Alliance/DragonFruit/graphs/contributors) com o projeto: a base de todo o aplicativo, do workspace 3D ao motor de fatiamento. O histórico de commits upstream está preservado neste repositório.
+- **Plugins de impressora** da Open Resin Alliance em `plugins/`, cada um com sua licença (MIT nos plugins verificados). Os plugins CTB, Anycubic e Elegoo usam forks em [gilmardr](https://github.com/gilmardr), na branch `rambutan`, com as alterações deste projeto.
+- **[Open CASCADE Technology](https://dev.opencascade.org/)** e **[occt-import-js](https://github.com/kovacsv/occt-import-js)**, de Viktor Kovács, no pacote [`@sunbox/occt-import-js`](https://github.com/SunboX/occt-import-js) (LGPL-2.1, com a exceção do OCCT), usados na importação STEP. Os avisos de licença acompanham os arquivos em `public/vendor/occt-import-js/`.
 - **[TetGen](https://codeberg.org/TetGen/TetGen)**, de Hang Si e do WIAS Berlin (AGPL-3.0), usado na malha tetraédrica.
-- **Plugins de impressora** em `plugins/`, cada um com seus autores e licença (MIT nos plugins verificados).
+- **[UVtools](https://github.com/sn4k3/UVtools)**, de Tiago Conceição, cujos presets públicos de impressora serviram de referência para conferir as dimensões de tela.
 - **Bibliotecas de código aberto**, entre elas [three.js](https://threejs.org/), [React Three Fiber](https://github.com/pmndrs/react-three-fiber), [Next.js](https://nextjs.org/), [React](https://react.dev/), [Tauri](https://tauri.app/), [Lingui](https://lingui.dev/), [Manifold](https://github.com/elalish/manifold), [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh), [Zustand](https://github.com/pmndrs/zustand) e [Lucide](https://lucide.dev/). As licenças de cada dependência estão nos respectivos pacotes.
-- **Tradutores** do DragonFruit e do Rambutan Slicer.
+- **Pessoas que traduziram** o DragonFruit e o Rambutan Slicer.
 
 Para apoiar o projeto original, veja o [Open Collective da Open Resin Alliance](https://opencollective.com/openresinalliance).
+
+## Marcas
+
+Anycubic, Photon, Elegoo, Saturn, Mars, Jupiter, Creality, Halot, UniFormation, Concepts3D, Athena, CHITUBOX, Lychee e os demais nomes de produtos citados pertencem a seus respectivos titulares. Eles aparecem aqui só para identificar impressoras e formatos compatíveis. O Rambutan Slicer não é afiliado a essas empresas nem endossado por elas.
 
 ## Licença
 
