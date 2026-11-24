@@ -10,6 +10,7 @@ import {
 } from '../rasterLayerZipExport';
 import { getSnapshot, setSnapshot } from '@/supports/state';
 import { createEmptySupportCollections } from '@/supports/supportTypeRegistry';
+import { deleteStoredMeshModifiers, storeModelMeshModifiers } from '@/features/mesh-modifiers/meshModifierStore';
 
 function createMockModel(
   id: string,
@@ -106,6 +107,34 @@ test('buildSolidSliceMeshForWasm partitions designated support models into suppo
   assert.equal(solidMesh.modelTriangleCount, 2);
   // Total triangle count in collector must equal 5 (2 model + 3 support)
   assert.equal(solidMesh.trianglesXYZ.length / 9, 5);
+});
+
+test('CTB model grayscale and 2D infill use modifiers from the scene store', async () => {
+  const models = [
+    createMockModel('ctb-gray-a', 2, false),
+    createMockModel('ctb-gray-b', 3, false),
+    createMockModel('ctb-gray-support', 4, true),
+  ];
+  storeModelMeshModifiers(models[0].id, { ctbGrayscalePercent: 30 });
+  storeModelMeshModifiers(models[1].id, {
+    ctbGrayscalePercent: 65,
+    hollowing2D: { enabled: true, wallThicknessMm: 2, infillDensityPercent: 50, infillIntensityPercent: 40 },
+  });
+  storeModelMeshModifiers(models[2].id, { ctbGrayscalePercent: 50 });
+  try {
+    const options = { models, printerProfile: mockPrinterProfile, materialProfile: mockMaterialProfile, filenameBase: 'test' };
+    const ctb = await buildSolidSliceMeshForWasm({
+      ...options,
+      printerProfile: { ...mockPrinterProfile, display: { ...mockPrinterProfile.display, outputFormat: '.ctb' } },
+    });
+    assert.deepEqual(ctb.modelSliceRanges.map((range) => [
+      range.startTriangle, range.triangleCount, range.wallThicknessMm, range.grayscalePercent, range.infillIntensityPercent,
+    ]), [[0, 2, 0, 30, undefined], [2, 3, 2, 65, 40]]);
+    const other = await buildSolidSliceMeshForWasm(options);
+    assert.deepEqual(other.modelSliceRanges.map((range) => [range.startTriangle, range.grayscalePercent]), [[2, undefined]]);
+  } finally {
+    for (const model of models) deleteStoredMeshModifiers(model.id);
+  }
 });
 
 function ringBoundsAtZ(triangles: Float32Array, z: number) {

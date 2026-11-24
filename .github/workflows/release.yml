@@ -340,6 +340,14 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Install Chromium for release import verification
+        if: runner.os == 'Linux'
+        run: npx playwright-core install --with-deps chromium
+
+      - name: Install Chromium for release import verification (macOS)
+        if: runner.os == 'macOS'
+        run: npx playwright-core install chromium
+
       # Next asks for this on every run ("No build cache found"): its compiler and
       # fetch caches live in `.next/cache`, and restoring that across runs is worth
       # a minute or two of each frontend build. Keyed on the lockfile and the
@@ -441,6 +449,13 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: src-tauri/target/release/bundle/flatpak/*.flatpak
+          if-no-files-found: error
+
+      - name: Upload import verification and guide
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact_name }}-import-verification
+          path: release-verification/VERIFICACAO-*.md
           if-no-files-found: error
 
   publish-release:

@@ -20,6 +20,10 @@ if (-not $PSBoundParameters.ContainsKey('BundleDirectory')) {
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
     throw 'Windows installer verification requires Windows.'
 }
+$manifest = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../src-tauri/Cargo.toml') -Raw
+$packageName = [regex]::Match($manifest, '(?m)^name\s*=\s*"([^"]+)"').Groups[1].Value
+if (-not $packageName) { throw 'Could not read the Tauri executable name from Cargo.toml.' }
+$executableName = "$packageName.exe"
 
 $work = Join-Path ([IO.Path]::GetTempPath()) ('dragonfruit-bundle-check-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
@@ -51,8 +55,8 @@ try {
             if ($forbidden.Count -gt 0) {
                 throw "Microsoft runtime payloads must not ship in $($installer.Name): $($forbidden.Name -join ', ')"
             }
-            $executables = @($files | Where-Object Name -eq 'dragonfruit-desktop.exe')
-            if ($executables.Count -ne 1) { throw "Expected one DragonFruit executable in $($installer.Name)." }
+            $executables = @($files | Where-Object Name -eq $executableName)
+            if ($executables.Count -ne 1) { throw "Expected one $executableName in $($installer.Name)." }
             if ($format -eq 'nsis') {
                 foreach ($name in @('INetC.dll', 'verify-windows-runtime.ps1')) {
                     $matches = @($files | Where-Object Name -ieq $name)

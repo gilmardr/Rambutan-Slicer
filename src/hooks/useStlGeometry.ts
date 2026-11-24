@@ -8,6 +8,8 @@ import { ThreeMFLoader } from 'three/examples/jsm/loaders/3MFLoader.js';
 import { Fast3MFLoader, fast3mfBuilder } from 'fast-3mf-loader';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { parseStepGeometry } from '@/features/scene/stepGeometry';
+import { getMeshFileExtension } from '@/features/scene/meshFileTypes';
 import { loadMeshBytes, loadMeshFileFromNativePath } from '@/features/slicing/tauri/nativeSlicerBridge';
 import { loadMeshRangeFromNativePath } from '@/utils/tauriMeshBridge';
 import type { VoxlMeshRange } from '@/features/scene/voxl/types';
@@ -436,6 +438,11 @@ export async function processGeometry(bufferGeometry: THREE.BufferGeometry, opti
       let classifyOnly = nativeMode === 'classify-only' || nativeMode === 'none';
       const forceRepair = nativeMode === 'repair';
       let repairParts = false;
+      const sourceExtension = getMeshFileExtension(options.sourcePath ?? '');
+      // STEP is tessellated in the worker. The native repair loader cannot read the CAD file.
+      const repairSourcePath = sourceExtension === '.step' || sourceExtension === '.stp'
+        ? undefined
+        : options.sourcePath;
 
       // If a confirmation callback is wired up, run a quick pre-repair analysis
       // so we can ask the user before committing to a heavy solidification pass.
@@ -456,10 +463,10 @@ export async function processGeometry(bufferGeometry: THREE.BufferGeometry, opti
               classifyOnly = true;
             } else if (choice === 'repair_parts') {
               console.log('[processGeometry] Repairing the file part by part.');
-              repairParts = Boolean(options.sourcePath);
+              repairParts = Boolean(repairSourcePath);
               if (!repairParts) {
                 console.warn(
-                  '[processGeometry] A part-by-part repair needs the source file, and this import has no path; repairing whole instead.',
+                  '[processGeometry] Part-by-part repair needs a file readable by the native loader; repairing the in-memory mesh instead.',
                 );
               }
             }
@@ -482,13 +489,13 @@ export async function processGeometry(bufferGeometry: THREE.BufferGeometry, opti
       const runClassify = options._classifyFromGeometry ?? classifyFromGeometry;
       const runRepair = options._repairFromGeometry ?? repairFromGeometry;
       const runParts = options._repairPartsFromPath ?? repairPartsFromPath;
-      const useLoaderPath = !options._repairFromGeometry && Boolean(options.sourcePath);
+      const useLoaderPath = options._repairFromGeometry ? undefined : repairSourcePath;
       const result = classifyOnly
         ? await runClassify(geometry, repairOpts)
         : repairParts && useLoaderPath
-          ? await runParts(options.sourcePath!, repairOpts, options.repairProgressSink)
+          ? await runParts(useLoaderPath, repairOpts, options.repairProgressSink)
           : useLoaderPath
-            ? await repairFromPath(options.sourcePath!, repairOpts, options.repairProgressSink)
+            ? await repairFromPath(useLoaderPath, repairOpts, options.repairProgressSink)
             : await runRepair(geometry, repairOpts, options.repairProgressSink);
       if (result) {
         let effectiveResult = result;
@@ -1794,13 +1801,19 @@ export async function loadObjGeometry(fileUrl: string, options?: ProcessGeometry
 
 export async function loadMeshGeometry(fileUrlOrBuffer: string | Uint8Array, fileName?: string, options?: ProcessGeometryOptions): Promise<GeometryWithBounds> {
   const opts = options?.skipClassification ? { ...options, nativeProcessingMode: 'none' as const } : options;
+  const ext = (fileName ?? '').trim().toLowerCase();
   
   if (fileUrlOrBuffer instanceof Uint8Array) {
+    if (ext.endsWith('.step') || ext.endsWith('.stp')) {
+      return processGeometry(await parseStepGeometry(fileUrlOrBuffer), opts);
+    }
     return loadStlGeometryFromBuffer(fileUrlOrBuffer, opts);
   }
 
   const fileUrl = fileUrlOrBuffer;
-  const ext = (fileName ?? '').trim().toLowerCase();
+  if (ext.endsWith('.step') || ext.endsWith('.stp')) {
+    return processGeometry(await parseStepGeometry(fileUrl), opts);
+  }
   if (ext.endsWith('.3mf')) {
     return load3mfGeometry(fileUrl, opts);
   }

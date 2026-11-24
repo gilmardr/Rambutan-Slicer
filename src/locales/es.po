@@ -12446,3 +12446,218 @@ msgstr "Zigzag"
 #: src/supports/autoBracing/AutoBracingSettingsCard.tsx:164
 msgid "Zigzag chains step by their own rise — interval has no effect"
 msgstr "Las cadenas en zigzag avanzan según su propia subida; el intervalo no tiene efecto"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:35
+msgid "prepGuide.supports"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/controls/toolRailEntries.ts:57
+msgid "prepGuide.transformHint"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:57
+msgid "prepGuide.exportTip"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/controls/toolRailEntries.ts:177
+msgid "prepGuide.islandsHint"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/TopBar.tsx:627
+msgid "prepGuide.sliceHint"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:50
+msgid "prepGuide.sliceTip"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:89
+msgid "prepGuide.close"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:126
+msgid "prepGuide.layerExample"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:56
+msgid "prepGuide.export"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:29
+msgid "prepGuide.hollowTip"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/controls/toolRailEntries.ts:182
+msgid "prepGuide.supportsHint"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:28
+msgid "prepGuide.hollow"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/controls/toolRailEntries.ts:275
+msgid "prepGuide.hollowHint"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:127
+msgid "prepGuide.astronautExample"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:14
+msgid "prepGuide.import"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:16
+msgid "prepGuide.importAction"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:141
+msgid "prepGuide.next"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:36
+msgid "prepGuide.supportsTip"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:15
+msgid "prepGuide.importTip"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:37
+msgid "prepGuide.supportsAction"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:51
+#: src/components/layout/PreparationGuide.tsx:58
+msgid "prepGuide.exportAction"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:30
+msgid "prepGuide.hollowAction"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:44
+msgid "prepGuide.islandsAction"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:135
+msgid "prepGuide.previewAction"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:23
+msgid "prepGuide.orientAction"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:21
+msgid "prepGuide.orient"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:80
+#: src/components/layout/TopBar.tsx:1091
+#: src/components/layout/TopBar.tsx:1092
+msgid "prepGuide.title"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:42
+msgid "prepGuide.islands"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:43
+msgid "prepGuide.islandsTip"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:22
+msgid "prepGuide.orientTip"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:49
+msgid "prepGuide.slice"
+msgstr ""
+
+#: src/features/slicing/components/FinalPrintReview.tsx:86
+msgid "Confirmed drain holes"
+msgstr ""
+
+#: src/features/slicing/components/FinalPrintReview.tsx:76
+msgid "Final review"
+msgstr ""
+
+#: src/features/slicing/components/FinalPrintReview.tsx:82
+msgid "Floating regions"
+msgstr ""
+
+#: src/components/layout/ImportDiagnosticsDialog.tsx:14
+#: src/components/layout/TopBar.tsx:684
+msgid "Import diagnostics"
+msgstr ""
+
+#: src/features/slicing/components/FinalPrintReview.tsx:86
+msgid "No drain holes placed"
+msgstr ""
+
+#: src/components/layout/ImportDiagnosticsDialog.tsx:28
+msgid "No import errors in this session."
+msgstr ""
+
+#: src/components/layout/ImportDiagnosticsDialog.tsx:27
+msgid "Save report"
+msgstr ""
+
+#: src/features/slicing/components/FinalPrintReview.tsx:77
+msgid "Scan islands"
+msgstr ""
+
+#: src/features/slicing/components/FinalPrintReview.tsx:36
+msgid "Show more"
+msgstr ""
+
+#: src/features/slicing/components/FinalPrintReview.tsx:91
+msgid "Too shallow"
+msgstr ""
+
+#: src/features/slicing/components/FinalPrintReview.tsx:91
+msgid "Uncertain"
+msgstr ""
+
+#: src/features/hollowing/HollowingPanel.tsx
+msgid "2D infill density"
+msgstr ""
+
+#: src/features/hollowing/HollowingPanel.tsx
+msgid "2D infill grid spacing"
+msgstr ""
+
+#: src/features/hollowing/HollowingPanel.tsx
+msgid "2D infill pixel intensity"
+msgstr ""

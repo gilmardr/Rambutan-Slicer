@@ -44,6 +44,7 @@ import { AUTO_SUPPORT_SECTION_CARD, TIER_HINTS } from './autoSupport/autoSupport
 import { buildSupportCheckWorld } from '@/features/slicing/rasterLayerZipExport';
 import {
   classifySupportCheckIslands,
+  supportCheckBounds,
   clampSupportCheckReach,
   SUPPORT_CHECK_REACH_MM,
   type SupportCheckClassification,
@@ -161,6 +162,11 @@ interface AutoSupportPanelProps {
   /** Apply a suggested orientation before a Magic support run. The callback
    *  continues only after a confirmed orientation and reports whether it changed. */
   onOrientForMagic?: (continueWithSupportRun: (orientationChanged: boolean) => void) => void;
+  onConfigureMagicFinish?: (options: {
+    arrange: boolean;
+    saveProject: boolean;
+    savePrint: boolean;
+  }) => Promise<(() => void) | null>;
 }
 
 function supportTipsForModel(modelId: string): TipInfo[] {
@@ -190,7 +196,7 @@ function supportTipsForModel(modelId: string): TipInfo[] {
   return tips;
 }
 
-export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models = [], selectedModelIds = [], autoLift, onAutoLiftChange, onBeforeRun, onOrientForMagic }: AutoSupportPanelProps) {
+export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models = [], selectedModelIds = [], autoLift, onAutoLiftChange, onBeforeRun, onOrientForMagic, onConfigureMagicFinish }: AutoSupportPanelProps) {
   const { _ } = useLingui();
   const fmt = useLocaleFormat();
   const [expanded, setExpanded] = useFloatingPanelCollapse(true);
@@ -211,12 +217,17 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
   const [replaceRunBracing, setReplaceRunBracing] = React.useState(true);
   const [replaceRunRaft, setReplaceRunRaft] = React.useState(false);
   const [replaceRunScope, setReplaceRunScope] = React.useState<AutoSupportScope>('combined');
+  const [replaceRunSliceAfter, setReplaceRunSliceAfter] = React.useState(false);
   const [scopeHasNoMatches, setScopeHasNoMatches] = React.useState(false);
   const [magicOrientationEnabled, setMagicOrientationEnabled] = React.useState(true);
   const [magicSupportsEnabled, setMagicSupportsEnabled] = React.useState(true);
   const [magicOptimizeEnabled, setMagicOptimizeEnabled] = React.useState(true);
   const [magicBracingEnabled, setMagicBracingEnabled] = React.useState(true);
   const [magicRaftEnabled, setMagicRaftEnabled] = React.useState(true);
+  const [magicArrangeAfterPrepare, setMagicArrangeAfterPrepare] = React.useState(false);
+  const [magicSaveProjectAfterPrepare, setMagicSaveProjectAfterPrepare] = React.useState(false);
+  const [magicSliceAfterPrepare, setMagicSliceAfterPrepare] = React.useState(false);
+  const [configuringMagicFinish, setConfiguringMagicFinish] = React.useState(false);
   const [selectedMagicWorkflowId, setSelectedMagicWorkflowId] = React.useState<string | null>(null);
   const [magicWorkflowName, setMagicWorkflowName] = React.useState('');
   // The last run's diagnostics are a view switch, not a setting: Debug mode in
@@ -274,8 +285,11 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
     optimizeEnabled: magicOptimizeEnabled,
     bracingEnabled: magicBracingEnabled,
     raftEnabled: magicRaftEnabled,
+    arrangeAfterPrepare: magicArrangeAfterPrepare,
+    saveProjectAfterPrepare: magicSaveProjectAfterPrepare,
+    sliceAfterPrepare: magicSliceAfterPrepare,
     supportScope,
-  }), [magicOrientationEnabled, magicSupportsEnabled, magicOptimizeEnabled, magicBracingEnabled, magicRaftEnabled, supportScope]);
+  }), [magicOrientationEnabled, magicSupportsEnabled, magicOptimizeEnabled, magicBracingEnabled, magicRaftEnabled, magicArrangeAfterPrepare, magicSaveProjectAfterPrepare, magicSliceAfterPrepare, supportScope]);
   const handleSaveMagicWorkflow = React.useCallback(() => {
     const id = saveMagicPrepareWorkflow(magicWorkflowName, magicWorkflowConfig);
     if (id) setSelectedMagicWorkflowId(id);
@@ -287,6 +301,9 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
     setMagicOptimizeEnabled(selectedMagicWorkflow.optimizeEnabled);
     setMagicBracingEnabled(selectedMagicWorkflow.bracingEnabled);
     setMagicRaftEnabled(selectedMagicWorkflow.raftEnabled);
+    setMagicArrangeAfterPrepare(selectedMagicWorkflow.arrangeAfterPrepare === true);
+    setMagicSaveProjectAfterPrepare(selectedMagicWorkflow.saveProjectAfterPrepare === true);
+    setMagicSliceAfterPrepare(selectedMagicWorkflow.sliceAfterPrepare === true);
     setMagicWorkflowName(selectedMagicWorkflow.name);
     updateAutoSupportSettings({ supportScope: selectedMagicWorkflow.supportScope });
     saveSettingsToLocalStorage();
@@ -335,6 +352,8 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
   const pendingMagicConsolidationRef = React.useRef<AutoPlaceSequenceConsolidation>('each-pass');
   const pendingMagicBracingRef = React.useRef(true);
   const pendingMagicRaftRef = React.useRef(false);
+  const pendingMagicSliceAfterRef = React.useRef(false);
+  const magicFinishRef = React.useRef<(() => void) | null>(null);
   const pendingSupportScopeRef = React.useRef<AutoSupportScope>('combined');
   const islandsRef = React.useRef(islands);
   islandsRef.current = islands;
@@ -344,6 +363,18 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
       : activeModelId ? [activeModelId] : [],
     [activeModelId, selectedModelIds],
   );
+
+  const finishMagicPrepare = React.useCallback(() => {
+    const finish = magicFinishRef.current;
+    magicFinishRef.current = null;
+    finish?.();
+  }, []);
+
+  React.useEffect(() => {
+    if (busy || !pendingMagicSliceAfterRef.current) return;
+    pendingMagicSliceAfterRef.current = false;
+    finishMagicPrepare();
+  }, [busy, finishMagicPrepare]);
 
   // Runs on a worker thread: the plan is seconds of work on a big model, and
   // the panel used to block the main thread (and the modal) for all of it.
@@ -455,6 +486,7 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
       if (result.analytics?.sizingDebug) setSizingDebugState(result.analytics.sizingDebug);
       if (result.analytics?.forestReport) setForestReportState(result.analytics.forestReport);
     } catch (e) {
+      pendingMagicSliceAfterRef.current = false;
       console.error('[AutoSupport] runAutoPlace failed:', e);
       setModelRunReports(reports.map((report) => ({ ...report, skipReason: report.skipReason ?? 'run-failed' })));
     }
@@ -488,6 +520,7 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
         setBusy(false);
       });
     } else {
+      pendingMagicSliceAfterRef.current = false;
       setAutoSupportBusy(false);
       setBusy(false);
     }
@@ -500,8 +533,10 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
     autoBracing = true,
     autoRaft = false,
     scope: AutoSupportScope = supportScope,
+    sliceAfterCompletion = false,
   ) => {
     if (targetModelIds.length === 0) return;
+    if (magic && sliceAfterCompletion) pendingMagicSliceAfterRef.current = true;
     setAutoSupportRunResult(null);
     const targetModelIdSet = new Set(targetModelIds);
     pendingSupportScopeRef.current = scope;
@@ -618,11 +653,11 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
         if (targetModelIdSet.has(snap.sticks[id].modelId)) delete next.sticks[id];
       }
       setSnapshot(next);
+      setBusy(true);
+      setAutoSupportBusy(true);
       // rAF fires after React flushes the snapshot, giving us
       // fresh islands.filteredIslands with updated supported flags.
       requestAnimationFrame(() => {
-        setBusy(true);
-        setAutoSupportBusy(true);
         requestAnimationFrame(() => {
           setTimeout(() => {
             try {
@@ -643,10 +678,12 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
                   }
                 });
               } else {
+                pendingMagicSliceAfterRef.current = false;
                 setAutoSupportBusy(false);
                 setBusy(false);
               }
             } catch (e) {
+              pendingMagicSliceAfterRef.current = false;
               console.error('[AutoSupport] run failed:', e);
               setAutoSupportBusy(false);
               setBusy(false);
@@ -678,6 +715,7 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
             setBusy(false);
           });
         } else {
+          pendingMagicSliceAfterRef.current = false;
           setAutoSupportBusy(false);
           setBusy(false);
         }
@@ -693,6 +731,7 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
     autoBracing = true,
     autoRaft = false,
     scope: AutoSupportScope = supportScope,
+    sliceAfterCompletion = false,
   ) => {
     if (targetModelIds.length === 0 || busy || (magic && magicSupportSequence.length === 0)) return;
     void (async () => {
@@ -708,6 +747,7 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
         pendingMagicConsolidationRef.current = consolidation;
         pendingMagicBracingRef.current = autoBracing;
         pendingMagicRaftRef.current = autoRaft;
+        pendingMagicSliceAfterRef.current = magic && sliceAfterCompletion;
         pendingSupportScopeRef.current = scope;
         autoSupportDrivingScan = true;
         if (!currentIslands.scanning) void currentIslands.onRunScan();
@@ -731,30 +771,52 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
         setReplaceRunBracing(autoBracing);
         setReplaceRunRaft(autoRaft);
         setReplaceRunScope(scope);
+        setReplaceRunSliceAfter(sliceAfterCompletion);
         setShowReplaceDialog(true);
         return;
       }
-      doRun(false, magic, consolidation, autoBracing, autoRaft, scope);
+      doRun(false, magic, consolidation, autoBracing, autoRaft, scope, sliceAfterCompletion);
     })();
   }, [targetModelIds, busy, doRun, onBeforeRun, magicSupportSequence.length, supportScope]);
 
   const handleMagicPrepare = React.useCallback(() => {
-    if (!activeModelId || targetModelIds.length > 1 || busy
-      || (!magicOrientationEnabled && !magicSupportsEnabled && !magicOptimizeEnabled && !magicBracingEnabled && !magicRaftEnabled)
+    const finishOptions = {
+      arrange: magicArrangeAfterPrepare,
+      saveProject: magicSaveProjectAfterPrepare,
+      savePrint: magicSliceAfterPrepare,
+    };
+    const hasFinishStages = finishOptions.arrange || finishOptions.saveProject || finishOptions.savePrint;
+    if (!activeModelId || targetModelIds.length > 1 || busy || configuringMagicFinish
+      || (!hasFinishStages && !magicOrientationEnabled && !magicSupportsEnabled && !magicOptimizeEnabled && !magicBracingEnabled && !magicRaftEnabled)
       || (magicSupportsEnabled && magicSupportSequence.length === 0)) return;
     void (async () => {
+      magicFinishRef.current = null;
       if ((magicOrientationEnabled || magicSupportsEnabled || magicBracingEnabled || magicOptimizeEnabled)
         && onBeforeRun && !(await onBeforeRun())) return;
+      if (hasFinishStages) {
+        setConfiguringMagicFinish(true);
+        try {
+          const finish = await onConfigureMagicFinish?.(finishOptions);
+          if (!finish) return;
+          magicFinishRef.current = finish;
+        } finally {
+          setConfiguringMagicFinish(false);
+        }
+      }
       const continueWithStages = (orientationChanged: boolean) => {
         if (magicSupportsEnabled) {
-          handleRun(true, true, orientationChanged, magicOptimizeEnabled ? 'after-sequence' : 'skip', magicBracingEnabled, magicRaftEnabled, supportScope);
+          handleRun(true, true, orientationChanged, magicOptimizeEnabled ? 'after-sequence' : 'skip', magicBracingEnabled, magicRaftEnabled, supportScope, hasFinishStages);
           return;
         }
         if (magicRaftEnabled && getRaftSettings().bottomMode === 'off') {
           updateRaftSettings({ bottomMode: 'solid' });
         }
-        if (!magicBracingEnabled && !magicOptimizeEnabled) return;
+        if (!magicBracingEnabled && !magicOptimizeEnabled) {
+          finishMagicPrepare();
+          return;
+        }
 
+        if (hasFinishStages) pendingMagicSliceAfterRef.current = true;
         setBusy(true);
         setAutoSupportBusy(true);
         const stageCount = Number(magicBracingEnabled) + Number(magicOptimizeEnabled);
@@ -779,6 +841,7 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
               setAutoSupportProgress({ phase: MAGIC_BRACING_PHASE, done: completedStages, total: stageCount });
             }
           } catch (error) {
+            pendingMagicSliceAfterRef.current = false;
             console.error('[AutoSupport] Magic stage failed:', error);
           } finally {
             setAutoSupportBusy(false);
@@ -796,12 +859,18 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
     activeModelId,
     targetModelIds,
     busy,
+    configuringMagicFinish,
     magicSupportSequence.length,
     magicOrientationEnabled,
     magicSupportsEnabled,
     magicOptimizeEnabled,
     magicBracingEnabled,
     magicRaftEnabled,
+    magicArrangeAfterPrepare,
+    magicSaveProjectAfterPrepare,
+    magicSliceAfterPrepare,
+    onConfigureMagicFinish,
+    finishMagicPrepare,
     supportScope,
     onBeforeRun,
     onOrientForMagic,
@@ -824,12 +893,13 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
         return;
       }
       const classified: { value?: SupportCheckClassification } = {};
+      const bbox = supportCheckBounds(world.bbox);
       const kept = await islands.runSupportCheck({
-        world: { positions: world.positions, bbox: world.bbox },
+        world: { positions: world.positions, bbox },
         supportBufferMm: clampSupportCheckReach(supportCheckReachMm),
         keep: (raw) => {
           classified.value = classifySupportCheckIslands(raw, world.modelPositions, {
-            baseZ: world.bbox.min.z,
+            baseZ: bbox.min.z,
             layerHeightMm: islands.layerHeightMm,
             pxMm: islands.pxMm,
             reachMm: clampSupportCheckReach(supportCheckReachMm),
@@ -857,7 +927,8 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
       setSupportCheckResult({ status: 'failed' });
     }
   }, [busy, islands, supportCheckModel, supportCheckReachMm]);
-  const hasMagicStage = magicOrientationEnabled || magicSupportsEnabled || magicOptimizeEnabled || magicBracingEnabled || magicRaftEnabled;
+  const hasMagicStage = magicOrientationEnabled || magicSupportsEnabled || magicOptimizeEnabled || magicBracingEnabled
+    || magicRaftEnabled || magicArrangeAfterPrepare || magicSaveProjectAfterPrepare || magicSliceAfterPrepare;
   const previousComparison = runComparisons.length > 1 ? runComparisons[runComparisons.length - 2] : null;
   const latestComparison = runComparisons.length > 0 ? runComparisons[runComparisons.length - 1] : null;
   const changedContactCount = previousComparison && latestComparison
@@ -934,7 +1005,7 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
 
             <Button
               onClick={handleMagicPrepare}
-              disabled={!canRun || targetModelIds.length > 1 || !hasMagicStage || (magicSupportsEnabled && magicSupportSequence.length === 0)}
+              disabled={!canRun || configuringMagicFinish || targetModelIds.length > 1 || !hasMagicStage || (magicSupportsEnabled && magicSupportSequence.length === 0)}
               title={targetModelIds.length > 1
                 ? _(msg`Magic Prepare currently runs on one model at a time`)
                 : _(msg`Run the selected preparation stages`)}
@@ -1048,6 +1119,38 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
                   />
                   <Trans>Enable raft</Trans>
                 </label>
+                <label className="flex items-center gap-1.5 cursor-pointer text-[10px]" style={{ color: 'var(--text-strong)' }}>
+                  <input
+                    type="checkbox"
+                    checked={magicArrangeAfterPrepare}
+                    onChange={(event) => setMagicArrangeAfterPrepare(event.target.checked)}
+                    className="ui-checkbox !w-3.5 !h-3.5"
+                  />
+                  <Trans>Arrange models on the active plate</Trans>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer text-[10px]" style={{ color: 'var(--text-strong)' }}>
+                  <input
+                    type="checkbox"
+                    checked={magicSaveProjectAfterPrepare}
+                    onChange={(event) => setMagicSaveProjectAfterPrepare(event.target.checked)}
+                    className="ui-checkbox !w-3.5 !h-3.5"
+                  />
+                  <Trans>Save the VOXL project</Trans>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer text-[10px]" style={{ color: 'var(--text-strong)' }}>
+                  <input
+                    type="checkbox"
+                    checked={magicSliceAfterPrepare}
+                    onChange={(event) => setMagicSliceAfterPrepare(event.target.checked)}
+                    className="ui-checkbox !w-3.5 !h-3.5"
+                  />
+                  <Trans>Slice and save after Magic Prepare</Trans>
+                </label>
+                {(magicSaveProjectAfterPrepare || magicSliceAfterPrepare) && (
+                  <p className="pl-5 text-[9px] leading-snug" style={{ color: 'var(--text-muted)' }}>
+                    <Trans>On desktop, choose where to save each file before preparation starts.</Trans>
+                  </p>
+                )}
               </div>
               <div className="mt-2 space-y-1.5 border-t pt-2" style={{ borderColor: 'var(--border-subtle)' }}>
                 <label htmlFor="magic-prepare-saved-workflow" className="block text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>
@@ -1539,7 +1642,7 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
               {_(msg`Cancel`)}
             </Button>
             <Button
-              onClick={() => { setShowReplaceDialog(false); doRun(false, replaceRunMagic, replaceRunConsolidation, replaceRunBracing, replaceRunRaft, replaceRunScope); }}
+              onClick={() => { setShowReplaceDialog(false); doRun(false, replaceRunMagic, replaceRunConsolidation, replaceRunBracing, replaceRunRaft, replaceRunScope, replaceRunSliceAfter); }}
               variant="secondary"
               size="md"
               title={_(msg`Keep the existing supports and place the new ones around them`)}
@@ -1547,7 +1650,7 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
               {_(msg`Add to existing`)}
             </Button>
             <Button
-              onClick={() => { setShowReplaceDialog(false); doRun(true, replaceRunMagic, replaceRunConsolidation, replaceRunBracing, replaceRunRaft, replaceRunScope); }}
+              onClick={() => { setShowReplaceDialog(false); doRun(true, replaceRunMagic, replaceRunConsolidation, replaceRunBracing, replaceRunRaft, replaceRunScope, replaceRunSliceAfter); }}
               variant="tinted-accent"
               size="md"
               className="inline-flex items-center justify-center gap-1.5"

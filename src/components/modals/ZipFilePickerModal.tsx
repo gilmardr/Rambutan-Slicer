@@ -6,10 +6,11 @@ import { ArchiveRestore, FileArchive, X } from 'lucide-react';
 import { Button, IconButton } from '@/components/atoms';
 import { getFileExtensionLower } from '@/utils/zipImport';
 import { SCENE_FILE_EXTENSIONS } from '@/features/plugins/pluginFileTypeExtensions';
+import { MESH_FILE_EXTENSION_SET } from '@/features/scene/meshFileTypes';
 import { useLocaleFormat } from '@/hooks/useLocaleFormat';
 import type { UnitFormat, Unit } from '@/utils/unitFormatting';
 
-const MESH_EXTS = new Set(['.stl', '.obj', '.3mf']);
+const MESH_EXTS = MESH_FILE_EXTENSION_SET;
 const SCENE_EXTS = new Set(SCENE_FILE_EXTENSIONS.map((ext) => `.${ext}`));
 
 type ZipFilePickerModalProps = {
@@ -25,6 +26,8 @@ const EXT_COLORS: Record<string, string> = {
   '.stl': '#60a5fa',
   '.3mf': '#34d399',
   '.obj': '#a78bfa',
+  '.step': '#94a3b8',
+  '.stp': '#94a3b8',
   '.voxl': '#ffb45d',
   '.lys': '#f59e0b',
 };
@@ -33,6 +36,8 @@ const EXT_COLORS_LIGHT: Record<string, string> = {
   '.stl': '#1d4ed8',
   '.3mf': '#047857',
   '.obj': '#6d28d9',
+  '.step': '#475569',
+  '.stp': '#475569',
   '.voxl': '#3f6212',
   '.lys': '#b45309',
 };

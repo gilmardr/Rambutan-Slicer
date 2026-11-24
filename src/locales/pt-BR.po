@@ -1363,7 +1363,7 @@ msgstr "Configurações de suportes automáticos"
 #. Tool rail label in Support mode. Short for the Auto Supports panel, which generates supports automatically.
 #: src/components/controls/toolRailEntries.ts:181
 msgid "Automatic"
-msgstr ""
+msgstr "Automático"
 
 #: src/components/controls/AutoSupportPanel.tsx:1040
 msgid "Automatic bracing"
@@ -1389,6 +1389,74 @@ msgstr "Os suportes automáticos estão desativados nas configurações selecion
 #: src/components/settings/LocalBackupsSettingsTab.tsx:772
 msgid "Automatically backs up app settings, printer and resin profiles, and recent model files to a folder on your computer."
 msgstr ""
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Configure a separate Google Drive folder below; you can turn those copies on or off without changing local backups."
+msgstr "Configure abaixo uma pasta separada do Google Drive; você pode ativar ou desativar essas cópias sem alterar os backups locais."
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Google Drive backup copy"
+msgstr "Cópia de backup no Google Drive"
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Keep local backups separate and optionally write a second copy into a Google Drive for desktop folder. Drive for desktop handles the online upload."
+msgstr "Mantenha os backups locais separados e, se quiser, grave uma segunda cópia em uma pasta do Google Drive para computador. O Drive para computador cuida do envio online."
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Google Drive folder"
+msgstr "Pasta do Google Drive"
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Last copied to the Drive folder:"
+msgstr "Última cópia enviada à pasta do Drive:"
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "No backup copy has been written to Google Drive yet."
+msgstr "Nenhuma cópia de backup foi gravada no Google Drive ainda."
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Choose Google Drive Folder"
+msgstr "Escolher pasta do Google Drive"
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Copy backups to Google Drive"
+msgstr "Copiar backups para o Google Drive"
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Turn off to stop new Drive copies. Existing copies are kept."
+msgstr "Desative para parar as novas cópias no Drive. As cópias existentes serão mantidas."
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Choose a Google Drive for desktop folder to enable Drive copies."
+msgstr "Escolha uma pasta do Google Drive para computador para ativar as cópias no Drive."
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Choose a separate Google Drive folder so local backups remain independent."
+msgstr "Escolha uma pasta diferente do Google Drive para manter os backups locais independentes."
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Google Drive folder copy failed."
+msgstr "Falha ao copiar para a pasta do Google Drive."
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Google Drive copy created in the selected folder."
+msgstr "Cópia do Google Drive criada na pasta selecionada."
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Google Drive folder updated."
+msgstr "Pasta do Google Drive atualizada."
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Failed to choose the Google Drive folder."
+msgstr "Não foi possível escolher a pasta do Google Drive."
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "Choose a Google Drive folder before enabling Drive copies."
+msgstr "Escolha uma pasta do Google Drive antes de ativar as cópias no Drive."
+
+#: src/components/settings/LocalBackupsSettingsTab.tsx
+msgid "{localResult} Google Drive copy failed: {errorMessage}"
+msgstr "{localResult} Falha na cópia para o Google Drive: {errorMessage}"
 
 #: src/components/settings/UvToolsSettingsTab.tsx:118
 msgid "Automatically open sliced print files in UVTools for further inspection and repair. After slicing, the file is sent directly to UVTools for analysis."
@@ -4011,7 +4079,7 @@ msgstr ""
 #: src/features/slicing/components/LutCurveEditor.tsx:1325
 #: src/supports/Settings/components/PresetSelector.tsx:911
 msgid "Export"
-msgstr ""
+msgstr "Exportar"
 
 #: src/components/layout/EmptySceneState.tsx:611
 msgid "Export a print file"
@@ -4648,7 +4716,7 @@ msgstr ""
 #. Tool rail label in Support mode. One word, like the other tool names: opens the hollowing tool (shell the model, add drainage holes).
 #: src/components/controls/toolRailEntries.ts:274
 msgid "Hollow"
-msgstr ""
+msgstr "Ocar"
 
 #. Tool rail entry in Support mode, shown greyed when the model has no cavity yet.
 #: src/components/controls/toolRailEntries.ts:287
@@ -5215,7 +5283,7 @@ msgstr ""
 #: src/components/controls/IslandsPanel.tsx:152
 #: src/components/controls/toolRailEntries.ts:176
 msgid "Islands"
-msgstr ""
+msgstr "Ilhas"
 
 #: src/components/controls/AutoSupportPanel.tsx:1278
 msgid "Islands covered"
@@ -5289,7 +5357,7 @@ msgstr ""
 
 #: src/features/slicing/components/SlicingPanel.tsx:2827
 msgid "Just Slice"
-msgstr ""
+msgstr "Apenas fatiar"
 
 #: src/components/modals/ScenePrinterMismatchModal.tsx:68
 msgid "Keep {currentPrinterName}"
@@ -7398,7 +7466,7 @@ msgstr ""
 #. Tool rail label in Support mode. Paints support contact points on the model surface.
 #: src/components/controls/toolRailEntries.ts:255
 msgid "Paint"
-msgstr ""
+msgstr "Pintar"
 
 #: src/supports/Settings/SupportSidebar.tsx:1481
 msgid "Paint a surface on the active model, then review the projected contacts before adding supports."
@@ -8077,12 +8145,12 @@ msgstr "Impressora:"
 #: src/components/layout/TopBar.tsx:625
 #: src/components/organisms/modals/PrintingModals.tsx:1541
 msgid "Printing"
-msgstr ""
+msgstr "Impressão"
 
 #: src/features/printing/components/PrintingPanel.tsx:117
 msgctxt "Title of the panel with the sliced file and its print actions"
 msgid "Printing"
-msgstr ""
+msgstr "Impressão"
 
 #: src/components/controls/autoSupport/autoSupportPanelTabs.ts:195
 msgid "Prioritize Dual"
@@ -10198,7 +10266,7 @@ msgstr ""
 
 #: src/features/slicing/components/SlicingPanel.tsx:2823
 msgid "Slice to File"
-msgstr ""
+msgstr "Fatiar para arquivo"
 
 #: src/features/slicing/components/SlicingPanel.tsx:1247
 msgid "Sliced Layers"
@@ -11566,7 +11634,7 @@ msgstr ""
 #: src/components/controls/toolRailEntries.ts:57
 #: src/components/controls/TransformControls.tsx:208
 msgid "Transform"
-msgstr ""
+msgstr "Transformar"
 
 #: src/features/scene/sceneHistoryLabels.ts:49
 msgctxt "Undo history entry"
@@ -12444,3 +12512,454 @@ msgstr ""
 #: src/supports/autoBracing/AutoBracingSettingsCard.tsx:164
 msgid "Zigzag chains step by their own rise — interval has no effect"
 msgstr ""
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:35
+msgid "prepGuide.supports"
+msgstr "Adicionar suportes"
+
+#. js-lingui-explicit-id
+#: src/components/controls/toolRailEntries.ts:57
+msgid "prepGuide.transformHint"
+msgstr "Ajuste a inclinação antes dos suportes para evitar camadas grandes e planas."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:57
+msgid "prepGuide.exportTip"
+msgstr "Depois de revisar as camadas, baixe o arquivo em Impressão ou use Fatiar para arquivo em Exportar. Confira se o formato é compatível com a impressora."
+
+#. js-lingui-explicit-id
+#: src/components/controls/toolRailEntries.ts:177
+msgid "prepGuide.islandsHint"
+msgstr "Antes de fatiar, procure regiões sem apoio na camada anterior."
+
+#. js-lingui-explicit-id
+#: src/components/layout/TopBar.tsx:627
+msgid "prepGuide.sliceHint"
+msgstr "Confira os perfis de impressora e material. Depois fatie para revisar ou salvar."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:50
+msgid "prepGuide.sliceTip"
+msgstr "Confira os perfis de impressora e material. Em Exportar, escolha Apenas fatiar para inspecionar as camadas antes de salvar."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:89
+msgid "prepGuide.close"
+msgstr "Fechar guia de preparação"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:126
+msgid "prepGuide.layerExample"
+msgstr "Exemplo da prévia de camadas no Rambutan Slicer."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:56
+msgid "prepGuide.export"
+msgstr "Exportar"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:29
+msgid "prepGuide.hollowTip"
+msgstr "Ocar uma peça volumosa pode economizar resina. Adicione furos para a resina sair e o ar entrar. Verifique se eles chegam à cavidade. Pule esta etapa se a peça deve ficar maciça."
+
+#. js-lingui-explicit-id
+#: src/components/controls/toolRailEntries.ts:182
+msgid "prepGuide.supportsHint"
+msgstr "Gere suportes depois de orientar o modelo e revise os contatos."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:28
+msgid "prepGuide.hollow"
+msgstr "Ocar e drenar"
+
+#. js-lingui-explicit-id
+#: src/components/controls/toolRailEntries.ts:275
+msgid "prepGuide.hollowHint"
+msgstr "Oque peças volumosas e confira se os furos de drenagem chegam à cavidade."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:127
+msgid "prepGuide.astronautExample"
+msgstr "Exemplo ilustrado da preparação de um modelo de astronauta."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:14
+msgid "prepGuide.import"
+msgstr "Importar"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:16
+msgid "prepGuide.importAction"
+msgstr "Importar modelo"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:141
+msgid "prepGuide.next"
+msgstr "Próxima etapa"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:36
+msgid "prepGuide.supportsTip"
+msgstr "Com a orientação definida, use a geração automática como ponto de partida. Revise os contatos e adicione suportes manuais onde precisar."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:15
+msgid "prepGuide.importTip"
+msgstr "Abra um modelo e confira suas dimensões na mesa. Isso é especialmente útil ao trazer uma peça de um programa de CAD."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:37
+msgid "prepGuide.supportsAction"
+msgstr "Abrir Suportes automáticos"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:51
+#: src/components/layout/PreparationGuide.tsx:58
+msgid "prepGuide.exportAction"
+msgstr "Abrir Exportar"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:30
+msgid "prepGuide.hollowAction"
+msgstr "Abrir Ocar"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:44
+msgid "prepGuide.islandsAction"
+msgstr "Abrir Ilhas"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:135
+msgid "prepGuide.previewAction"
+msgstr "Abrir prévia de impressão"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:23
+msgid "prepGuide.orientAction"
+msgstr "Abrir Transformar"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:21
+msgid "prepGuide.orient"
+msgstr "Orientar"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:80
+#: src/components/layout/TopBar.tsx:1091
+#: src/components/layout/TopBar.tsx:1092
+msgid "prepGuide.title"
+msgstr "Guia de preparação"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:42
+msgid "prepGuide.islands"
+msgstr "Revisar ilhas"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:43
+msgid "prepGuide.islandsTip"
+msgstr "Procure regiões que começam a imprimir sem nada embaixo. Adicione os suportes que faltam e repita a verificação antes de fatiar."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:22
+msgid "prepGuide.orientTip"
+msgstr "Selecione o modelo e use Transformar para testar uma inclinação que evite camadas grandes e planas. Mantenha os contatos dos suportes longe das superfícies que você quer preservar."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:49
+msgid "prepGuide.slice"
+msgstr "Fatiar"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:86
+msgid "Confirmed drain holes"
+msgstr "Furos de drenagem confirmados"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:76
+msgid "Final review"
+msgstr "Revisão final"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:82
+msgid "Floating regions"
+msgstr "Regiões flutuantes"
+
+#: src/components/layout/ImportDiagnosticsDialog.tsx:14
+#: src/components/layout/TopBar.tsx:684
+msgid "Import diagnostics"
+msgstr "Diagnóstico de importação"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:86
+msgid "No drain holes placed"
+msgstr "Nenhum furo de drenagem criado"
+
+#: src/components/layout/ImportDiagnosticsDialog.tsx:28
+msgid "No import errors in this session."
+msgstr "Nenhum erro de importação nesta sessão."
+
+#: src/components/layout/ImportDiagnosticsDialog.tsx:27
+msgid "Save report"
+msgstr "Salvar relatório"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:77
+msgid "Scan islands"
+msgstr "Verificar ilhas"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:36
+msgid "Show more"
+msgstr "Mostrar mais"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:91
+msgid "Too shallow"
+msgstr "Raso demais"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:91
+msgid "Uncertain"
+msgstr "Incerto"
+
+#: src/features/hollowing/HollowingPanel.tsx
+msgid "2D infill density"
+msgstr "Densidade do preenchimento 2D"
+
+#: src/features/hollowing/HollowingPanel.tsx
+msgid "2D infill grid spacing"
+msgstr "Espaçamento da grade 2D"
+
+#: src/features/hollowing/HollowingPanel.tsx
+msgid "2D infill pixel intensity"
+msgstr "Intensidade dos pixels do preenchimento 2D"
+
+#: src/supports/autoBracing/AutoBracingSettingsCard.tsx
+msgid "Lateral Trellis"
+msgstr "Treliça lateral"
+
+#: src/supports/autoBracing/AutoBracingSettingsCard.tsx
+msgid "Connect nearby support shafts in each direction to brace the sides of the support forest."
+msgstr "Conecta suportes próximos em várias direções para reforçar as laterais da estrutura."
+
+#: src/supports/autoBracing/autoBraceMessages.ts
+msgid "Add two nearby supports with overlapping height to create lateral bracing."
+msgstr "Aproxime dois suportes com alturas sobrepostas para criar contraventamento lateral."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Could not create the pixel editor."
+msgstr "Não foi possível abrir o editor de pixels."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "This layer is too large for island removal in the editor."
+msgstr "Esta camada é grande demais para remover ilhas no editor."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Adjacent layer dimensions do not match."
+msgstr "As dimensões das camadas adjacentes são diferentes."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Could not read the adjacent layer."
+msgstr "Não foi possível ler a camada adjacente."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Removed {removedRegions} islands ({removedPixels} pixels)."
+msgstr "Ilhas removidas: {removedRegions} ({removedPixels} pixels)."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "No unsupported islands found on this layer."
+msgstr "Nenhuma ilha sem suporte encontrada nesta camada."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Could not encode the edited layer."
+msgstr "Não foi possível codificar a camada editada."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Edit layer pixels"
+msgstr "Editar pixels da camada"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Layer {layerNumber}"
+msgstr "Camada {layerNumber}"
+
+#: src/components/organisms/PrintingPreviewPane.tsx
+msgid "Edit pixels in this CTB layer"
+msgstr "Editar pixels desta camada CTB"
+
+#: src/components/organisms/PrintingPreviewPane.tsx
+msgid "Pixel editing is available for non-stale CTB slices in the desktop app."
+msgstr "A edição de pixels está disponível para fatias CTB atualizadas no aplicativo desktop."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Erase"
+msgstr "Apagar"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Brush size"
+msgstr "Tamanho do pincel"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Minimum island area"
+msgstr "Área mínima da ilha"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Removing…"
+msgstr "Removendo…"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Remove islands"
+msgstr "Remover ilhas"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Remove islands on this layer"
+msgstr "Remover ilhas desta camada"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Scan all layers"
+msgstr "Verificar todas as camadas"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Scanning all layers…"
+msgstr "Verificando todas as camadas…"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Remove all islands and save"
+msgstr "Remover todas as ilhas e salvar"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Opening CTB file…"
+msgstr "Abrindo arquivo CTB…"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Layer {done} of {total}"
+msgstr "Camada {done} de {total}"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "No unsupported islands found in the CTB file."
+msgstr "Nenhuma ilha sem apoio foi encontrada no arquivo CTB."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Removed {islandCount} islands across {affectedLayers} layers ({pixelCount} pixels)."
+msgstr "Foram removidas {islandCount} ilhas de {affectedLayers} camadas ({pixelCount} pixels)."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Found {islandCount} islands across {affectedLayers} layers ({pixelCount} pixels). First affected layer: {firstAffectedLayer}."
+msgstr "Foram encontradas {islandCount} ilhas em {affectedLayers} camadas ({pixelCount} pixels). Primeira camada afetada: {firstAffectedLayer}."
+
+#: src/app/page.tsx
+msgid "Slice the current plate to a CTB file before checking all layers."
+msgstr "Fatie a plataforma atual em um arquivo CTB antes de verificar todas as camadas."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Loading layer…"
+msgstr "Carregando camada…"
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Paint or erase pixels, then apply the edit to the CTB file."
+msgstr "Pinte ou apague pixels e aplique a edição ao arquivo CTB."
+
+#: src/features/printing/components/PixelLayerEditorModal.tsx
+msgid "Apply to file"
+msgstr "Aplicar ao arquivo"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "CTB multi-parameter exposure"
+msgstr "Exposição multiparâmetro CTB"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "CTB multi-parameter slicing"
+msgstr "Fatiamento multiparâmetro CTB"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Set exposure time by height or cross-section area after the bottom and transition layers. The last matching rule wins."
+msgstr "Defina o tempo de exposição por altura ou área da seção após as camadas de base e transição. A última regra aplicável prevalece."
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Grayscale by model (%)"
+msgstr "Intensidade por peça (%)"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Adjust light intensity by model. All models on a layer share its exposure time."
+msgstr "Ajuste a intensidade de luz de cada peça. Todas as peças da mesma camada compartilham o tempo de exposição."
+
+#: src/components/organisms/panels/ExportPanelStack.tsx
+msgid "Change model grayscale"
+msgstr "Alterar intensidade da peça"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Rules set normal exposure for layers by height or total cross-section area. They begin after bottom and transition layers; the last matching rule wins. CTB uses one exposure per layer, so pieces on the same layer cannot have separate values."
+msgstr "As regras definem a exposição normal das camadas pela altura ou pela área total da seção. Elas começam depois das camadas de base e transição; a última regra correspondente prevalece. O CTB usa uma exposição por camada, então peças na mesma camada não podem ter valores separados."
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Rule {index}"
+msgstr "Regra {index}"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Remove CTB rule"
+msgstr "Remover regra CTB"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Remove rule"
+msgstr "Remover regra"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "CTB rule measure"
+msgstr "Critério da regra CTB"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Height (mm)"
+msgstr "Altura (mm)"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Cross-section area (mm²)"
+msgstr "Área da seção (mm²)"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "From"
+msgstr "De"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "To"
+msgstr "Até"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Exposure (s)"
+msgstr "Exposição (s)"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Rule minimum"
+msgstr "Mínimo da regra"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Rule maximum"
+msgstr "Máximo da regra"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Rule exposure"
+msgstr "Exposição da regra"
+
+#: src/features/slicing/components/CtbMultiParameterRulesCard.tsx
+msgid "Add rule"
+msgstr "Adicionar regra"
+
+#: src/components/controls/AutoSupportPanel.tsx
+msgid "Slice and save after Magic Prepare"
+msgstr "Fatiar e salvar após a Preparação Mágica"
+
+#: src/components/controls/AutoSupportPanel.tsx
+msgid "On desktop, choose where to save each file before preparation starts."
+msgstr "Na versão para computador, escolha onde salvar cada arquivo antes de iniciar a preparação."
+
+#: src/components/controls/AutoSupportPanel.tsx
+msgid "Arrange models on the active plate"
+msgstr "Arranjar os modelos na plataforma ativa"
+
+#: src/components/controls/AutoSupportPanel.tsx
+msgid "Save the VOXL project"
+msgstr "Salvar o projeto VOXL"
+
+#: src/app/page.tsx
+msgid "Choose a filename ending in .voxl for the project."
+msgstr "Escolha um nome de arquivo que termine em .voxl para o projeto."
+
+#: src/app/page.tsx
+msgid "Use the file extension for the selected printer."
+msgstr "Use a extensão de arquivo da impressora selecionada."
+
+#: src/app/page.tsx
+msgid "The active plate changed during Magic Prepare. Run it again on the intended plate."
+msgstr "A plataforma ativa mudou durante a Preparação Mágica. Execute novamente na plataforma desejada."

@@ -23,6 +23,16 @@ file. The imported preset is added to the list and applied immediately. Choose
 **Export** to save the active preset as a JSON file for another DragonFruit
 desktop or web session.
 
+## Run Magic Prepare through project and print file export
+
+In **Magic Prepare**, choose the preparation stages and optionally enable
+**Arrange models on the active plate**, **Save the VOXL project**, and
+**Slice and save after Magic Prepare**. On desktop, choose the destinations
+before preparation starts. After the preparation stages, Rambutan arranges the
+plate, saves the project, and slices the active plate to the selected print file
+as requested. Saved workflows keep the stage selection. Preparation still
+targets one selected model at a time.
+
 ## Copy settings between supports
 
 Select one support and choose **Copy settings** in Support Studio. Select two

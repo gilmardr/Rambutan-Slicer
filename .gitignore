@@ -106,6 +106,7 @@ src-tauri/binaries/dragonfruit-voxl-thumbnailer*
 
 # Copied from the installed manifold-3d package before dev/build.
 /public/vendor/manifold.wasm
+/public/vendor/occt-import-js/
 
 # Creality printer photos: redistribution permission not confirmed
 # (see plugins/creality/README.md). Kept local only; UI falls back to "No image".
@@ -115,3 +116,5 @@ src-tauri/binaries/dragonfruit-voxl-thumbnailer*
 src/**/AGENTS.md
 /AGENTS.md
 /CLAUDE.md
+
+/release-verification/

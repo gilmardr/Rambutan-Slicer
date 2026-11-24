@@ -1,3 +1,4 @@
+import { recordImportFailure } from "@/features/import-export/importDiagnostics";
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
@@ -7,6 +8,7 @@ import { loadTauriCore, refineCoarseFaces } from '@/utils/tauriMeshBridge';
 import { solidRemeshFromGeometry, tetSurfaceFromGeometry, type SolidRemeshProgressSink, type SolidRemeshOptions, type TetSurfaceProgressSink, type TetWrapOptions } from '@/utils/meshShrinkwrap';
 import { useLocaleFormat } from '@/hooks/useLocaleFormat';
 import { loadMeshGeometry, loadMeshGeometryFromRange, load3mfGeometryMergedWithSplitData, processGeometry, type GeometryWithBounds, type ProcessGeometryOptions } from '@/hooks/useStlGeometry';
+import { getMeshFileExtension } from '@/features/scene/meshFileTypes';
 import type { MeshHealthReport, MeshAnalysisJson, MeshRepairProgressSink } from '@/utils/meshRepair';
 import { loadMeshFromPath } from '@/utils/meshRepair';
 import { computeFlatteningPlanes } from '@/features/placeOnFace/logic/computeFlatteningPlanes';
@@ -73,6 +75,7 @@ import {
   alertSceneImportFailed,
   reportAutoRepaired,
   reportImportedScene,
+  reportMeshImportFailed,
   reportMergeSupportsFailed,
   reportNoSceneImportHandler,
   reportRestoredModel,
@@ -1416,13 +1419,7 @@ export function useSceneCollectionManager(options?: {
     handler: PluginFileTypeHandler;
   };
 
-  const getMeshExtension = useCallback((name: string): '.stl' | '.obj' | '.3mf' | null => {
-    const normalized = name.trim().toLowerCase();
-    if (normalized.endsWith('.stl')) return '.stl';
-    if (normalized.endsWith('.obj')) return '.obj';
-    if (normalized.endsWith('.3mf')) return '.3mf';
-    return null;
-  }, []);
+  const getMeshExtension = useCallback(getMeshFileExtension, []);
 
   const getSceneExtension = useCallback((name: string): string | null => {
     const normalized = name.trim().toLowerCase();
@@ -2802,6 +2799,7 @@ export function useSceneCollectionManager(options?: {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const url = URL.createObjectURL(file);
+        let importStage = "decode-" + (getMeshFileExtension(file.name) ?? "mesh");
 
         setImportProgress({
           active: true,
@@ -2823,6 +2821,7 @@ export function useSceneCollectionManager(options?: {
             nativeProcessingMode: getSavedImportDefaultsSettings().autoRepair ? 'auto' : 'none',
             filePath: (file as File & { filePath?: string }).filePath,
             onNativeProcessingStage: (stage: string) => {
+              importStage = stage;
               if (stage === 'repairing') {
                 setImportProgress({
                   active: true,
@@ -3003,7 +3002,9 @@ export function useSceneCollectionManager(options?: {
             URL.revokeObjectURL(url); // Cleanup if cancelled
             continue;
           } else {
+            recordImportFailure(file, importStage, err);
             console.error(`Failed to load ${file.name}`, err);
+            emitSceneImportReport(reportMeshImportFailed(file.name, message, _), 'error', { durationMs: 8_000 });
           }
           URL.revokeObjectURL(url); // Cleanup if failed
         }
@@ -4106,6 +4107,7 @@ export function useSceneCollectionManager(options?: {
       .filter((model) => {
         const geometry = model.geometry.geometry;
         if (!geometry.getAttribute('position')) return false;
+        if (geometry.userData.skipBakedOcclusion === true) return false;
         // Re-bake when the geometry was replaced (repair, boolean cut, hole
         // punch): the attribute lives on the old geometry, so without this the
         // new shape would be shaded with the old shape's occlusion.
@@ -5903,6 +5905,7 @@ export function useSceneCollectionManager(options?: {
     const pluginImport = scenePluginImportHandlersByExtension.get(extension.toLowerCase());
     if (!pluginImport) {
       console.warn(`[SceneCollection] No registered scene import handler for ${extension}.`);
+      recordImportFailure(file, 'select-importer', 'No active importer for ' + extension);
       if (!options?.suppressReport) {
         emitSceneImportReport(reportNoSceneImportHandler(extension, _), 'error');
       }
@@ -6409,6 +6412,7 @@ export function useSceneCollectionManager(options?: {
       console.log(`[SceneCollection] ${extension} import successful: ${newModels.map((m) => m.name).join(', ')}`);
       return true;
     } catch (err) {
+      recordImportFailure(file, 'plugin-scene-import', err);
       console.error('[SceneCollection] Failed to process plugin scene geometry:', err);
       const msg = err instanceof Error ? err.message : String(err);
       if (!options?.suppressReport) {
@@ -6981,6 +6985,7 @@ export function useSceneCollectionManager(options?: {
       }
       return true;
     } catch (error) {
+      recordImportFailure(file, 'voxl-import', error);
       console.error('[SceneCollection] VOXL import failed:', error);
       if (error instanceof VoxlObsoleteVersionError) {
         // A V1 scene is refused outright: no shipped DragonFruit ever wrote one
@@ -7109,10 +7114,10 @@ export function useSceneCollectionManager(options?: {
     // IndexedDB blobs for these files were stored empty (0 bytes) because
     // createPathBackedStlFile builds the File object with an empty blob.
     //
-    // Only an STL goes without its bytes, as from the native picker: an OBJ or 3MF
-    // the native loader cannot read falls back to the renderer's loaders, which
-    // parse the File itself. Given an empty one, the 3MF unzip worker failed
-    // without answering and the import hung.
+    // Only an STL goes without its bytes, as from the native picker. Other formats
+    // keep their bytes so the renderer can fall back if native loading fails; STEP
+    // always uses the renderer's OCCT worker. An empty file made the 3MF unzip
+    // worker fail without answering and the import hung.
     if (entry.kind === 'mesh' && entry.sourcePath) {
       const core = entry.name.toLowerCase().endsWith('.stl') ? null : await loadTauriCore();
       const bytes = core

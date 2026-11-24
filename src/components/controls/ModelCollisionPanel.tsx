@@ -13,7 +13,7 @@ import { getUnappliedModifiers } from '@/features/mesh-modifiers/unappliedModifi
 import { collisionSceneKey, createCollisionInputs } from '@/features/model-collision/collisionScene';
 import type { CollisionReport, CollisionWorkerResponse } from '@/features/model-collision/modelCollision';
 
-type Props = { scene: ReturnType<typeof useSceneCollectionManager> };
+type Props = { onLocate?: (point: [number, number, number]) => void; scene: ReturnType<typeof useSceneCollectionManager> };
 
 function checkedModelsMessage(count: number) { return msg`Checking ${count} visible models.`; }
 function noIntersectionsMessage(count: number) { return msg`No intersections found across ${count} models.`; }
@@ -21,7 +21,7 @@ function openMeshesMessage(count: number) { return msg`Open meshes: ${count}`; }
 function reducedPreviewsMessage(count: number) { return msg`Reduced previews checked: ${count}`; }
 function skippedModelsMessage(count: number) { return msg`Could not check ${count} models with unreadable geometry.`; }
 
-export function ModelCollisionPanel({ scene }: Props) {
+export function ModelCollisionPanel({ scene, onLocate }: Props) {
   const { _ } = useLingui();
   const [expanded, setExpanded] = useFloatingPanelCollapse(true);
   const [report, setReport] = React.useState<CollisionReport | null>(null);
@@ -137,17 +137,18 @@ export function ModelCollisionPanel({ scene }: Props) {
                     : _(noIntersectionsMessage(checkedCount))}
                 </span>
               </div>
-              {report.pairs.map(({ modelIds, kind }) => {
+              {report.pairs.map(({ modelIds, kind, location }) => {
                 const label = kind === 'surface-contact'
                   ? _(msg`Surface intersection`)
                   : kind === 'containment'
                     ? _(msg`One solid is inside the other`)
                     : _(msg`Possible overlap; check these meshes`);
                 return (
-                  <Button key={modelIds.join(':')} size="xs" variant="secondary" className="w-full justify-between gap-2"
+                  <Button disabled={sceneChanged || reportSceneKey !== sceneKey} key={modelIds.join(':')} size="xs" variant="secondary" className="w-full justify-between gap-2"
                     onClick={() => {
                       scene.setActiveModelId(modelIds[0]);
                       scene.setSelectedModelIds(modelIds);
+                      if (location) onLocate?.(location);
                     }}>
                     <span>{modelNames.get(modelIds[0]) ?? modelIds[0]} · {modelNames.get(modelIds[1]) ?? modelIds[1]}</span>
                     <span className="shrink-0 text-[var(--text-muted)]">{label}</span>

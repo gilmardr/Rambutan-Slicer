@@ -20,13 +20,16 @@ import { conformEngravingGeometryToSurface } from '@/features/text-labels/confor
 import { createImageCutterGeometry } from '@/features/text-labels/createImageCutterGeometry';
 import { geometryFromSolidMesh, snapshotSolidOperationSource, solidMeshForModel } from '@/features/mesh-boolean/geometryAdapter';
 import { runSolidMeshOperation } from '@/features/mesh-boolean/solidMeshOperationsClient';
-import { refineEngravingTriangulation } from '@/features/mesh-boolean/refineEngravingTriangulation';
 import { setEngravingPreviewHighlight } from '@/features/text-labels/engravingPreviewHighlight';
+import { pickOpenFilesWithNativeDialog, readPrintArtifactBytesFromPath } from '@/features/slicing/tauri/nativeSlicerBridge';
+import { loadTauriCore } from '@/utils/tauriMeshBridge';
+import { isTauriRuntime } from '@/utils/tauriRuntime';
+
+import { isRayVector, makeSurfaceRaycastTarget, pickEngravingSurfaceFromRay, type SurfacePick } from '@/features/text-labels/engravingSurfacePicking';
+import { solidMeshVolume } from '@/features/mesh-boolean/solidMeshVolume';
 
 type Props = { scene: ReturnType<typeof useSceneCollectionManager> };
 type EngravingMode = 'engraving' | 'relief';
-type SurfacePick = { modelId: string; point: THREE.Vector3; normal: THREE.Vector3 };
-type SolidMeshData = { positions: Float32Array; indices?: Uint32Array };
 type EngravingSourceModel = NonNullable<Props['scene']['activeModel']>;
 type EngravingRotationBaseline = {
   cutterId: string;
@@ -55,65 +58,6 @@ type EngravingPointerDetail = {
   rayDirection?: unknown;
   dragging?: boolean;
 };
-type RayVector = readonly [number, number, number];
-
-function isRayVector(value: unknown): value is RayVector {
-  return Array.isArray(value) && value.length === 3
-    && value.every((item) => typeof item === 'number' && Number.isFinite(item));
-}
-
-function makeSurfaceRaycastTarget(model: EngravingSourceModel): { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial } {
-  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
-  const mesh = new THREE.Mesh(model.geometry.geometry, material);
-  const matrix = new THREE.Matrix4().compose(
-    model.transform.position,
-    new THREE.Quaternion().setFromEuler(model.transform.rotation),
-    model.transform.scale,
-  ).multiply(new THREE.Matrix4().makeTranslation(
-    -model.geometry.center.x,
-    -model.geometry.center.y,
-    -model.geometry.center.z,
-  ));
-  mesh.matrixAutoUpdate = false;
-  mesh.matrix.copy(matrix);
-  mesh.matrixWorld.copy(matrix);
-  return { mesh, material };
-}
-
-function pickEngravingSurfaceFromRay(
-  source: EngravingSourceModel,
-  targetMesh: THREE.Mesh,
-  raycaster: THREE.Raycaster,
-  rayOrigin: readonly number[],
-  rayDirection: readonly number[],
-): SurfacePick | null {
-  raycaster.set(
-    new THREE.Vector3(rayOrigin[0], rayOrigin[1], rayOrigin[2]),
-    new THREE.Vector3(rayDirection[0], rayDirection[1], rayDirection[2]).normalize(),
-  );
-  const hit = raycaster.intersectObject(targetMesh, false)[0];
-  if (!hit?.face) return null;
-  const matrix = targetMesh.matrixWorld;
-  const normal = hit.face.normal.clone()
-    .applyMatrix3(new THREE.Matrix3().getNormalMatrix(matrix))
-    .normalize();
-  return { modelId: source.id, point: hit.point.clone(), normal };
-}
-
-function solidMeshVolume(mesh: SolidMeshData): number {
-  const indices = mesh.indices ?? Uint32Array.from({ length: mesh.positions.length / 3 }, (_, index) => index);
-  let volume = 0;
-  for (let index = 0; index < indices.length; index += 3) {
-    const a = indices[index] * 3;
-    const b = indices[index + 1] * 3;
-    const c = indices[index + 2] * 3;
-    volume += mesh.positions[a] * (mesh.positions[b + 1] * mesh.positions[c + 2] - mesh.positions[b + 2] * mesh.positions[c + 1])
-      + mesh.positions[a + 1] * (mesh.positions[b + 2] * mesh.positions[c] - mesh.positions[b] * mesh.positions[c + 2])
-      + mesh.positions[a + 2] * (mesh.positions[b] * mesh.positions[c + 1] - mesh.positions[b + 1] * mesh.positions[c]);
-  }
-  return Math.abs(volume / 6);
-}
-
 function hasUnappliedModifiers(modifiers: NonNullable<Props['scene']['activeModel']>['meshModifiers'] | null): boolean {
   return !!(
     (modifiers?.hollowing?.enabled && !modifiers.hollowing.bakedIntoGeometry)
@@ -122,6 +66,7 @@ function hasUnappliedModifiers(modifiers: NonNullable<Props['scene']['activeMode
 }
 
 const font = new FontLoader().parse(helvetikerRegular as FontData);
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 export function TextLabelCard({ scene }: Props) {
   const { _ } = useLingui();
@@ -134,6 +79,9 @@ export function TextLabelCard({ scene }: Props) {
   const [thicknessMm, setThicknessMm] = React.useState(0.6);
   const [imageFile, setImageFile] = React.useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = React.useState<string | null>(null);
+  const [loadingImage, setLoadingImage] = React.useState(false);
+  const [imageError, setImageError] = React.useState<'too-large' | 'unreadable' | null>(null);
+  const imageRequestRef = React.useRef(0);
   const imageInputRef = React.useRef<HTMLInputElement | null>(null);
   const imagePreviewUrlRef = React.useRef<string | null>(null);
   const [imageWidthMm, setImageWidthMm] = React.useState(20);
@@ -185,6 +133,7 @@ export function TextLabelCard({ scene }: Props) {
   }, [scene.deleteModel]);
 
   React.useEffect(() => () => {
+    imageRequestRef.current += 1;
     if (imagePreviewUrlRef.current) URL.revokeObjectURL(imagePreviewUrlRef.current);
     const pending = pendingCutterRef.current;
     dragRef.current?.material.dispose();
@@ -195,6 +144,50 @@ export function TextLabelCard({ scene }: Props) {
     livePreviewGeometryRef.current = null;
     if (pending) deleteModelRef.current(pending.cutterId);
   }, []);
+
+  const loadImage = async (readFile: () => Promise<File | null>) => {
+    const request = ++imageRequestRef.current;
+    setLoadingImage(true);
+    setImageError(null);
+    try {
+      const file = await readFile();
+      if (!file || request !== imageRequestRef.current) return;
+      if (file.size > MAX_IMAGE_BYTES) {
+        setImageError('too-large');
+        return;
+      }
+      const bitmap = await createImageBitmap(file);
+      bitmap.close();
+      if (request !== imageRequestRef.current) return;
+      if (imagePreviewUrlRef.current) URL.revokeObjectURL(imagePreviewUrlRef.current);
+      imagePreviewUrlRef.current = URL.createObjectURL(file);
+      setImagePreviewUrl(imagePreviewUrlRef.current);
+      setImageFile(file);
+      setError(null);
+    } catch (caught) {
+      if (request !== imageRequestRef.current || String(caught).includes('Open cancelled by user')) return;
+      setImageError(caught instanceof Error && caught.message === 'image-too-large' ? 'too-large' : 'unreadable');
+    } finally {
+      if (request === imageRequestRef.current) setLoadingImage(false);
+    }
+  };
+
+  const chooseImage = () => {
+    if (!isTauriRuntime()) {
+      imageInputRef.current?.click();
+      return;
+    }
+    void loadImage(async () => {
+      const [picked] = await pickOpenFilesWithNativeDialog('image');
+      if (!picked) return null;
+      const core = await loadTauriCore();
+      if (!core) throw new Error('Desktop bridge unavailable');
+      const size = await core.invoke<number>('read_print_file_size', { sourcePath: picked.path });
+      if (size > MAX_IMAGE_BYTES) throw new Error('image-too-large');
+      const bytes = await readPrintArtifactBytesFromPath(picked.path);
+      return new File([new Uint8Array(bytes)], picked.name);
+    });
+  };
 
   const installLivePreviewGeometry = React.useCallback((
     cutterId: string,
@@ -458,7 +451,7 @@ export function TextLabelCard({ scene }: Props) {
       && Number.isFinite(heightMm) && heightMm > 0 && heightMm <= 100
       && Number.isFinite(thicknessMm) && thicknessMm > 0 && thicknessMm <= 20
       && validRotation;
-    const validImage = engravingMode === 'image' && !!imageFile && imageFile.size <= 20 * 1024 * 1024
+    const validImage = engravingMode === 'image' && !loadingImage && !!imageFile
       && Number.isFinite(imageWidthMm) && imageWidthMm > 0 && imageWidthMm <= 100
       && Number.isFinite(imageDepthMm) && imageDepthMm >= 0.1 && imageDepthMm <= 5
       && validRotation;
@@ -587,7 +580,7 @@ export function TextLabelCard({ scene }: Props) {
       bitmap?.close();
       setBusy(false);
     }
-  }, [_, busy, canCreate, engravingMode, heightMm, imageDepthMm, imageFile, imageWidthMm, operationMode, pendingCutter, rotationDegrees, scene, setRotationBaseline, surfacePick, text, thicknessMm, validRotation]);
+  }, [_, busy, canCreate, engravingMode, heightMm, imageDepthMm, imageFile, imageWidthMm, loadingImage, operationMode, pendingCutter, rotationDegrees, scene, setRotationBaseline, surfacePick, text, thicknessMm, validRotation]);
 
   const applyEngraving = React.useCallback(async () => {
     if (busy || !pendingCutter || !validRotation) return;
@@ -627,13 +620,6 @@ export function TextLabelCard({ scene }: Props) {
       const sourceMesh = solidMeshForModel(source);
       const sourceVolume = solidMeshVolume(sourceMesh);
       const cutterMesh = solidMeshForModel(cutter);
-      const cutterBounds = { min: [Infinity, Infinity, Infinity] as [number, number, number], max: [-Infinity, -Infinity, -Infinity] as [number, number, number] };
-      for (let index = 0; index < cutterMesh.positions.length; index += 3) {
-        for (let axis = 0; axis < 3; axis += 1) {
-          cutterBounds.min[axis] = Math.min(cutterBounds.min[axis], cutterMesh.positions[index + axis]);
-          cutterBounds.max[axis] = Math.max(cutterBounds.max[axis], cutterMesh.positions[index + axis]);
-        }
-      }
       const operation = pendingCutter.operationMode === 'relief' ? 'union' : 'difference';
       const [result] = await runSolidMeshOperation(operation, [
         sourceMesh,
@@ -647,7 +633,12 @@ export function TextLabelCard({ scene }: Props) {
         setError('no-overlap');
         return;
       }
-      const geometry = geometryFromSolidMesh(refineEngravingTriangulation(result, cutterBounds));
+      // Keep the boolean mesh intact. Refining by cutter bounds also subdivides
+      // long host faces that only partially overlap the engraving.
+      const geometry = geometryFromSolidMesh(result);
+      // Vertex occlusion spreads shadows from fine engraving details across
+      // the long triangles on the surrounding host surface.
+      geometry.userData.skipBakedOcclusion = true;
       if (!scene.commitSolidOperationResult(geometry, snapshots, operation)) {
         geometry.dispose();
         setError('stale-scene');
@@ -667,7 +658,7 @@ export function TextLabelCard({ scene }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [busy, pendingCutter, reprojectRotationPreview, rotationDegrees, scene, validRotation]);
+  }, [busy, pendingCutter, reprojectRotationPreview, scene, validRotation]);
 
   const discardEngravingPreview = React.useCallback(() => {
     if (busy || !pendingCutter) return;
@@ -688,7 +679,7 @@ export function TextLabelCard({ scene }: Props) {
     && (engravingMode === 'text'
       ? !!text.trim() && Number.isFinite(heightMm) && heightMm > 0 && heightMm <= 100
         && Number.isFinite(thicknessMm) && thicknessMm > 0 && thicknessMm <= 20
-      : !!imageFile && imageFile.size <= 20 * 1024 * 1024
+      : !loadingImage && !!imageFile
         && Number.isFinite(imageWidthMm) && imageWidthMm > 0 && imageWidthMm <= 100
         && Number.isFinite(imageDepthMm) && imageDepthMm >= 0.1 && imageDepthMm <= 5);
 
@@ -764,16 +755,12 @@ export function TextLabelCard({ scene }: Props) {
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 className="sr-only"
-                disabled={busy}
+                disabled={busy || loadingImage}
                 aria-label={_(msg`Image file`)}
                 onChange={(event) => {
                   const file = event.currentTarget.files?.[0] ?? null;
-                  if (imagePreviewUrlRef.current) URL.revokeObjectURL(imagePreviewUrlRef.current);
-                  imagePreviewUrlRef.current = file ? URL.createObjectURL(file) : null;
-                  setImagePreviewUrl(imagePreviewUrlRef.current);
-                  setImageFile(file);
-                  setError(null);
                   event.currentTarget.value = '';
+                  if (file) void loadImage(async () => file);
                 }}
               />
               {imageFile && imagePreviewUrl ? (
@@ -791,16 +778,22 @@ export function TextLabelCard({ scene }: Props) {
                   />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium" style={{ color: 'var(--text-strong)' }}>{imageFile.name}</p>
-                    <Button size="auto" className="mt-1 !h-auto !border-0 !bg-transparent !px-0 !py-0 text-xs font-medium underline underline-offset-2 shadow-none" onClick={() => imageInputRef.current?.click()}>
+                    <Button size="auto" className="mt-1 !h-auto !border-0 !bg-transparent !px-0 !py-0 text-xs font-medium underline underline-offset-2 shadow-none" onClick={chooseImage} disabled={busy || loadingImage}>
                       <Trans>Change image</Trans>
                     </Button>
                   </div>
                 </div>
               ) : (
-                <Button size="lg" className="w-full" onClick={() => imageInputRef.current?.click()}>
+                <Button size="lg" className="w-full" onClick={chooseImage} disabled={busy || loadingImage}>
                   <Trans>Choose image</Trans>
                 </Button>
               )}
+              {loadingImage && <p role="status" className="text-xs"><Trans>Reading image…</Trans></p>}
+              {imageError && <p role="alert" className="text-xs text-red-400">
+                {imageError === 'too-large'
+                  ? <Trans>The image exceeds 20 MB. Choose a smaller file.</Trans>
+                  : <Trans>Could not read the image. Choose a valid PNG, JPEG, or WebP file.</Trans>}
+              </p>}
               <p className="engraving-image-help text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                 {operationMode === 'relief'
                   ? <Trans>Use an image under 20 MB. Dark pixels raise higher. Transparent pixels are left untouched; use a transparent PNG for logos.</Trans>

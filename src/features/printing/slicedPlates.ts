@@ -63,6 +63,7 @@ export interface SlicedPlates {
    * over again when it finishes, so recording the same artifact twice is a no-op.
    */
   record(plateId: string, artifact: SliceExportArtifact, details: { totalLayers?: number; profileFingerprint: string }): void;
+  refreshEditedArtifact(plateId: string, original: SliceExportArtifact, byteSize: number): void;
   /**
    * The scene's models, by plate, after a render. `edited` says a history entry landed since the
    * last call: the plates whose models changed are then the ones it edited.
@@ -235,6 +236,16 @@ export function createSlicedPlates(options: SlicedPlatesOptions): SlicedPlates {
           profileFingerprint: details.profileFingerprint,
           edited: false,
         },
+      }, hadPreviews ? [plateId] : []);
+    },
+
+    refreshEditedArtifact(plateId, original, byteSize) {
+      const current = snapshot.plates[plateId];
+      if (current?.artifact !== original) return;
+      const hadPreviews = dropPreviews(plateId);
+      setPlates({
+        ...snapshot.plates,
+        [plateId]: { ...current, artifact: { ...original, byteSize } },
       }, hadPreviews ? [plateId] : []);
     },
 

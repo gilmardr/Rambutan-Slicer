@@ -52,6 +52,10 @@ function formatLocalBackupSyncResult(
   return translate(msg`Backup saved to local disk.`);
 }
 
+function translateGoogleDriveCopyFailure(translate: Translate, localResult: string, errorMessage: string): string {
+  return translate(msg`${localResult} Google Drive copy failed: ${errorMessage}`);
+}
+
 type BackupSnapshot = {
   version: number;
   updatedAt: string;
@@ -155,6 +159,12 @@ const AUTO_SYNC_MINUTES_KEY = 'dragonfruit-local-backups:auto-sync-minutes';
 const CLIENT_ID_KEY = 'dragonfruit-local-backups:client-id';
 const LAST_SYNC_AT_KEY = 'dragonfruit-local-backups:last-sync-at';
 const SELECTED_DIRECTORY_KEY = 'dragonfruit-local-backups:directory';
+const GOOGLE_DRIVE_SYNC_ENABLED_KEY = 'rambutan-google-drive-backup:enabled';
+const GOOGLE_DRIVE_DIRECTORY_KEY = 'rambutan-google-drive-backup:directory';
+
+function normalizeBackupPath(path: string): string {
+  return path.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLocaleLowerCase();
+}
 
 function isDesktopRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -349,13 +359,25 @@ export function LocalBackupsSettingsTab({
   const { _ } = useLingui();
   const [desktopAvailable] = React.useState<boolean>(() => isDesktopRuntime());
   const [loadingStatus, setLoadingStatus] = React.useState(true);
-  const [busy, setBusy] = React.useState<'none' | 'choose-directory' | 'sync' | 'restore' | 'reveal' | 'open-model'>('none');
+  const [busy, setBusy] = React.useState<'none' | 'choose-directory' | 'choose-google-drive' | 'sync' | 'restore' | 'reveal' | 'open-model'>('none');
   const [message, setMessage] = React.useState<{ kind: 'idle' | 'success' | 'error'; text: string }>({ kind: 'idle', text: '' });
 
   const [defaultDirectory, setDefaultDirectory] = React.useState<string>('');
   const [selectedDirectory, setSelectedDirectory] = React.useState<string>(() => {
     if (typeof window === 'undefined') return '';
     return window.localStorage.getItem(SELECTED_DIRECTORY_KEY)?.trim() ?? '';
+  });
+  const [googleDriveDirectory, setGoogleDriveDirectory] = React.useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return window.localStorage.getItem(GOOGLE_DRIVE_DIRECTORY_KEY)?.trim() ?? '';
+  });
+  const [googleDriveSyncEnabled, setGoogleDriveSyncEnabled] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(GOOGLE_DRIVE_SYNC_ENABLED_KEY) === 'true';
+  });
+  const [lastGoogleDriveCopyAt, setLastGoogleDriveCopyAt] = React.useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem('rambutan-google-drive-backup:last-copy-at');
   });
 
   const [stateUpdatedAt, setStateUpdatedAt] = React.useState<string | null>(null);
@@ -466,6 +488,32 @@ export function LocalBackupsSettingsTab({
         documentJson: JSON.stringify(document),
       });
 
+      let driveCopyCompleted = false;
+      let driveCopyError: string | null = null;
+      if (googleDriveSyncEnabled) {
+        const driveTarget = googleDriveDirectory.trim();
+        if (!driveTarget) {
+          driveCopyError = _('Choose a Google Drive for desktop folder to enable Drive copies.');
+        } else if (normalizeBackupPath(driveTarget) === normalizeBackupPath(targetDirectory)) {
+          driveCopyError = _('Choose a separate Google Drive folder so local backups remain independent.');
+        } else {
+          try {
+            await invokeDesktop<LocalBackupSyncResponse>('local_backup_sync', {
+              directoryPath: driveTarget,
+              documentJson: JSON.stringify(document),
+            });
+            driveCopyCompleted = true;
+            const driveCopiedAt = new Date().toISOString();
+            setLastGoogleDriveCopyAt(driveCopiedAt);
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem('rambutan-google-drive-backup:last-copy-at', driveCopiedAt);
+            }
+          } catch (error) {
+            driveCopyError = error instanceof Error ? error.message : _('Google Drive folder copy failed.');
+          }
+        }
+      }
+
       const syncedAt = payload.syncedAt?.trim() || snapshot.updatedAt;
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(LAST_SYNC_AT_KEY, syncedAt);
@@ -473,17 +521,27 @@ export function LocalBackupsSettingsTab({
       setLastLocalSyncAt(syncedAt);
       setStateUpdatedAt(syncedAt);
 
-      setMessage({
-        kind: 'success',
-        text: formatLocalBackupSyncResult(_, payload.modelFilesSynced, payload.modelFilesSkipped),
-      });
+      const localResult = formatLocalBackupSyncResult(_, payload.modelFilesSynced, payload.modelFilesSkipped);
+      if (driveCopyError) {
+        setMessage({
+          kind: 'error',
+          text: translateGoogleDriveCopyFailure(_, localResult, driveCopyError),
+        });
+      } else {
+        setMessage({
+          kind: 'success',
+          text: driveCopyCompleted
+            ? `${localResult} ${_(msg`Google Drive copy created in the selected folder.`)}`
+            : localResult,
+        });
+      }
       await Promise.all([loadHistory(targetDirectory), loadModelLibrary(targetDirectory)]);
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : _(msg`Local backup sync failed.`) });
     } finally {
       setBusy('none');
     }
-  }, [_, loadHistory, loadModelLibrary, selectedDirectory]);
+  }, [_, googleDriveDirectory, googleDriveSyncEnabled, loadHistory, loadModelLibrary, selectedDirectory]);
 
   const handleOpenPreparedModel = React.useCallback(async (entry: PreparedModelLibraryEntry) => {
     if (!onOpenPreparedModel) return false;
@@ -529,6 +587,23 @@ export function LocalBackupsSettingsTab({
       setBusy('none');
     }
   }, [_, defaultDirectory, loadHistory, loadModelLibrary, loadState, selectedDirectory]);
+
+  const handleChooseGoogleDriveDirectory = React.useCallback(async () => {
+    setBusy('choose-google-drive');
+    setMessage({ kind: 'idle', text: '' });
+
+    try {
+      const nextDirectory = await invokeDesktop<string>('local_backup_pick_directory', {
+        currentPath: googleDriveDirectory || selectedDirectory || defaultDirectory || undefined,
+      });
+      setGoogleDriveDirectory(nextDirectory.trim());
+      setMessage({ kind: 'success', text: _(msg`Google Drive folder updated.`) });
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : _(msg`Failed to choose the Google Drive folder.`) });
+    } finally {
+      setBusy('none');
+    }
+  }, [_, defaultDirectory, googleDriveDirectory, selectedDirectory]);
 
   const handleUseDefaultDirectory = React.useCallback(async () => {
     if (!defaultDirectory) return;
@@ -679,6 +754,20 @@ export function LocalBackupsSettingsTab({
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
+    window.localStorage.setItem(GOOGLE_DRIVE_SYNC_ENABLED_KEY, googleDriveSyncEnabled ? 'true' : 'false');
+  }, [googleDriveSyncEnabled]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!googleDriveDirectory.trim()) {
+      window.localStorage.removeItem(GOOGLE_DRIVE_DIRECTORY_KEY);
+      return;
+    }
+    window.localStorage.setItem(GOOGLE_DRIVE_DIRECTORY_KEY, googleDriveDirectory);
+  }, [googleDriveDirectory]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
     if (!selectedDirectory.trim()) {
       window.localStorage.removeItem(SELECTED_DIRECTORY_KEY);
       return;
@@ -771,6 +860,9 @@ export function LocalBackupsSettingsTab({
             <p className="mt-0.5 text-xs leading-snug" style={{ color: 'var(--text-muted)' }}>
               <Trans>Automatically backs up app settings, printer and resin profiles, and recent model files to a folder on your computer.</Trans>
             </p>
+            <p className="mt-1 text-xs leading-snug" style={{ color: 'var(--text-muted)' }}>
+              <Trans>Configure a separate Google Drive folder below; you can turn those copies on or off without changing local backups.</Trans>
+            </p>
           </div>
         </div>
 
@@ -851,6 +943,74 @@ export function LocalBackupsSettingsTab({
             {busy === 'reveal' ? <Spinner size="md" /> : <FolderOpen className="h-4 w-4" />}
             <Trans>Open Folder</Trans>
           </Button>
+        </div>
+      </section>
+
+      <section className="rounded-md border p-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
+        <div className="flex items-start gap-2.5">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border" style={{ borderColor: 'var(--border-subtle)', background: 'color-mix(in srgb, var(--surface-2), transparent 8%)' }}>
+            <UploadCloud className="h-4 w-4" style={{ color: 'var(--accent)' }} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-xs font-semibold" style={{ color: 'var(--text-strong)' }}><Trans>Google Drive backup copy</Trans></h3>
+            <p className="mt-0.5 text-xs leading-snug" style={{ color: 'var(--text-muted)' }}>
+              <Trans>Keep local backups separate and optionally write a second copy into a Google Drive for desktop folder. Drive for desktop handles the online upload.</Trans>
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-2 rounded-md border px-2.5 py-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-0)' }}>
+          <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: 'var(--text-muted)' }}><Trans>Google Drive folder</Trans></div>
+          <div className="mt-1 text-xs font-medium break-all" style={{ color: 'var(--text-strong)' }}>
+            {googleDriveDirectory || <Trans>Not selected</Trans>}
+          </div>
+          <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+            {lastGoogleDriveCopyAt
+              ? <><Trans>Last copied to the Drive folder:</Trans> {new Date(lastGoogleDriveCopyAt).toLocaleString()}</>
+              : <Trans>No backup copy has been written to Google Drive yet.</Trans>}
+          </div>
+        </div>
+
+        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+          <Button
+            variant="tinted-accent"
+            size="auto"
+            className="!h-9 !px-3 !py-0 text-sm gap-1.5 disabled:opacity-60"
+            disabled={busy !== 'none'}
+            onClick={() => { void handleChooseGoogleDriveDirectory(); }}
+          >
+            {busy === 'choose-google-drive' ? <Spinner size="md" /> : <FolderOpen className="h-4 w-4" />}
+            <Trans>Choose Google Drive Folder</Trans>
+          </Button>
+          <div className={`flex items-center rounded-md border px-2.5 ${busy === 'sync' ? 'pointer-events-none opacity-60' : ''}`} style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-0)' }}>
+            <SettingRow
+              bordered={false}
+              surface="raised"
+              label={<Trans>Copy backups to Google Drive</Trans>}
+              description={<Trans>Turn off to stop new Drive copies. Existing copies are kept.</Trans>}
+            >
+              <SegmentedControl
+                label={_(msg`Copy backups to Google Drive`)}
+                options={[
+                  { value: 'off', label: <Trans>OFF</Trans> },
+                  { value: 'on', label: <Trans>ON</Trans> },
+                ]}
+                value={googleDriveSyncEnabled ? 'on' : 'off'}
+                onChange={(next) => {
+                  if (busy === 'sync') return;
+                  if (next === 'on' && !googleDriveDirectory.trim()) {
+                    setMessage({ kind: 'error', text: _(msg`Choose a Google Drive folder before enabling Drive copies.`) });
+                    return;
+                  }
+                  if (next === 'on' && normalizeBackupPath(googleDriveDirectory) === normalizeBackupPath(selectedDirectory)) {
+                    setMessage({ kind: 'error', text: _(msg`Choose a separate Google Drive folder so local backups remain independent.`) });
+                    return;
+                  }
+                  setGoogleDriveSyncEnabled(next === 'on');
+                }}
+              />
+            </SettingRow>
+          </div>
         </div>
       </section>
 

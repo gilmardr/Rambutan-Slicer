@@ -129,6 +129,27 @@ describe('slicedPlates', () => {
     assert.equal(urls.live.size, 0);
   });
 
+  it('refreshes previews after a CTB edit and leaves a newer slice in place', async () => {
+    const { plates, archive, urls } = setup();
+    const original = artifact('a');
+    const model = {};
+    plates.record('plate-1', original, { totalLayers: 10, profileFingerprint: FINGERPRINT });
+    plates.observeModels(new Map([['plate-1', [model]]]), false);
+    plates.loadLayerPreview('plate-1', 1);
+    await resolveAll(archive.reads);
+    plates.observeModels(new Map([['plate-1', [{}]]]), true);
+    plates.refreshEditedArtifact('plate-1', original, 10);
+    assert.equal(plates.getSnapshot().previews['plate-1'], undefined);
+    assert.equal(urls.live.size, 0);
+    assert.equal(plates.getSnapshot().plates['plate-1']?.artifact?.byteSize, 10);
+    assert.equal(isSlicedPlateStale(plates.getSnapshot().plates['plate-1'], FINGERPRINT), true);
+
+    const newer = artifact('b');
+    plates.record('plate-1', newer, { totalLayers: 12, profileFingerprint: FINGERPRINT });
+    plates.refreshEditedArtifact('plate-1', original, 25);
+    assert.equal(plates.getSnapshot().plates['plate-1']?.artifact, newer);
+  });
+
   it('a run for one plate leaves the others sliced', async () => {
     const { plates, archive } = setup();
     plates.record('plate-1', artifact('a'), { totalLayers: 10, profileFingerprint: FINGERPRINT });

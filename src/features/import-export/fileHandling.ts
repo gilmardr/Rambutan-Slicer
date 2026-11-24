@@ -1,4 +1,5 @@
 import { getBuiltinComplexPluginDefinitions } from '@/features/plugins/builtinComplexPlugins';
+import { MESH_FILE_EXTENSIONS } from '@/features/scene/meshFileTypes';
 
 // Plugin file types are derived from the filtered getter so plugins gated behind
 // disabled experiments (e.g. chitubox-import) are excluded from drop targets,
@@ -10,7 +11,7 @@ const PLUGIN_ALL_FILE_TYPES = getBuiltinComplexPluginDefinitions().flatMap(
   (def) => def.fileTypes ?? [],
 );
 const PREPARE_DROP_EXTENSIONS = new Set([
-  '.stl', '.obj', '.3mf', '.voxl',
+  ...MESH_FILE_EXTENSIONS, '.voxl',
   ...PLUGIN_ALL_FILE_TYPES.map((ft) => ft.fileExtension),
 ]);
 export const PLUGIN_IMPORT_WARNING_DISMISSED_STORAGE_KEY =
@@ -104,6 +105,7 @@ export function getDroppedFileMimeType(name: string): string {
   if (ext === '.stl') return 'model/stl';
   if (ext === '.obj') return 'model/obj';
   if (ext === '.3mf') return 'model/3mf';
+  if (ext === '.step' || ext === '.stp') return 'model/step';
   if (ext === '.voxl') return 'application/json';
   const pluginType = PLUGIN_ALL_FILE_TYPES.find((ft) => ft.fileExtension === ext);
   return pluginType?.mimeType ?? 'application/octet-stream';

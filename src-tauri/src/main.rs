@@ -680,8 +680,8 @@ struct SliceJobMetadata {
     zaa_duplicate_z: Option<bool>,
     #[serde(default)]
     model_triangle_count: u32,
-      #[serde(default)]
-      model_slice_ranges: Vec<dragonfruit_slicing_engine::types::ModelSliceRangeV1>,
+    #[serde(default)]
+    model_slice_ranges: Vec<dragonfruit_slicing_engine::types::ModelSliceRangeV1>,
     container_compression_level: u8,
     build_width_mm: f32,
     build_depth_mm: f32,
@@ -3895,11 +3895,12 @@ fn build_open_dialog_with_filters(
 
     let normalized = category.trim().to_ascii_lowercase();
     dialog = match normalized.as_str() {
-        "mesh" => dialog.add_filter("Mesh Files", &["stl", "obj", "3mf", "zip"]),
+        "mesh" => dialog.add_filter("Mesh Files", &["stl", "obj", "3mf", "step", "stp", "zip"]),
         "scene" => dialog.add_filter("Scene Files", &scene_exts),
         "bundle" => dialog.add_filter("JSON Files", &["json"]),
+        "image" => dialog.add_filter("Image Files", &["png", "jpg", "jpeg", "webp"]),
         _ => dialog
-            .add_filter("Mesh Files", &["stl", "obj", "3mf", "zip"])
+            .add_filter("Mesh Files", &["stl", "obj", "3mf", "step", "stp", "zip"])
             .add_filter("Scene Files", &scene_exts),
     };
 
@@ -4265,6 +4266,65 @@ async fn read_print_layer_png(
     .map_err(|err| format!("Read layer task failed to join: {err}"))??;
 
     Ok(Response::new(bytes))
+}
+
+#[tauri::command]
+async fn replace_print_layer_pixels_png(
+    source_path: String,
+    layer_number: u32,
+    format_hint: String,
+    png_bytes: Vec<u8>,
+) -> Result<u64, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if layer_number == 0 {
+            return Err("Layer number must be >= 1".to_string());
+        }
+        if png_bytes.is_empty() {
+            return Err("Edited layer image is empty".to_string());
+        }
+
+        let source = std::path::PathBuf::from(source_path.trim());
+        if !source.is_file() {
+            return Err("Source print file no longer exists on disk".to_string());
+        }
+
+        dragonfruit_slicing_engine::engine::replace_print_layer_pixels_png_by_format_hint(
+            &source,
+            layer_number,
+            &format_hint,
+            &png_bytes,
+        )
+        .map_err(|err| err.to_string())
+    })
+    .await
+    .map_err(|err| format!("Edit print layer task failed to join: {err}"))?
+}
+
+#[tauri::command]
+async fn process_print_islands(
+    source_path: String,
+    format_hint: String,
+    minimum_pixels: u32,
+    remove: bool,
+    progress: tauri::ipc::Channel<(u32, u32)>,
+) -> Result<dragonfruit_slicing_engine::encoders::PrintIslandReport, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let source = std::path::Path::new(source_path.trim());
+        dragonfruit_slicing_engine::engine::process_print_islands_by_format_hint(
+            source,
+            &format_hint,
+            minimum_pixels,
+            remove,
+            &|done, total| {
+                if done == 1 || done == total || done % 8 == 0 {
+                    let _ = progress.send((done, total));
+                }
+            },
+        )
+        .map_err(|err| err.to_string())
+    })
+    .await
+    .map_err(|err| format!("Print island cleanup task failed to join: {err}"))?
 }
 
 /// Decode a run of layer preview PNGs in one round trip, in parallel.
@@ -5057,6 +5117,8 @@ fn main() {
             read_print_file_chunk,
             read_print_layer_png,
             read_print_layer_pngs,
+            replace_print_layer_pixels_png,
+            process_print_islands,
             existing_paths,
             delete_print_temp_file,
             cleanup_stale_print_temp_files,

@@ -18,6 +18,7 @@ import {
 } from './tauri/nativeSlicerBridge';
 import { invoke } from '@tauri-apps/api/core';
 import { assembleSliceJob, buildNativeSliceJob, resolveSliceRasterSettings } from './sliceJobAssembly';
+import { mergeCtbMultiParameterRulesIntoMetadata, type CtbMultiParameterRule } from './ctbMultiParameterRules';
 import { resolveSliceJobAntiAliasing, type SliceJobAntiAliasingRequest } from './sliceAntiAliasing';
 
 const DEBUG_PREFIX = '[SlicingDebug]';
@@ -102,6 +103,8 @@ export type SliceExportOrchestratorOptions = {
     ditherEnabled?: boolean;
     ditherBitDepth?: number;
     ditherDeviceGamma?: number;
+    /** Per-layer exposure rules for plain CTB output. */
+    ctbMultiParameterRules?: readonly CtbMultiParameterRule[];
     outputMode?: 'download' | 'return';
     exportThumbnailPng?: Uint8Array | null;
     abortSignal?: AbortSignal;
@@ -577,10 +580,13 @@ export async function runSliceExportOrchestrator(options: SliceExportOrchestrato
         meshEncoding: meshTransportEncoding,
         meshQuantization: meshTransportQuantization,
         outputPath: options.outputPath?.trim() || null,
-        metadataJson: await attachJobMetadataPayloads(
-            assembled.metadataJson,
-            { models: visibleModels },
-            getJobMetadataPayloadDeclarations(),
+        metadataJson: mergeCtbMultiParameterRulesIntoMetadata(
+            await attachJobMetadataPayloads(
+                assembled.metadataJson,
+                { models: visibleModels },
+                getJobMetadataPayloadDeclarations(),
+            ),
+            assembled.outputFormat.toLowerCase() === '.ctb' ? (options.ctbMultiParameterRules ?? []) : [],
         ),
     };
 

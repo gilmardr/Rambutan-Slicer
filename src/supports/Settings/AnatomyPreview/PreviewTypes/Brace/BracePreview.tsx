@@ -104,9 +104,8 @@ function buildTrunkData(
 }
 
 /**
- * Brace anatomy preview: 3×3 grid of proper trunks (rendered through SupportBuilder
- * like the Grid preview) with simulated braces between adjacent trunks using
- * the real auto-bracing rules.
+ * Brace anatomy preview: a four-post support bay rendered through SupportBuilder
+ * with simulated braces between neighboring trunks.
  */
 export function BracePreview({
     settings,
@@ -118,6 +117,8 @@ export function BracePreview({
     const initialDistance = autoBracing.initialDistanceMm ?? 2.0;
     const repeatingPattern: string = autoBracing.repeatingPattern ?? 'crossDiagonal';
     const patternInterval = autoBracing.patternIntervalMm ?? 8.0;
+    const lateralTrellisEnabled = autoBracing.lateralTrellisEnabled ?? true;
+    const maxBraceLengthMm = autoBracing.maxBraceLengthMm ?? 10.0;
     const shaftDiameterMm = Math.max(0.5, settings.shaft?.diameterMm ?? 1.0);
     const rootsDiameterMm = settings.roots?.diameterMm ?? 2.0;
     const rootsDiskHeightMm = settings.roots?.diskHeightMm ?? 0.2;
@@ -132,14 +133,14 @@ export function BracePreview({
     const isPatternFocused = focusKey === 'initialPattern' || focusKey === 'repeatingPattern';
     const isDiameterFocused = focusKey === 'braceDiameterMm';
 
-    // Three trunks with varying spacing to show different brace distances
+    // Four trunks around a 10 mm bay so the preview can show every side link.
     const rootsTopZ = rootsDiskHeightMm + rootsConeHeightMm;
 
-    // Positions: left gap 5mm (X only), right gap 10mm (X + Y offset for 3D scenario)
     const trunkPositions: { x: number; y: number; index: number }[] = [
-        { x: -7.5, y: 0,  index: 0 },
-        { x: -2.5, y: 0,  index: 1 },
-        { x: 7.5,  y: 5,  index: 2 },
+        { x: -5, y: -5, index: 0 },
+        { x: 5, y: -5, index: 1 },
+        { x: -5, y: 5, index: 2 },
+        { x: 5, y: 5, index: 3 },
     ];
 
     // Build trunk support data (memoised)
@@ -166,12 +167,23 @@ export function BracePreview({
         return undefined; // default orange
     }, [isDiameterFocused, isBraceFocused, DIM_COLOR]);
 
-    // Brace pairs: one at 5mm (flat X), one at ~11.18mm (3D — X + Y offset)
+    // With the trellis on, brace all four sides of the bay; otherwise show a
+    // spanning set. The actual run applies its plan-direction and clearance
+    // checks after choosing these nearby pairs.
     type GridPair = { aX: number; aY: number; bX: number; bY: number; dist: number };
-    const bracePairs: GridPair[] = [
-        { aX: -7.5, aY: 0, bX: -2.5, bY: 0, dist: 5 },
-        { aX: -2.5, aY: 0, bX: 7.5,  bY: 5, dist: Math.sqrt(10 * 10 + 5 * 5) },
-    ];
+    const candidatePairs: GridPair[] = lateralTrellisEnabled
+        ? [
+            { aX: -5, aY: -5, bX: 5, bY: -5, dist: 10 },
+            { aX: -5, aY: 5, bX: 5, bY: 5, dist: 10 },
+            { aX: -5, aY: -5, bX: -5, bY: 5, dist: 10 },
+            { aX: 5, aY: -5, bX: 5, bY: 5, dist: 10 },
+        ]
+        : [
+            { aX: -5, aY: -5, bX: 5, bY: -5, dist: 10 },
+            { aX: -5, aY: -5, bX: -5, bY: 5, dist: 10 },
+            { aX: 5, aY: -5, bX: 5, bY: 5, dist: 10 },
+        ];
+    const bracePairs = candidatePairs.filter((pair) => pair.dist <= maxBraceLengthMm + 0.001);
 
     // Build brace geometry using the real auto-bracing ladder logic
     const braces: { start: THREE.Vector3; end: THREE.Vector3; section: 'initial' | 'repeating' }[] = [];

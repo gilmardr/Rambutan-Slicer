@@ -37,6 +37,9 @@ test('Magic Prepare workflows save, replace by name, reload, and delete', () => 
         optimizeEnabled: true,
         bracingEnabled: false,
         raftEnabled: true,
+        arrangeAfterPrepare: true,
+        saveProjectAfterPrepare: true,
+        sliceAfterPrepare: true,
         supportScope: 'exterior' as const,
     };
 
@@ -57,8 +60,20 @@ test('Magic Prepare workflows save, replace by name, reload, and delete', () => 
 
     const reloaded = reloadStore();
     assert.equal(reloaded.getMagicPrepareWorkflowsSnapshot()[0].supportScope, 'combined');
+    assert.equal(reloaded.getMagicPrepareWorkflowsSnapshot()[0].arrangeAfterPrepare, true);
+    assert.equal(reloaded.getMagicPrepareWorkflowsSnapshot()[0].saveProjectAfterPrepare, true);
+    assert.equal(reloaded.getMagicPrepareWorkflowsSnapshot()[0].sliceAfterPrepare, true);
     assert.equal(reloaded.deleteMagicPrepareWorkflow(id), true);
     assert.deepEqual(reloaded.getMagicPrepareWorkflowsSnapshot(), []);
     assert.equal(reloaded.deleteMagicPrepareWorkflow(id), false);
     assert.equal(store.saveMagicPrepareWorkflow('  ', config), null);
+});
+
+test('older workflows keep slicing enabled without opting in to new stages', () => {
+    const storage = installMemoryLocalStorage();
+    storage.set(STORAGE_KEY, JSON.stringify([{ id: 'legacy', name: 'Legacy', sliceAfterPrepare: true }]));
+    const [workflow] = reloadStore().getMagicPrepareWorkflowsSnapshot();
+    assert.equal(workflow.sliceAfterPrepare, true);
+    assert.equal(workflow.arrangeAfterPrepare, false);
+    assert.equal(workflow.saveProjectAfterPrepare, false);
 });

@@ -2,6 +2,8 @@ export type AutoBracingPattern = 'singleDiagonal' | 'crossDiagonal' | 'zigZag';
 
 export interface AutoBracingSettings {
     braceDiameterMm: number;
+    /** Connect nearby supports in a side lattice in addition to the spanning braces. */
+    lateralTrellisEnabled: boolean;
     initialPattern: AutoBracingPattern;
     initialDistanceMm: number;
     repeatingPattern: AutoBracingPattern;
@@ -56,7 +58,10 @@ export const DEBUG_SECTION_COLORS: Record<string, string> = {
 
 export const AUTO_BRACING_HARD_RULES = {
     braceAngleDeg: 45,
-    minGroupSize: 3,
+    // Two supports can still form a useful X in their shared side plane.
+    minGroupSize: 2,
+    /** Maximum local neighbors selected for the side trellis around one shaft. */
+    maxTrellisNeighborsPerSupport: 4,
     // A second axis must be separated by at least the ladder's own brace
     // angle: the 45° X-pattern diagonals qualify as a second axis, so a
     // braced trunk reads as 2-axis and does NOT get a kickstand. (Was 50° —
@@ -117,6 +122,7 @@ function normalizeBoolean(value: unknown, fallback: boolean): boolean {
 export function createDefaultAutoBracingSettings(): AutoBracingSettings {
     return {
         braceDiameterMm: AUTO_BRACING_CONSTRAINTS.braceDiameterMm.defaultValue,
+        lateralTrellisEnabled: true,
         initialPattern: 'crossDiagonal',
         initialDistanceMm: AUTO_BRACING_CONSTRAINTS.initialDistanceMm.defaultValue,
         repeatingPattern: 'crossDiagonal',
@@ -136,6 +142,7 @@ export function normalizeAutoBracingSettings(input?: Partial<AutoBracingSettings
 
     return {
         braceDiameterMm: clampNumeric(source.braceDiameterMm, AUTO_BRACING_CONSTRAINTS.braceDiameterMm),
+        lateralTrellisEnabled: normalizeBoolean(source.lateralTrellisEnabled, defaults.lateralTrellisEnabled),
         initialPattern: normalizePattern(source.initialPattern, defaults.initialPattern),
         initialDistanceMm: clampNumeric(source.initialDistanceMm, AUTO_BRACING_CONSTRAINTS.initialDistanceMm),
         repeatingPattern: normalizePattern(source.repeatingPattern, defaults.repeatingPattern),

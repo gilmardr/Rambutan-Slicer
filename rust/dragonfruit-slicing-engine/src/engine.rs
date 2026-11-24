@@ -13,7 +13,7 @@ use crate::metrics::{add_elapsed, EncodeStageCounters, SlicingPerfV3};
 use crate::pipeline::{render_layers_bounded, render_layers_rle, render_layers_rle_encoded};
 use crate::raster::{
     apply_blur_postprocess_inplace_with_roi, blur_gray_rle_streaming,
-    blur_gray_rle_streaming_with_bounds, downsample_binary_rle_to_gray_rle,
+    blur_gray_rle_streaming_with_bounds, downsample_rle_to_gray_rle,
     rasterize_layer_with_stats, remap_gray_rle_with_lut,
 };
 use crate::types::{
@@ -3159,7 +3159,7 @@ pub fn slice_with_progress_v3(
             supported_output_formats().join(", ")
         )));
     };
-    let requires_area_stats = encoder.requires_area_stats();
+    let requires_area_stats = encoder.requires_area_stats_for_job(job);
     let requires_png_layers = encoder.requires_png_layers();
     let requires_raw_mask_layers = encoder.requires_raw_mask_layers();
 
@@ -3582,7 +3582,7 @@ pub fn slice_and_rasterize_rle_v3(
          support_raster_runs: Option<Vec<crate::rle::RleRun>>| {
             let downsample_min_alpha_u8 = ssaa_downsample_min_alpha_u8(blur_radius, 0);
             let gray_runs = if ssaa_factor > 1 {
-                downsample_binary_rle_to_gray_rle(
+                downsample_rle_to_gray_rle(
                     &raster_runs,
                     super_width,
                     super_height,
@@ -3622,7 +3622,7 @@ pub fn slice_and_rasterize_rle_v3(
 
             let final_runs = if let Some(support_raster_runs) = support_raster_runs.as_ref() {
                 let support_runs = if ssaa_factor > 1 {
-                    downsample_binary_rle_to_gray_rle(
+                    downsample_rle_to_gray_rle(
                         support_raster_runs,
                         super_width,
                         super_height,
@@ -3925,7 +3925,7 @@ pub fn slice_and_rasterize_rle_blocks_v3(
             // Post-process at the widened width (mirrors `wrapped_on_rle`).
             let downsample_min_alpha_u8 = ssaa_downsample_min_alpha_u8(blur_radius, 0);
             let gray_runs = if ssaa_factor > 1 {
-                downsample_binary_rle_to_gray_rle(
+                downsample_rle_to_gray_rle(
                     &raster_runs,
                     wid_w * ssaa_factor,
                     super_height,
@@ -3950,7 +3950,7 @@ pub fn slice_and_rasterize_rle_blocks_v3(
 
             let final_runs = if let Some(support_raster_runs) = support_raster_runs.as_ref() {
                 let support_runs = if ssaa_factor > 1 {
-                    downsample_binary_rle_to_gray_rle(
+                    downsample_rle_to_gray_rle(
                         support_raster_runs,
                         wid_w * ssaa_factor,
                         super_height,
@@ -3987,7 +3987,7 @@ pub fn slice_and_rasterize_rle_blocks_v3(
 
     let (layer_area_stats, mut perf) = crate::pipeline::render_layers_rle_blocks(
         job.total_layers,
-        crate::tolerance::has_slice_hollowing(job),
+        crate::tolerance::has_model_slice_effects(job),
         produce_layer,
         on_block,
         on_progress,
@@ -4794,7 +4794,7 @@ pub fn slice_and_rasterize_rle_encoded_v3(
                 let downsample_min_alpha_u8 = ssaa_downsample_min_alpha_u8(blur_radius, 0);
                 let gray_runs = if ssaa_factor > 1 {
                     let start = std::time::Instant::now();
-                    let downsampled = downsample_binary_rle_to_gray_rle(
+                    let downsampled = downsample_rle_to_gray_rle(
                         super_runs,
                         super_width,
                         super_height,
@@ -4852,7 +4852,7 @@ pub fn slice_and_rasterize_rle_encoded_v3(
                 let final_runs = if let Some(support_super_runs) = support_super_runs {
                     let start = std::time::Instant::now();
                     let support_runs = if ssaa_factor > 1 {
-                        downsample_binary_rle_to_gray_rle(
+                        downsample_rle_to_gray_rle(
                             support_super_runs,
                             super_width,
                             super_height,
@@ -5037,6 +5037,47 @@ pub fn read_layer_preview_png_by_format_hint(
     encoder.read_layer_preview_png(source_path, layer_number)
 }
 
+/// Replace one layer mask in a saved print artifact through its registered format encoder.
+pub fn replace_print_layer_pixels_png_by_format_hint(
+    source_path: &Path,
+    layer_number: u32,
+    format_hint: &str,
+    png_bytes: &[u8],
+) -> Result<u64, SlicerV3Error> {
+    let Some(encoder) = find_encoder_by_hint_or_source(format_hint, source_path) else {
+        let requested = format_hint.trim();
+        let requested_display = if requested.is_empty() {
+            source_path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| format!(".{}", ext.trim_start_matches('.')))
+                .unwrap_or_else(|| "(unknown)".to_string())
+        } else {
+            requested.to_string()
+        };
+
+        return Err(SlicerV3Error::UnsupportedOutput(format!(
+            "{} (supported: {})",
+            requested_display,
+            supported_output_formats().join(", ")
+        )));
+    };
+
+    encoder.replace_layer_pixels_png(source_path, layer_number, png_bytes)
+}
+
+pub fn process_print_islands_by_format_hint(
+    source_path: &Path,
+    format_hint: &str,
+    minimum_pixels: u32,
+    remove: bool,
+    progress: &dyn Fn(u32, u32),
+) -> Result<crate::encoders::PrintIslandReport, SlicerV3Error> {
+    let encoder = find_encoder_by_hint_or_source(format_hint, source_path)
+        .ok_or_else(|| SlicerV3Error::UnsupportedOutput(format_hint.to_string()))?;
+    encoder.process_print_islands(source_path, minimum_pixels, remove, progress)
+}
+
 /// Encode rendered layers through a registered format encoder.
 pub fn dispatch_encode_by_format(
     job: &SliceJobV3,
@@ -5100,7 +5141,7 @@ pub fn slice_with_progress_v3_to_path(
             supported_output_formats().join(", ")
         )));
     };
-    let requires_area_stats = encoder.requires_area_stats();
+    let requires_area_stats = encoder.requires_area_stats_for_job(job);
     let requires_png_layers = encoder.requires_png_layers();
     let requires_raw_mask_layers = encoder.requires_raw_mask_layers();
 
@@ -5609,6 +5650,104 @@ mod tests {
             .into_iter()
             .nth(target_layer as usize)
             .expect("target perturbation 3DAA RLE layer should be emitted")
+    }
+
+    #[test]
+    fn ctb_roundtrip_preserves_grayscale_by_model_with_all_aa_modes() {
+        let mut job = base_perturb_3daa_rle_test_job();
+        job.output_format = ".ctb".into();
+        job.format_version = Some("v4".into());
+        job.total_layers = 3;
+        job.model_triangle_count = 24;
+        job.model_slice_ranges = vec![
+            crate::types::ModelSliceRangeV1 {
+                start_triangle: 0,
+                triangle_count: 12,
+                grayscale_percent: Some(30.0),
+                ..Default::default()
+            },
+            crate::types::ModelSliceRangeV1 {
+                start_triangle: 12,
+                triangle_count: 12,
+                grayscale_percent: Some(65.0),
+                ..Default::default()
+            },
+        ];
+        push_box_triangles(&mut job.triangles_xyz, -22.0, 0.0, 0.0, 3.0, 14.0, 16.0);
+        push_box_triangles(&mut job.triangles_xyz, 0.0, 0.0, 0.0, 3.0, 14.0, 16.0);
+        push_box_triangles(&mut job.triangles_xyz, 22.0, 0.0, 0.0, 3.0, 14.0, 16.0);
+
+        let path = std::env::temp_dir()
+            .join(format!("rambutan-model-grayscale-test-{}.ctb", std::process::id()));
+        for (mode, level, blur) in [
+            ("Coverage", "Off", 0),
+            ("Coverage", "4x", 0),
+            ("Blur", "Off", 2),
+            ("Vertical2", "4x", 0),
+        ] {
+            job.anti_aliasing_mode = mode.into();
+            job.anti_aliasing_level = level.into();
+            job.blur_brush_radius_px = blur;
+            let roundtrip = super::slice_with_progress_v3_to_path(&job, &path, None, None)
+                .and_then(|_| super::read_layer_preview_png_by_format_hint(&path, 2, ".ctb"));
+            let _ = std::fs::remove_file(&path);
+            let png = roundtrip.expect("must encode and reopen the CTB");
+            let mut reader = png::Decoder::new(std::io::Cursor::new(png)).read_info().unwrap();
+            let mut pixels = vec![0; reader.output_buffer_size()];
+            reader.next_frame(&mut pixels).unwrap();
+            let middle = &pixels[32 * 64..33 * 64];
+            for (start, end, expected) in [(0, 20, 76), (23, 42, 166), (44, 64, 254)] {
+                assert_eq!(
+                    middle[start..end].iter().copied().max(),
+                    Some(expected),
+                    "{mode} {level}, columns {start}–{end}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn slice_pipeline_keeps_hollowing_infill_in_its_own_model_range() {
+        let mut job = base_perturb_3daa_rle_test_job();
+        job.total_layers = 2;
+        job.anti_aliasing_level = "Off".into();
+        job.anti_aliasing_mode = "Coverage".into();
+        job.model_triangle_count = 12;
+        job.model_slice_ranges = vec![crate::types::ModelSliceRangeV1 {
+            start_triangle: 0,
+            triangle_count: 12,
+            wall_thickness_mm: 2.0,
+            infill_density_percent: 75.0,
+            infill_cell_mm: Some(4.0),
+            infill_intensity_percent: Some(40.0),
+            ..Default::default()
+        }];
+        push_box_triangles(&mut job.triangles_xyz, -23.0, -12.0, 0.0, 2.0, 22.0, 24.0);
+        push_box_triangles(&mut job.triangles_xyz, 8.0, -5.0, 0.0, 2.0, 10.0, 10.0);
+        let (layers, _, _) =
+            super::slice_and_rasterize_v3(&job, false, false, true, None, None, None)
+                .expect("slice job must render");
+        for layer in layers.raw_mask_layers.expect("slice job must return masks") {
+            assert!(layer.contains(&102), "infill must preserve the requested gray");
+            assert!(layer.contains(&255), "walls and support must stay at full intensity");
+            let support_only_columns = layer.chunks_exact(64).flat_map(|row| &row[40..]);
+            assert!(support_only_columns.clone().any(|&pixel| pixel == 255));
+            assert!(support_only_columns.into_iter().all(|&pixel| pixel != 102));
+        }
+
+        job.output_format = ".ctb".into();
+        if super::find_encoder(&job.output_format).is_some() {
+            let path = std::env::temp_dir()
+                .join(format!("rambutan-infill-test-{}.ctb", std::process::id()));
+            let roundtrip = super::slice_with_progress_v3_to_path(&job, &path, None, None)
+                .and_then(|_| super::read_layer_preview_png_by_format_hint(&path, 1, ".ctb"));
+            let _ = std::fs::remove_file(path);
+            let png = roundtrip.expect("slice job must encode and reopen as CTB");
+            let mut reader = png::Decoder::new(std::io::Cursor::new(png)).read_info().unwrap();
+            let mut pixels = vec![0; reader.output_buffer_size()];
+            let info = reader.next_frame(&mut pixels).unwrap();
+            assert!(pixels[..info.buffer_size()].contains(&102), "CTB layer must retain the infill intensity");
+        }
     }
 
     #[test]

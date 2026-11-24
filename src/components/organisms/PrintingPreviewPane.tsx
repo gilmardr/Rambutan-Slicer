@@ -4,8 +4,12 @@ import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import type { MessageDescriptor } from '@lingui/core';
+import { Pencil } from 'lucide-react';
+import { Button } from '@/components/atoms';
 import { LayerSlider } from '@/components/controls/LayerSlider';
 import { PrintingLayerGpuPreview } from '@/components/controls/PrintingLayerGpuPreview';
+import { PixelLayerEditorModal } from '@/features/printing/components/PixelLayerEditorModal';
+import type { ProcessPrintIslands } from '@/features/printing/components/PixelLayerEditorModal';
 import type { PrinterProfile } from '@/features/profiles/profileStore';
 
 type PreviewTargetResolution = {
@@ -18,6 +22,10 @@ type PreviewTargetResolution = {
 export type PrintingPreviewPaneProps = {
   printingPreviewTotalLayers: number;
   printingSelectedLayer: number;
+  canEditLayerPixels: boolean;
+  previousPrintingLayerPreviewUrl: string | null;
+  onApplyLayerPixelEdit: (layerNumber: number, pngBytes: Uint8Array) => Promise<void>;
+  onProcessPrintIslands: ProcessPrintIslands;
   handlePrintingLayerChange: (layer: number) => void;
   handlePrintingLayerScrubStart: () => void;
   handlePrintingLayerScrubEnd: () => void;
@@ -65,6 +73,10 @@ function formatLayerProgress(translate: Translate, layers: string): string {
 export function PrintingPreviewPane({
   printingPreviewTotalLayers,
   printingSelectedLayer,
+  canEditLayerPixels,
+  previousPrintingLayerPreviewUrl,
+  onApplyLayerPixelEdit,
+  onProcessPrintIslands,
   handlePrintingLayerChange,
   handlePrintingLayerScrubStart,
   handlePrintingLayerScrubEnd,
@@ -91,6 +103,7 @@ export function PrintingPreviewPane({
   isPrintingSettledCanvasReady,
 }: PrintingPreviewPaneProps) {
   const { _ } = useLingui();
+  const [pixelEditorOpen, setPixelEditorOpen] = React.useState(false);
   return (
     <div
       className="absolute right-0 w-1/2 min-w-0 grid overflow-hidden"
@@ -122,8 +135,21 @@ export function PrintingPreviewPane({
       </div>
 
       <div className="h-full min-h-0 min-w-0 p-3 flex flex-col gap-2 overflow-hidden">
-        <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-          <Trans>Layer Preview</Trans>
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+            <Trans>Layer Preview</Trans>
+          </div>
+          <Button
+            variant="secondary"
+            size="auto"
+            className="!h-7 gap-1 px-2 text-[10px]"
+            disabled={!canEditLayerPixels || !selectedPrintingLayerPreviewUrl}
+            onClick={() => setPixelEditorOpen(true)}
+            title={canEditLayerPixels ? _(msg`Edit pixels in this CTB layer`) : _(msg`Pixel editing is available for non-stale CTB slices in the desktop app.`)}
+          >
+            <Pencil className="h-3 w-3" />
+            <Trans>Edit Pixels</Trans>
+          </Button>
         </div>
         <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
           {formatLayerProgress(_, `${Math.max(1, Math.min(Math.max(1, printingPreviewTotalLayers), printingSelectedLayer))}/${Math.max(1, printingPreviewTotalLayers)}`)}
@@ -261,6 +287,15 @@ export function PrintingPreviewPane({
           )}
         </div>
       </div>
+      <PixelLayerEditorModal
+        open={pixelEditorOpen}
+        layerNumber={printingSelectedLayer}
+        sourceUrl={selectedPrintingLayerPreviewUrl}
+        previousLayerUrl={previousPrintingLayerPreviewUrl}
+        onClose={() => setPixelEditorOpen(false)}
+        onApply={onApplyLayerPixelEdit}
+        onProcessPrintIslands={onProcessPrintIslands}
+      />
     </div>
   );
 }

@@ -15,6 +15,8 @@
   <a href="https://github.com/Open-Resin-Alliance/DragonFruit"><img alt="Baseado no DragonFruit" src="https://img.shields.io/badge/baseado%20no-DragonFruit-e0115f"></a>
 </p>
 
+[English](README.en.md) · [Galeria do astronauta](#o-astronauta-no-rambutan-slicer)
+
 > **Aviso de modificação (AGPL-3.0, seção 5a):** este trabalho é uma versão modificada do DragonFruit, derivada do commit upstream [`8bb1a22`](https://github.com/Open-Resin-Alliance/DragonFruit/commit/8bb1a22657b8c004f935f9ea7925fb0d8bc4d1a9). Modificado por [gilmardr](https://github.com/gilmardr) a partir de novembro de 2026 (rebranding, novas ferramentas de suporte, medição, corte orgânico, hollowing e documentação). O histórico completo das alterações está no log do Git deste repositório.
 
 > [!WARNING]
@@ -25,6 +27,7 @@
 - [Download](#download)
 - [Funcionalidades](#funcionalidades)
 - [O que muda em relação ao DragonFruit](#o-que-muda-em-relação-ao-dragonfruit)
+- [Galeria do astronauta](#o-astronauta-no-rambutan-slicer)
 - [Começando](#começando)
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Documentação](#documentação)
@@ -58,10 +61,6 @@ O que o Rambutan Slicer acrescenta está na seção seguinte.
 
 O Rambutan Slicer parte do DragonFruit no commit [`8bb1a22`](https://github.com/Open-Resin-Alliance/DragonFruit/commit/8bb1a22657b8c004f935f9ea7925fb0d8bc4d1a9) e mantém o mesmo motor de fatiamento, os mesmos formatos de arquivo (`.voxl` e os formatos de impressora) e o mesmo sistema de plugins. Projetos do DragonFruit abrem no Rambutan. As diferenças estão nas ferramentas abaixo. A documentação técnica de cada uma está em `docs/dev/`.
 
-<!-- Capturas de tela: salve as imagens em docs/assets/screenshots/ com os nomes
-     indicados em cada item e troque o comentário pela linha de imagem, por exemplo:
-     ![Gravação em relevo](docs/assets/screenshots/gravacao.png) -->
-
 ### Suportes
 
 - **Auto-suporte em grade por padrão.** Um tronco por nó de uma grade de 4 mm, com os demais contatos ramificando perto do modelo. As bases ficam mais espaçadas na plataforma, e pontas muito próximas da plataforma recebem tocos compactos em vez de ficarem sem suporte. A densidade de contatos do DragonFruit foi mantida.
@@ -71,17 +70,14 @@ O Rambutan Slicer parte do DragonFruit no commit [`8bb1a22`](https://github.com/
 - **Novas formas de posicionar contatos:** pintura de suportes (arrastar sobre a superfície), projeção de um padrão sobre uma área e suportes em linha entre dois pontos.
 - **Diagnósticos:** proximidade entre suportes e modelo (hastes perto demais aparecem em vermelho) e detecção de ventosas, as regiões côncavas que fazem efeito de sucção e precisam de drenagem.
 
-<!-- Capturas: docs/assets/screenshots/suportes-grade.png, verificacao-regioes.png, raft-contorno.png, pintura-suportes.png -->
-
 ### Preparação do modelo
 
+- **Importação STEP e STP.** Abra modelos de CAD diretamente na mesa de preparação.
 - **Gravação e relevo.** Texto ou imagem (PNG, JPEG ou WebP) aplicados num ponto da superfície do modelo, gravados para dentro ou em relevo para fora. A prévia pode ser girada e reposicionada antes de confirmar, e o resultado é uma única ação de desfazer.
 - **Auto-orientação** que avalia cada pose pela área das camadas, calculada em segundo plano sem travar a interface.
 - **Arranjo de alta precisão** e alinhamento dos modelos selecionados.
 - **Corte orgânico com encaixe:** espiga e encaixe para as duas metades se alinharem depois de impressas.
 - **Hollowing com preenchimento interno** e verificação dos furos de drenagem, que confere se cada furo alcança a cavidade.
-
-<!-- Capturas: docs/assets/screenshots/gravacao.png, auto-orientacao.png, corte-encaixe.png, hollowing.png -->
 
 ### Análise e cena
 
@@ -91,14 +87,76 @@ O Rambutan Slicer parte do DragonFruit no commit [`8bb1a22`](https://github.com/
 - **Painel de estatísticas do modelo** redesenhado.
 - **Sombreamento** com oclusão de ambiente também na versão web.
 
-<!-- Capturas: docs/assets/screenshots/medicao.png, colisao.png, regua-plataforma.png, estatisticas.png -->
-
 ### Distribuição e idioma
 
 - **Identidade visual própria:** nome, ícones, instalador e tema. Os temas salvos do DragonFruit são migrados.
 - **Interface em português do Brasil**, além dos idiomas do DragonFruit (inglês, espanhol, francês, alemão, tcheco e eslovaco).
 - **Releases deste fork** sem a assinatura nem o canal de atualização automática do DragonFruit.
 - **Tela Sobre** com o link para o código-fonte desta versão e o crédito ao DragonFruit.
+
+## O astronauta no Rambutan Slicer
+
+De um capacete CAD a uma miniatura pronta para inspecionar camada por camada. As dez imagens são ilustrações promocionais baseadas na referência do astronauta. Os exemplos abaixo descrevem como usar cada ferramenta.
+
+### 01 · Importação STEP e STP
+
+![Capacete do astronauta ilustrando a importação de CAD](docs/assets/astronaut/step.webp)
+
+Abra o capacete em `.step` ou `.stp` e confira as dimensões na mesa. Importe o corpo separadamente para preparar as duas peças no mesmo projeto. [Formatos aceitos](docs/reference/file-formats.md)
+
+### 02 · Gravação e alto-relevo
+
+![Insígnia rebaixada e insígnia saliente no traje do astronauta](docs/assets/astronaut/engraving.webp)
+
+Escolha a placa do peito, carregue uma insígnia em PNG transparente e gere a prévia. Use **Gravação** para rebaixar a marca ou **Relevo** para fazê-la sobressair. Ajuste a largura, a profundidade e a rotação antes de aplicar. Depois do fatiamento, confira como a marca aparece nas camadas. A ferramenta é experimental.
+
+### 03 · Auto-orientação
+
+![Duas poses comparáveis do astronauta na plataforma](docs/assets/astronaut/orientation.webp)
+
+Compare uma pose mais vertical com outra mais inclinada. A ferramenta analisa a área das camadas em segundo plano. Confira a pose sugerida e inspecione as ilhas antes de colocar os suportes. [Detalhes da auto-orientação](docs/dev/auto-orientation.md)
+
+### 04 · Arranjo de precisão e alinhamento
+
+![Astronauta e acessórios dispostos na plataforma](docs/assets/astronaut/arrange.webp)
+
+Selecione o corpo e os acessórios, organize-os na placa e alinhe as peças selecionadas. Confira a folga entre elas antes de gerar suportes. [Guia de arranjo](docs/workflows/arrange-models.md)
+
+### 05 · Corte com encaixe
+
+![Corte na perna do traje com encaixe e as duas botas completas](docs/assets/astronaut/cut.webp)
+
+Posicione o corte na perna, acima da bota, e adicione uma espiga com seu encaixe correspondente. As duas botas ficam inteiras. Confira as faces de união na prévia e faça um encaixe a seco depois da impressão. [Como funciona o encaixe](docs/dev/organic-cut-registration.md)
+
+### 06 · Oco, preenchimento e drenagem
+
+![Seção do torso mostrando a cavidade, a estrutura interna e os drenos](docs/assets/astronaut/hollow.webp)
+
+Deixe o torso oco, ajuste a parede e o preenchimento interno e acrescente furos de drenagem. Use a verificação de conectividade para confirmar que os furos alcançam a cavidade. [Guia de hollowing](docs/workflows/hollowing.md)
+
+### 07 · Suportes automáticos e raft de contorno
+
+![Astronauta inclinado sobre suportes ramificados e raft de contorno](docs/assets/astronaut/supports.webp)
+
+Gere suportes em grade para a pose escolhida. Os contatos se ramificam a partir dos troncos e o raft de contorno acompanha as bases. Abra o relatório do modelo para revisar candidatos rejeitados e ilhas sem cobertura. [Suportes automáticos](docs/dev/auto-supports.md)
+
+### 08 · Pintura, projeção e suportes em linha
+
+![Contatos localizados no braço e no ombro do astronauta](docs/assets/astronaut/contacts.webp)
+
+Pinte contatos sob o ombro, projete um padrão numa área do traje ou distribua uma linha entre dois pontos do antebraço. Confira os contatos de perto para evitar marcas em áreas de destaque. [Guia de posicionamento](docs/workflows/support-placement.md)
+
+### 09 · Diagnóstico de impressão
+
+![Regiões do astronauta e dos suportes destacadas para inspeção](docs/assets/astronaut/diagnostics.webp)
+
+Verifique regiões flutuantes com modelo, suportes e raft juntos. Revise as ilhas sem cobertura no relatório, o alerta de hastes próximas demais e as cavidades suscetíveis à sucção. Em seguida, confira as camadas no fatiamento.
+
+### 10 · Medição, colisões e leitura da cena
+
+![Linha de medição e indicação de interferência na cena do astronauta](docs/assets/astronaut/measure.webp)
+
+Meça a largura do capacete entre dois pontos, a distância até um plano ou o vão entre planos paralelos. Use a régua da placa para posicionar as peças, verifique avisos de colisão e confira as estimativas no painel do modelo. A oclusão de ambiente ajuda a ler a cena também na versão web. [Ferramenta de medição](docs/dev/measurement.md)
 
 ## Começando
 
@@ -130,6 +188,8 @@ Para trabalhar só na interface, sem o app desktop:
    - `npm run tauri:bundle:linux`
    - `npm run tauri:bundle:macos:universal`: `.dmg` universal para Intel e Apple Silicon.
    - `npm run tauri:bundle:macos` / `npm run tauri:bundle:macos:arm64`: atalhos de uma arquitetura, só para desenvolvimento local.
+
+A build desktop testa as extensões anunciadas pela interface antes de empacotar. No Windows, a verificação usa o Microsoft Edge instalado. No macOS, prepare o navegador com `npx playwright-core install chromium`. No Linux, use `npx playwright-core install --with-deps chromium`. Para repetir a verificação do frontend já preparado, rode `npm run verify:release-imports`. O relatório gerado em `release-verification/` inclui os resultados e as [instruções de uso](docs/release/NOTAS.md).
 
 ## Estrutura do projeto
 

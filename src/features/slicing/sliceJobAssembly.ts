@@ -57,6 +57,10 @@ export type ModelSliceRangeV1 = {
   startTriangle: number;
   triangleCount: number;
   wallThicknessMm: number;
+  infillDensityPercent?: number;
+  infillCellMm?: number;
+  infillIntensityPercent?: number;
+  grayscalePercent?: number;
 };
 
 function resolvePluginPackedWidth(

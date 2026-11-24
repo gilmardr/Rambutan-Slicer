@@ -13,7 +13,7 @@ use crate::raster::{
     rasterize_layer_rle, rasterize_layer_with_stats, recompute_layer_stats_from_mask,
     recompute_layer_stats_from_rle,
 };
-use crate::rle::{RleAccum, RleRun};
+use crate::rle::{merge_rle_max, RleAccum, RleRun};
 use crate::types::{
     LayerAreaStatsV3, ProgressCallbackV3, RenderedLayersV3, SliceJobV3, SliceProgressPhaseV3,
     SliceProgressUpdateV3,
@@ -58,60 +58,6 @@ pub fn get_recycled_mask(size: usize) -> Vec<u8> {
         }
     }
     vec![0u8; size]
-}
-
-fn merge_rle_max(lhs_runs: &[RleRun], rhs_runs: &[RleRun]) -> Vec<RleRun> {
-    let mut out = RleAccum::new();
-    let mut lhs_index = 0usize;
-    let mut rhs_index = 0usize;
-    let mut lhs_remaining = 0u32;
-    let mut rhs_remaining = 0u32;
-    let mut lhs_value = 0u8;
-    let mut rhs_value = 0u8;
-
-    loop {
-        if lhs_remaining == 0 {
-            if let Some(run) = lhs_runs.get(lhs_index) {
-                lhs_remaining = run.length;
-                lhs_value = run.value;
-                lhs_index += 1;
-            }
-        }
-
-        if rhs_remaining == 0 {
-            if let Some(run) = rhs_runs.get(rhs_index) {
-                rhs_remaining = run.length;
-                rhs_value = run.value;
-                rhs_index += 1;
-            }
-        }
-
-        if lhs_remaining == 0 && rhs_remaining == 0 {
-            break;
-        }
-
-        let chunk = match (lhs_remaining, rhs_remaining) {
-            (0, rhs) => rhs,
-            (lhs, 0) => lhs,
-            (lhs, rhs) => lhs.min(rhs),
-        };
-        out.push_run(chunk, lhs_value.max(rhs_value));
-
-        if lhs_remaining > 0 {
-            lhs_remaining -= chunk;
-            if lhs_remaining == 0 {
-                lhs_value = 0;
-            }
-        }
-        if rhs_remaining > 0 {
-            rhs_remaining -= chunk;
-            if rhs_remaining == 0 {
-                rhs_value = 0;
-            }
-        }
-    }
-
-    out.finish()
 }
 
 fn compute_rle_max_basic_stats(
@@ -331,7 +277,7 @@ fn choose_max_concurrent() -> usize {
 }
 
 fn choose_max_concurrent_for_job(job: &SliceJobV3) -> usize {
-    if crate::tolerance::has_slice_hollowing(job) {
+    if job.model_slice_ranges.iter().any(|range| range.triangle_count > 0 && range.has_hollowing()) {
         1
     } else {
         choose_max_concurrent()

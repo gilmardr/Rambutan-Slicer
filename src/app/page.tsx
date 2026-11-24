@@ -52,6 +52,7 @@ import { IslandListCard } from '@/components/controls/IslandListCard';
 import { ModelManagerPanel } from '../components/controls/ModelManagerPanel';
 import { ModelsPanel } from '@/components/organisms/panels/ModelsPanel';
 import { ModelStatsCard } from '@/components/controls/ModelStatsCard';
+import { FinalPrintReview } from '@/features/slicing/components/FinalPrintReview';
 import { ToolRail, TOOL_RAIL_WIDTH_PX } from '@/components/controls/ToolRail';
 import { buildPrepareToolRailEntries, buildSupportToolRailEntries, type SupportRailMode } from '@/components/controls/toolRailEntries';
 import { SnapAngleReadout } from '@/components/gizmo/rotate/SnapAngleReadout';
@@ -76,6 +77,7 @@ import { useLeafPlacementState } from '@/supports/SupportTypes/Leaf/leafPlacemen
 import { ExportPanel } from '@/features/export/components/ExportPanel';
 import { SlicingPanel, type SliceIntent } from '@/features/slicing/components/SlicingPanel';
 import { joinSliceOutputPath, sliceFileBaseName } from '@/features/slicing/plateSliceNaming';
+import { resolveEntirePlateExportBaseName } from '@/features/export/logic/exportFileNaming';
 import { PrintingPanel } from '@/features/printing/components/PrintingPanel';
 import { usePrintingPreviewManager } from '@/features/printing/usePrintingPreviewManager';
 import { useEditorToasts, useTrailingMount } from '@/features/notifications/useEditorToasts';
@@ -92,6 +94,7 @@ import {
 import { freeRectsForPlate, type PlateRect } from '@/features/scene/arrange/plateFreeSpace';
 import { buildLiftDropUpdates, preserveModelBottom } from '@/features/scene/selectionLiftDrop';
 import { dropOverlaySupportedFormats, dropOverlayUnsupportedFormats } from '@/features/scene/sceneImportMessages';
+import { MESH_FILE_FORMAT_LABELS } from '@/features/scene/meshFileTypes';
 import {
   buildCenterSelectionUpdates,
   buildSelectionPositionUpdates,
@@ -335,8 +338,11 @@ import {
   deletePrintTempArtifactPath,
   launchExternalProcess,
   pickSavePathWithNativeDialog,
+  pickSavePathWithNativeDialogOptions,
   pickOpenFilesWithNativeDialog,
   readPrintArtifactBytesFromPath,
+  replacePrintLayerPixelsPngAtPath,
+  processPrintIslandsAtPath,
   savePrintArtifactPathWithNativeDialog,
   savePrintArtifactWithNativeDialog,
   writeBytesToNativePath,
@@ -1328,6 +1334,11 @@ export default function Home() {
   }>({ filePath: null, slicingTimeMs: null });
   const [uvToolsLaunchingPath, setUvToolsLaunchingPath] = React.useState<string | null>(null);
   const [shouldAutoSliceOnExportEntry, setShouldAutoSliceOnExportEntry] = React.useState(false);
+  const [magicSliceDestination, setMagicSliceDestination] = React.useState<{ outputPath: string | null } | null>(null);
+  const clearMagicSliceDestination = React.useCallback(() => setMagicSliceDestination(null), []);
+  React.useEffect(() => {
+    if (scene.mode !== 'export') clearMagicSliceDestination();
+  }, [scene.mode, clearMagicSliceDestination]);
   const [printingSendBusy, setPrintingSendBusy] = React.useState(false);
   const [printingSendStatusText, setPrintingSendStatusText] = React.useState<string | null>(null);
   const printingSendCancelRequestedRef = React.useRef(false);
@@ -2519,6 +2530,12 @@ export default function Home() {
     isPrinting: scene.mode === 'printing',
   });
 
+  React.useEffect(() => {
+    if (scene.mode !== 'printing' || printingSelectedLayer <= 1) return;
+    if (!printingArtifact?.nativeTempPath || !printingArtifact.outputFormat.toLowerCase().includes('ctb')) return;
+    slicedPlates.loadLayerPreview(scene.activePlateId, printingSelectedLayer - 1);
+  }, [printingArtifact, printingSelectedLayer, scene.activePlateId, scene.mode, slicedPlates]);
+
   const hasPrintingWorkspaceData = printingPreviewTotalLayers > 0 && printingArtifact !== null;
 
   /** Records one bed's slice, which is what the workspace and its read-ahead are built from. */
@@ -2531,6 +2548,48 @@ export default function Home() {
       profileFingerprint: activeSliceProfileFingerprint,
     });
   }, [activeSliceProfileFingerprint, scene.activePlateId, slicedPlates]);
+
+  const handleApplyLayerPixelEdit = React.useCallback(async (
+    layerNumber: number,
+    pngBytes: Uint8Array,
+  ) => {
+    const artifact = activeSlice?.artifact;
+    const artifactPath = artifact?.nativeTempPath?.trim();
+    if (!artifact || !artifactPath) {
+      throw new Error('The generated print file is not available for editing.');
+    }
+    if (!artifact.outputFormat.toLowerCase().includes('ctb')) {
+      throw new Error('Post-slice pixel editing is currently available for CTB files.');
+    }
+    if (isActiveSliceStale) {
+      throw new Error('This slice no longer matches the active model or print profile. Slice it again before editing.');
+    }
+
+    const byteSize = await replacePrintLayerPixelsPngAtPath(
+      artifactPath,
+      layerNumber,
+      artifact.outputFormat,
+      pngBytes,
+    );
+    slicedPlates.refreshEditedArtifact(scene.activePlateId, artifact, byteSize);
+  }, [activeSlice, isActiveSliceStale, scene.activePlateId, slicedPlates]);
+
+  const handleProcessPrintIslands = React.useCallback(async (
+    minimumPixels: number,
+    remove: boolean,
+    onProgress: (done: number, total: number) => void,
+  ) => {
+    const artifact = activeSlice?.artifact;
+    const path = artifact?.nativeTempPath?.trim();
+    if (!artifact || !path || !artifact.outputFormat.toLowerCase().includes('ctb') || isActiveSliceStale) {
+      throw new Error(_(msg`Slice the current plate to a CTB file before checking all layers.`));
+    }
+    const report = await processPrintIslandsAtPath(path, artifact.outputFormat, minimumPixels, remove, onProgress);
+    if (remove && report.affectedLayers > 0) {
+      slicedPlates.refreshEditedArtifact(scene.activePlateId, artifact, report.byteSize);
+    }
+    return report;
+  }, [_, activeSlice, isActiveSliceStale, scene.activePlateId, slicedPlates]);
 
   /**
    * A batch's plate, recorded as soon as it is sliced.
@@ -3768,6 +3827,7 @@ export default function Home() {
   const {
     handleAutosaveRestore,
     handleAutosaveDiscard,
+    performTopBarSaveScene,
     handleTopBarSaveScene,
     handleTopBarSaveSceneAs,
     isDesktopRuntime,
@@ -5837,6 +5897,93 @@ export default function Home() {
     handleConfirmDuplicate,
     handleFillPlateDuplicate,
   } = arrange;
+
+  const magicSceneActionsRef = React.useRef({
+    plateId: scene.activePlateId,
+    arrange: handleAutoArrangeModels,
+    save: performTopBarSaveScene,
+  });
+  React.useLayoutEffect(() => {
+    magicSceneActionsRef.current = {
+      plateId: scene.activePlateId,
+      arrange: handleAutoArrangeModels,
+      save: performTopBarSaveScene,
+    };
+  }, [scene.activePlateId, handleAutoArrangeModels, performTopBarSaveScene]);
+
+  const configureMagicFinish = React.useCallback(async (options: {
+    arrange: boolean;
+    saveProject: boolean;
+    savePrint: boolean;
+  }): Promise<(() => void) | null> => {
+    const plateId = scene.activePlateId;
+    let projectPath: string | null = null;
+    let printPath: string | null = null;
+    try {
+      if (options.savePrint && !activePrinterProfile) {
+        showOperationError(_(msg`Select a printer profile first.`));
+        return null;
+      }
+      if (options.saveProject && isDesktopRuntime()) {
+        const name = resolveEntirePlateExportBaseName(scene.models);
+        projectPath = await pickSavePathWithNativeDialogOptions(`${name}.voxl`, {
+          filters: [{ name: 'VOXL', extensions: ['voxl'] }],
+        });
+        if (!projectPath.toLowerCase().endsWith('.voxl')) {
+          showOperationError(_(msg`Choose a filename ending in .voxl for the project.`));
+          return null;
+        }
+      }
+      if (options.savePrint && isDesktopRuntime()) {
+        const extension = resolveOutputFileExtension(activePrinterProfile?.display.outputFormat, activePrinterProfile?.display.formatVersion);
+        printPath = await pickSavePathWithNativeDialogOptions(suggestedSliceOutputFilename, {
+          filters: [{ name: extension.toUpperCase(), extensions: [extension] }],
+        });
+        if (!printPath.toLowerCase().endsWith(`.${extension.toLowerCase()}`)) {
+          showOperationError(_(msg`Use the file extension for the selected printer.`));
+          return null;
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.toLowerCase().includes('cancel')) showOperationError(message);
+      return null;
+    }
+
+    return () => {
+      void (async () => {
+        try {
+          if (magicSceneActionsRef.current.plateId !== plateId) {
+            showOperationError(_(msg`The active plate changed during Magic Prepare. Run it again on the intended plate.`));
+            return;
+          }
+          if (options.arrange) {
+            await magicSceneActionsRef.current.arrange('all', undefined, { plateFillMode: 'plate' });
+            // Wait for React to commit the arranged transforms before serializing the project.
+            await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+          }
+          if (options.saveProject) {
+            setIsSceneSaveInProgress(true);
+            try {
+              const saved = await magicSceneActionsRef.current.save({ nativePathOverride: projectPath });
+              if (!saved) return;
+            } finally {
+              setIsSceneSaveInProgress(false);
+            }
+          }
+          if (options.savePrint) {
+            shouldReturnToPrintingAfterSliceRef.current = false;
+            preSliceFileDestinationPathRef.current = null;
+            setMagicSliceDestination({ outputPath: printPath });
+            setShouldAutoSliceOnExportEntry(false);
+            scene.setMode('export');
+          }
+        } catch (error) {
+          showOperationError(error instanceof Error ? error.message : String(error));
+        }
+      })();
+    };
+  }, [_, activePrinterProfile, isDesktopRuntime, scene, showOperationError, suggestedSliceOutputFilename]);
 
   const finalizeMirrorSessionRef = React.useRef<() => void>(() => {});
   const setTransformModeWithMirrorFinalize = React.useCallback((nextMode: TransformMode) => {
@@ -8337,6 +8484,37 @@ export default function Home() {
         }}
         mode={scene.mode}
         onModeChange={handleModeChange}
+        preparationStep={scene.models.length === 0 ? 'import'
+          : scene.mode === 'support' ? transformMgr.transformMode === 'hollowing' ? 'hollow'
+            : supportRailMode === 'islands' ? 'islands' : 'supports'
+          : scene.mode === 'printing' ? 'export'
+          : scene.mode === 'export' ? 'slice' : 'orient'}
+        onOpenPreparationTool={(step) => {
+          switch (step) {
+            case 'orient':
+              prepareToolMemoryRef.current = 'transform';
+              handleModeChange('prepare');
+              setTransformModeWithMirrorFinalize('transform');
+              break;
+            case 'hollow':
+            case 'supports':
+            case 'islands': {
+              const hollowing = step === 'hollow';
+              const panelMode = step === 'islands' ? 'islands' : 'auto';
+              supportToolMemoryRef.current = { hollowing, panelMode };
+              handleModeChange('support');
+              setSupportRailMode(panelMode);
+              setTransformModeWithMirrorFinalize(hollowing ? 'hollowing' : 'select');
+              break;
+            }
+            case 'slice':
+              handleModeChange('export');
+              break;
+            case 'export':
+              handleModeChange(hasPrintingWorkspaceData ? 'printing' : 'export');
+              break;
+          }
+        }}
         hasModels={scene.models.length > 0}
         hasPrintingData={hasPrintingWorkspaceData}
         viewType={scene.shaderType}
@@ -8452,6 +8630,13 @@ export default function Home() {
             {ExportPanelStack({
               scene: scene,
               slicing: slicing,
+              finalReview: scene.activeModel && <FinalPrintReview
+                scene={scene} islands={islandsPoc} model={scene.activeModel}
+                placements={activeHolePunchPlacements} holes={holePunch.holePunchVerificationResults}
+                verifyHoles={holePunch.handleVerifyHolePunches} canVerifyHoles={holePunch.canVerifyHolePunches}
+                supportState={supportStateSnapshot} raftState={raftSettingsSnapshot}
+                onLocate={(center) => handleSuctionCupFocusFinding({ center, radiusMm: 4 })}
+              />,
               readinessIslands: islandsPoc,
               drainHoleVerificationResults: holePunch.holePunchVerificationResults,
               supportsRef: supportsRef,
@@ -8472,6 +8657,8 @@ export default function Home() {
               handleSlicingBenchmarkComplete: handleSlicingBenchmarkComplete,
               triggerSliceExportRef: triggerSliceExportRef,
               shouldAutoSliceOnExportEntry: shouldAutoSliceOnExportEntry,
+              magicSliceDestination: magicSliceDestination,
+              clearMagicSliceDestination: clearMagicSliceDestination,
               shouldReturnToPrintingAfterSliceRef: shouldReturnToPrintingAfterSliceRef,
               setIsSlicingBusy: setIsSlicingBusy,
               canSliceAndUpload: canSliceAndUpload,
@@ -8559,6 +8746,7 @@ export default function Home() {
                   onAutoLiftChange={handleAutoLiftChange}
                   onBeforeRun={requestModifierDecisionBeforeSupports}
                   onOrientForMagic={(continueWithSupportRun) => handleMagicOrientation(continueWithSupportRun, slicedLayerHeightMm)}
+                  onConfigureMagicFinish={configureMagicFinish}
                 />
               </div>
             )}
@@ -8698,6 +8886,8 @@ export default function Home() {
       <div className="absolute inset-0 z-0 flex">
         <div
           id="scene-root"
+          data-active-model-id={scene.activeModel?.id}
+          data-active-model-triangles={scene.activeModel?.polygonCount}
           className={`relative h-full ${scene.mode === 'printing' ? 'w-1/2 border-r' : 'w-full'}`}
           style={scene.mode === 'printing' ? { borderColor: 'var(--border-subtle)' } : undefined}
           onPointerDownCapture={handleEditorPointerDownCapture}
@@ -8757,8 +8947,8 @@ export default function Home() {
                 </div>
                 <div className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
                   {isPrepareDragUnsupported
-                    ? dropOverlayUnsupportedFormats(['STL', 'OBJ', '3MF', ...sceneFileExtensionLabelsValue].join(', '), _)
-                    : dropOverlaySupportedFormats(['STL', 'OBJ', '3MF', ...sceneFileExtensionLabelsValue].join(', '), _)}
+                    ? dropOverlayUnsupportedFormats([...MESH_FILE_FORMAT_LABELS, ...sceneFileExtensionLabelsValue].join(', '), _)
+                    : dropOverlaySupportedFormats([...MESH_FILE_FORMAT_LABELS, ...sceneFileExtensionLabelsValue].join(', '), _)}
                 </div>
               </div>
             </div>
@@ -9097,6 +9287,16 @@ export default function Home() {
           <PrintingPreviewPane
             printingPreviewTotalLayers={printingPreviewTotalLayers}
             printingSelectedLayer={printingSelectedLayer}
+            canEditLayerPixels={Boolean(
+              printingArtifact?.nativeTempPath
+              && printingArtifact.outputFormat.toLowerCase().includes('ctb')
+              && !isActiveSliceStale,
+            )}
+            previousPrintingLayerPreviewUrl={printingSelectedLayer > 1
+              ? layerPreviewUrlAt(printingSelectedLayer - 1)
+              : null}
+            onApplyLayerPixelEdit={handleApplyLayerPixelEdit}
+            onProcessPrintIslands={handleProcessPrintIslands}
             handlePrintingLayerChange={handlePrintingLayerChange}
             handlePrintingLayerScrubStart={handlePrintingLayerScrubStart}
             handlePrintingLayerScrubEnd={handlePrintingLayerScrubEnd}

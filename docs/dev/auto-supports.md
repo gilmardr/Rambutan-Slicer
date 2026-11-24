@@ -37,6 +37,19 @@ await runAutoPlaceSequenceInWorker(islands, modelId, [light, medium, heavy], onP
   `after-sequence`, bracing is deferred until after optimization and runs once
   on the final draft.
 
+### Lateral trellis
+
+Auto-bracing first makes a connected spanning set and adds any missing second
+axis. **Lateral Trellis** then fills each side with the nearest eligible
+neighbor in each plan direction, up to four neighbors per shaft. The option is
+on by default and can be changed in the Auto Bracing settings card. The
+initial and repeating pattern settings determine whether each selected gap
+gets a single diagonal, an X, or a continuous zigzag. With **Cross Diagonal**
+selected, two support shafts with overlapping height are enough for a first X;
+a longer trellis needs neighbors within **Max Brace Distance**. Mesh clearance
+and support height checks still reject braces that would hit the model or miss
+either shaft.
+
 ### Batch runs across selected models
 
 `runAutoPlaceBatchSequenceInWorker(entries, sequence, onProgress?, options?)`
@@ -126,6 +139,10 @@ case-insensitive name updates that entry and keeps its id. The versioned
 `magic-prepare-workflows-v1` local-storage key holds the list; storage failure
 keeps edits in memory for the current session. These workflows do not include
 support geometry settings, which remain in the existing auto-support presets.
+They can include `sliceAfterPrepare`, which switches to the export workspace
+after the selected Magic Prepare stages finish and starts the normal slice flow;
+the export panel asks for a destination and uses the selected printer and resin
+profiles.
 
 The stage order is fixed by Magic Prepare: orientation, support generation,
 optimization, bracing, then raft. A workflow chooses which stages run and the

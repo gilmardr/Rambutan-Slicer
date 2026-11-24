@@ -103,19 +103,16 @@ test('types with no shaft, or that are not braceable, stay out', () => {
 });
 
 /**
- * The behaviour behind the flag.
- *
  * The scene holds branches and NO trunks, so the sample-pool filter alone
- * decides the outcome: the early return reports `skippedSupportCount:
- * samples.length`, which is the branch count only if branches reach the pool.
- * A scene holding a trunk as well would pass whether or not they do.
+ * decides the outcome. Their contact segments are above the configured first
+ * brace tier, so this fixture has eligible members but no placeable braces.
  */
-test('a branch reaches the pass: a branches-only scene reports it as a sample', () => {
+test('branches reach the bracing pass even when the scene has no trunks', () => {
     const snapshot = emptySnapshot();
     const modelId = 'model-a';
 
-    // Two branches off a host knot, and deliberately NO trunk: any sample the
-    // pass reports can only have come from a branch.
+    // Two branches off a host knot, and deliberately NO trunk: any samples
+    // the pass groups can only have come from branches.
     snapshot.knots['k-host'] = {
         id: 'k-host', parentShaftId: 'seg-absent', t: 0.5,
         pos: { x: 0, y: 0, z: 6 }, diameter: 1.1,
@@ -125,10 +122,6 @@ test('a branch reaches the pass: a branches-only scene reports it as a sample', 
 
     const result = buildAutoBracedSnapshot(snapshot, createDefaultAutoBracingSettings());
 
-    assert.equal(
-        result.skippedSupportCount,
-        2,
-        'both branches must be samples the pass accounts for',
-    );
-    assert.equal(result.generatedBraceCount, 0, 'two is below minGroupSize, so nothing is braced yet');
+    assert.equal(result.skippedSupportCount, 0, 'both branches are grouped as eligible members');
+    assert.equal(result.generatedBraceCount, 0, 'no brace tier intersects both branch segments');
 });

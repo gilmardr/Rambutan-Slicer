@@ -208,7 +208,7 @@ pub struct SliceJobV3 {
     /// `0` means "unspecified" (no geometry split metadata).
     #[serde(default = "default_model_triangle_count")]
     pub model_triangle_count: u32,
-    /// Optional per-model slice-only hollowing. Ranges address the model-only
+    /// Optional per-model slice-only hollowing and grayscale. Ranges address the model-only
     /// triangle prefix; support and raft triangles remain outside these ranges.
     #[serde(default)]
     pub model_slice_ranges: Vec<ModelSliceRangeV1>,
@@ -285,6 +285,30 @@ pub struct ModelSliceRangeV1 {
     pub start_triangle: u32,
     pub triangle_count: u32,
     pub wall_thickness_mm: f32,
+    #[serde(default)]
+    pub infill_density_percent: f32,
+    #[serde(default)]
+    pub infill_cell_mm: Option<f32>,
+    #[serde(default)]
+    pub infill_intensity_percent: Option<f32>,
+    #[serde(default)]
+    pub grayscale_percent: Option<f32>,
+}
+
+impl ModelSliceRangeV1 {
+    pub(crate) fn grayscale_scale(&self) -> u8 {
+        self.grayscale_percent
+            .filter(|percent| percent.is_finite())
+            .map_or(255, |percent| (percent.clamp(1.0, 100.0) * 255.0 / 100.0).round() as u8)
+    }
+
+    pub(crate) fn has_slice_effect(&self) -> bool {
+        self.triangle_count > 0 && (self.has_hollowing() || self.grayscale_scale() < 255)
+    }
+
+    pub(crate) fn has_hollowing(&self) -> bool {
+        self.wall_thickness_mm.is_finite() && self.wall_thickness_mm > 0.0
+    }
 }
 
 impl SliceJobV3 {
@@ -342,6 +366,17 @@ impl SliceJobV3 {
 
     #[inline]
     pub fn produces_grayscale_output(&self) -> bool {
+        if self.model_slice_ranges.iter().any(|range| {
+            let gray_infill = range.has_hollowing()
+                && range.infill_density_percent > 0.0
+                && range.infill_intensity_percent.is_some_and(|value| {
+                    let gray = (value * 255.0 / 100.0).round();
+                    gray > 0.0 && gray < 255.0
+                });
+            range.triangle_count > 0 && (range.grayscale_scale() < 255 || gray_infill)
+        }) {
+            return true;
+        }
         if self.anti_aliasing_mode_is_vertical() {
             return true;
         }

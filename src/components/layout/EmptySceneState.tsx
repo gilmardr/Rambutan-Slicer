@@ -1,6 +1,11 @@
 "use client";
 
 import React from 'react';
+import {
+  MESH_FILE_ACCEPT,
+  MESH_FILE_EXTENSION_SET,
+  MESH_FILE_EXTENSIONS,
+} from '@/features/scene/meshFileTypes';
 import { FolderInput, Upload, Printer, Wrench } from 'lucide-react';
 import { ProgressBar } from '@/components/atoms';
 import { useLingui } from '@lingui/react';
@@ -144,11 +149,11 @@ function getFileExtension(name: string): string {
   return trimmed.slice(dotIndex);
 }
 
-const MESH_DROP_EXTENSIONS = ['.stl', '.obj', '.3mf'];
+const MESH_DROP_EXTENSIONS = MESH_FILE_EXTENSIONS;
 
 function isSupportedDropName(name: string, sceneExtensions: readonly string[]): boolean {
   const ext = getFileExtension(name);
-  if (MESH_DROP_EXTENSIONS.includes(ext)) return true;
+  if (MESH_FILE_EXTENSION_SET.has(ext)) return true;
   // Scene formats come from the plugin registry, so a newly registered plugin
   // is droppable without touching this list.
   return sceneExtensions.some((sceneExt) => ext === `.${sceneExt}`);
@@ -792,13 +797,13 @@ export function EmptySceneState({
                         : '1px solid color-mix(in srgb, var(--accent), var(--border-subtle) 56%)',
                     }}
                   >
-                    {['STL', 'OBJ', '3MF', ...sceneExtensionLabels].join(' • ')}
+                    {[...MESH_DROP_EXTENSIONS.map((extension) => extension.slice(1).toUpperCase()), ...sceneExtensionLabels].join(' • ')}
                   </span>
                 </div>
                 {isDropUnsupported && (
                   <div className="mt-1 text-[11px]" style={{ color: 'var(--danger)' }}>
                     {_(msg`Unsupported format detected.`)}{' '}
-                    {['STL', 'OBJ', '3MF', ...sceneExtensionLabels].join(', ')}
+                    {[...MESH_DROP_EXTENSIONS.map((extension) => extension.slice(1).toUpperCase()), ...sceneExtensionLabels].join(', ')}
                   </div>
                 )}
               </div>
@@ -809,7 +814,7 @@ export function EmptySceneState({
         <input
           id="empty-state-stl-file-input"
           type="file"
-          accept=".stl,.obj,.3mf,.zip"
+          accept={MESH_FILE_ACCEPT}
           multiple
           onChange={onFileChange}
           className="hidden"

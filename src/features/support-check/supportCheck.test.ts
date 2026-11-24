@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import {
   classifySupportCheckIslands,
   clampSupportCheckReach,
+  supportCheckBounds,
   SUPPORT_CHECK_REACH_MM,
 } from './supportCheck';
 import type { DetectedIsland } from '@/volumeAnalysis/Islands/types';
@@ -21,6 +22,22 @@ function island(id: string, x: number, y: number, z: number): DetectedIsland {
 }
 
 const options = { baseZ: 0, layerHeightMm: 0.05, pxMm: 0.1, reachMm: 1.5 };
+
+test('the scan includes the build plate under an elevated part and grounds the first layer of a raft', () => {
+  for (const bottom of [0, 0.002, 5]) {
+    const bounds = new THREE.Box3(new THREE.Vector3(0, 0, bottom), new THREE.Vector3(10, 10, 7));
+    const scanBounds = supportCheckBounds(bounds);
+    assert.equal(scanBounds.min.z, 0);
+    assert.equal(bounds.min.z, bottom);
+    const result = classifySupportCheckIslands(
+      [island('first-layer', 2, 2, 0.05), island('elevated', 2, 2, 5.05)],
+      slabPositions(),
+      { ...options, baseZ: scanBounds.min.z },
+    );
+    assert.equal(result.groundedCount, 1);
+    assert.deepEqual(result.modelIslands.map(region => region.id), ['elevated']);
+  }
+});
 
 test('regions on the model surface are support candidates; regions on supports are reported apart', () => {
   const result = classifySupportCheckIslands(

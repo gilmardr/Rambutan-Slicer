@@ -181,6 +181,17 @@ export function AutoBracingSettingsCard({
                 {renderPatternSelect(_(msg`Repeating Pattern`), settings.repeatingPattern, (repeatingPattern) => onChange({ repeatingPattern }))}
             </div>
 
+            <div className="space-y-1">
+                <ToggleButton
+                    checked={settings.lateralTrellisEnabled}
+                    onChange={() => onChange({ lateralTrellisEnabled: !settings.lateralTrellisEnabled })}
+                    label={_(msg`Lateral Trellis`)}
+                />
+                <p className="text-[10px] leading-snug" style={{ color: 'var(--text-muted)' }}>
+                    {_(msg`Connect nearby support shafts in each direction to brace the sides of the support forest.`)}
+                </p>
+            </div>
+
             {/* Row 4: Seed Spacing (full width) */}
             <label className="space-y-1 min-w-0">
                 <div className={compactFieldLabelClass} style={{ color: 'var(--text-muted)' }}>{_(msg`Cluster Spacing`)}</div>

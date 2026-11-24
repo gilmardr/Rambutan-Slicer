@@ -1,7 +1,8 @@
 {
   "exclude": [
     "internal",
-    "brand"
+    "brand",
+    "release"
   ],
   "items": [
     {
@@ -243,6 +244,10 @@
             {
               "label": "Backlog and Known Gotchas",
               "slug": "dev/backlog"
+            },
+            {
+              "label": "Rambutan Slicer: diferenciais e auditoria",
+              "slug": "dev/auditoria-diferenciais"
             },
             {
               "label": "Support Registry Findings",

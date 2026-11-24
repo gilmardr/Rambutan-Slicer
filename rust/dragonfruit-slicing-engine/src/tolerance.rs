@@ -39,12 +39,8 @@ pub(crate) fn has_tolerance_compensation(job: &SliceJobV3) -> bool {
                 || job.bottom_outer_diameter_tolerance_mm != 0.0))
 }
 
-pub(crate) fn has_slice_hollowing(job: &SliceJobV3) -> bool {
-    job.model_slice_ranges.iter().any(|range| {
-        range.triangle_count > 0
-            && range.wall_thickness_mm.is_finite()
-            && range.wall_thickness_mm > 0.0
-    })
+pub(crate) fn has_model_slice_effects(job: &SliceJobV3) -> bool {
+    job.model_slice_ranges.iter().any(ModelSliceRangeV1::has_slice_effect)
 }
 
 pub(crate) fn apply_slice_hollowing_to_mask(
@@ -151,12 +147,46 @@ pub(crate) fn apply_slice_hollowing_to_mask(
         }
     }
 
-    for (pixel, &distance) in pixels.iter_mut().zip(distances.iter()) {
-        *pixel = if *pixel >= 128 && distance <= threshold {
-            255
-        } else {
-            0
+    let density = range.infill_density_percent.clamp(0.0, 100.0) / 100.0;
+    if density > 0.0 {
+        let cell_mm = range.infill_cell_mm.unwrap_or(3.0).clamp(0.8, 10.0);
+        // A square grid covers 1 - (1 - stripe_fraction)^2 of each cell.
+        let stripe_fraction = 1.0 - (1.0 - density).sqrt();
+        let intensity = range.infill_intensity_percent.unwrap_or(100.0);
+        let gray = (intensity.clamp(0.0, 100.0) * 255.0 / 100.0).round() as u8;
+        let stripe = |index: usize, pitch: f32| {
+            let phase = (((index as f32 + 0.5) * pitch) / cell_mm).fract();
+            phase.min(1.0 - phase) <= stripe_fraction / 2.0
         };
+        let columns: Vec<bool> = (0..width).map(|x| stripe(x, pitch_x_mm)).collect();
+        for (y, (row, distance_row)) in pixels
+            .chunks_exact_mut(width)
+            .zip(distances.chunks_exact(width))
+            .enumerate()
+        {
+            let row_stripe = stripe(y, pitch_y_mm);
+            for ((pixel, &distance), &column_stripe) in
+                row.iter_mut().zip(distance_row).zip(&columns)
+            {
+                *pixel = match (
+                    *pixel >= 128,
+                    distance <= threshold,
+                    row_stripe || column_stripe,
+                ) {
+                    (true, true, _) => 255,
+                    (true, false, true) => gray,
+                    _ => 0,
+                };
+            }
+        }
+    } else {
+        for (pixel, &distance) in pixels.iter_mut().zip(&distances) {
+            *pixel = if *pixel >= 128 && distance <= threshold {
+                255
+            } else {
+                0
+            };
+        }
     }
     true
 }
@@ -202,6 +232,7 @@ mod tests {
             start_triangle: 0,
             triangle_count: 12,
             wall_thickness_mm: 3.0,
+            ..Default::default()
         };
         let mut pixels = filled_rectangle(21, 21, 0, 0, 21, 21);
 
@@ -218,6 +249,7 @@ mod tests {
             start_triangle: 0,
             triangle_count: 12,
             wall_thickness_mm: 2.0,
+            ..Default::default()
         };
         let mut lower_layer = filled_rectangle(21, 21, 0, 0, 21, 21);
         let mut upper_layer = filled_rectangle(21, 21, 6, 6, 15, 15);
@@ -249,11 +281,30 @@ mod tests {
             start_triangle: 0,
             triangle_count: 12,
             wall_thickness_mm: f32::NAN,
+            ..Default::default()
         };
         let mut pixels = vec![255; 9];
 
         assert!(!apply_slice_hollowing_to_mask(&job, &range, &mut pixels));
         assert_eq!(pixels, vec![255; 9]);
+    }
+
+    #[test]
+    fn hollowing_grid_dims_only_infill_pixels_inside_the_current_section() {
+        let job = job_for_mask(24, 24);
+        let range = ModelSliceRangeV1 {
+            wall_thickness_mm: 2.0,
+            infill_density_percent: 75.0,
+            infill_cell_mm: Some(4.0),
+            infill_intensity_percent: Some(50.0),
+            ..Default::default()
+        };
+        let mut pixels = filled_rectangle(24, 24, 2, 2, 22, 22);
+        assert!(apply_slice_hollowing_to_mask(&job, &range, &mut pixels));
+        assert_eq!(pixels[12 * 24 + 2], 255, "shell");
+        assert_eq!(pixels[12 * 24 + 12], 128, "grid");
+        assert_eq!(pixels[13 * 24 + 13], 0, "empty cell");
+        assert_eq!(pixels[12 * 24], 0, "outside the model");
     }
 }
 

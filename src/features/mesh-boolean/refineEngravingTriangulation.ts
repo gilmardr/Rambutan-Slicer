@@ -3,7 +3,8 @@ import type { SolidMeshResult } from './solidMeshOperations';
 export type MeshBounds = { min: readonly [number, number, number]; max: readonly [number, number, number] };
 
 const MAX_EDGE_LENGTH_MM = 1;
-const REFINEMENT_PASSES = 2;
+const REFINEMENT_PASSES = 5;
+const MAX_ADDED_TRIANGLES = 150_000;
 const BOUNDS_PADDING_MM = 0.75;
 
 function edgeKey(a: number, b: number): string {
@@ -25,7 +26,7 @@ function triangleNearBounds(
   return true;
 }
 
-function refinePass(mesh: SolidMeshResult, bounds: MeshBounds): SolidMeshResult {
+function refinePass(mesh: SolidMeshResult, bounds: MeshBounds, maxIndices: number): SolidMeshResult {
   const positions = Array.from(mesh.positions);
   const indices = mesh.indices;
   const markedEdges = new Set<string>();
@@ -67,26 +68,43 @@ function refinePass(mesh: SolidMeshResult, bounds: MeshBounds): SolidMeshResult 
     const a = indices[i];
     const b = indices[i + 1];
     const c = indices[i + 2];
-    const boundary = [a];
-    if (markedEdges.has(edgeKey(a, b))) boundary.push(midpoint(a, b));
-    boundary.push(b);
-    if (markedEdges.has(edgeKey(b, c))) boundary.push(midpoint(b, c));
-    boundary.push(c);
-    if (markedEdges.has(edgeKey(c, a))) boundary.push(midpoint(c, a));
-
-    if (boundary.length === 3) {
-      refinedIndices.push(a, b, c);
-      continue;
+    const vertices = [a, b, c];
+    const split = vertices.map((from, side) => {
+      const to = vertices[(side + 1) % 3];
+      return markedEdges.has(edgeKey(from, to)) ? midpoint(from, to) : -1;
+    });
+    const unsplitCount = split.filter((index) => index === -1).length;
+    // Each marked side adds one triangle. Keep the last complete conforming
+    // pass if this pass would exceed the budget.
+    if (refinedIndices.length + (indices.length - i) + 3 * (3 - unsplitCount) > maxIndices) {
+      return mesh;
     }
-
-    const center = positions.length / 3;
-    positions.push(
-      (positions[a * 3] + positions[b * 3] + positions[c * 3]) / 3,
-      (positions[a * 3 + 1] + positions[b * 3 + 1] + positions[c * 3 + 1]) / 3,
-      (positions[a * 3 + 2] + positions[b * 3 + 2] + positions[c * 3 + 2]) / 3,
-    );
-    for (let edge = 0; edge < boundary.length; edge += 1) {
-      refinedIndices.push(center, boundary[edge], boundary[(edge + 1) % boundary.length]);
+    if (unsplitCount === 3) {
+      refinedIndices.push(a, b, c);
+    } else if (unsplitCount === 2) {
+      const side = split.findIndex((index) => index !== -1);
+      const from = vertices[side];
+      const to = vertices[(side + 1) % 3];
+      const opposite = vertices[(side + 2) % 3];
+      refinedIndices.push(from, split[side], opposite, split[side], to, opposite);
+    } else if (unsplitCount === 1) {
+      // Rotate so the intact side is C–A. Choose the shorter diagonal of
+      // the remaining quad after removing the triangle at B.
+      const side = split.indexOf(-1);
+      const from = vertices[(side + 1) % 3];
+      const corner = vertices[(side + 2) % 3];
+      const to = vertices[side];
+      const first = split[(side + 1) % 3];
+      const second = split[(side + 2) % 3];
+      refinedIndices.push(first, corner, second);
+      if (edgeLengthSq(from, second) <= edgeLengthSq(first, to)) {
+        refinedIndices.push(from, first, second, from, second, to);
+      } else {
+        refinedIndices.push(from, first, to, first, second, to);
+      }
+    } else {
+      const [ab, bc, ca] = split;
+      refinedIndices.push(a, ab, ca, ab, b, bc, ca, bc, c, ab, bc, ca);
     }
   }
 
@@ -95,9 +113,10 @@ function refinePass(mesh: SolidMeshResult, bounds: MeshBounds): SolidMeshResult 
 
 /** Subdivides long edges around an engraving without moving the existing surface. */
 export function refineEngravingTriangulation(mesh: SolidMeshResult, cutterBounds: MeshBounds): SolidMeshResult {
+  const maxIndices = mesh.indices.length + MAX_ADDED_TRIANGLES * 3;
   let refined = mesh;
   for (let pass = 0; pass < REFINEMENT_PASSES; pass += 1) {
-    const next = refinePass(refined, cutterBounds);
+    const next = refinePass(refined, cutterBounds, maxIndices);
     if (next === refined) break;
     refined = next;
   }

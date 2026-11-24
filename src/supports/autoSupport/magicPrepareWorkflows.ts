@@ -6,6 +6,9 @@ export type MagicPrepareWorkflowConfig = {
     optimizeEnabled: boolean;
     bracingEnabled: boolean;
     raftEnabled: boolean;
+    arrangeAfterPrepare?: boolean;
+    saveProjectAfterPrepare?: boolean;
+    sliceAfterPrepare?: boolean;
     supportScope: AutoSupportScope;
 };
 
@@ -35,6 +38,9 @@ function normalizeWorkflow(value: unknown): MagicPrepareWorkflow | null {
         optimizeEnabled: value.optimizeEnabled === true,
         bracingEnabled: value.bracingEnabled === true,
         raftEnabled: value.raftEnabled === true,
+        arrangeAfterPrepare: value.arrangeAfterPrepare === true,
+        saveProjectAfterPrepare: value.saveProjectAfterPrepare === true,
+        sliceAfterPrepare: value.sliceAfterPrepare === true,
         supportScope: value.supportScope === 'interior' || value.supportScope === 'exterior'
             ? value.supportScope
             : 'combined',

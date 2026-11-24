@@ -1,9 +1,11 @@
 import { isTauriRuntime } from '@/utils/tauriRuntime';
 import type { PreparedModelLibraryEntry } from '@/features/backups/modelLibraryTypes';
 import { clampSliceJobNumber } from '../sliceJobLimits';
+import type { ModelSliceRangeV1 } from '../sliceJobAssembly';
 
 type TauriCoreModule = {
   invoke: <T>(cmd: string, args?: Record<string, unknown> | ArrayBuffer | Uint8Array, options?: { headers: HeadersInit }) => Promise<T>;
+  Channel: typeof import('@tauri-apps/api/core').Channel;
 };
 
 type TauriEventModule = {
@@ -44,6 +46,7 @@ export type NativeSolidSliceJobEnvelope = {
   zaaPattern?: 'uniform' | 'halton' | 'base2';
   zaaDuplicateZ?: boolean;
   modelTriangleCount: number;
+  modelSliceRanges?: readonly ModelSliceRangeV1[];
   containerCompressionLevel?: number;
   buildWidthMm: number;
   buildDepthMm: number;
@@ -98,6 +101,7 @@ type NativeSolidSliceMetadataPayload = {
   zaa_pattern?: 'uniform' | 'halton' | 'base2';
   zaa_duplicate_z?: boolean;
   model_triangle_count: number;
+  model_slice_ranges: readonly ModelSliceRangeV1[];
   container_compression_level: number;
   build_width_mm: number;
   build_depth_mm: number;
@@ -143,7 +147,7 @@ async function loadTauriCore(): Promise<TauriCoreModule | null> {
   if (!isTauriRuntime()) return null;
   if (!tauriCorePromise) {
     tauriCorePromise = import('@tauri-apps/api/core')
-      .then((mod) => ({ invoke: mod.invoke }))
+      .then((mod) => ({ invoke: mod.invoke, Channel: mod.Channel }))
       .catch(() => null);
   }
 
@@ -200,6 +204,7 @@ export function toNativeMetadataPayload(job: NativeSolidSliceJobEnvelope): Nativ
     zaa_pattern: job.zaaPattern,
     zaa_duplicate_z: job.zaaDuplicateZ,
     model_triangle_count: clampSliceJobNumber('modelTriangleCount', job.modelTriangleCount),
+    model_slice_ranges: job.modelSliceRanges ?? [],
     container_compression_level: clampSliceJobNumber('containerCompressionLevel', job.containerCompressionLevel),
     build_width_mm: job.buildWidthMm,
     build_depth_mm: job.buildDepthMm,
@@ -245,7 +250,7 @@ export type NativeSliceTempPathArtifact = {
   bridge: NativeSlicerBridgeMetrics;
 };
 
-export type NativeOpenDialogCategory = 'mesh' | 'scene' | 'bundle';
+export type NativeOpenDialogCategory = 'mesh' | 'scene' | 'bundle' | 'image';
 
 export type NativeSaveDialogFilter = {
   name: string;
@@ -951,11 +956,11 @@ export async function readPrintArtifactBytesFromPath(sourcePath: string): Promis
     throw new Error('Native slicer is only available in DragonFruit Desktop (Tauri runtime).');
   }
 
-  const result = await core.invoke<ArrayBuffer>('read_print_file_bytes', {
+  const result = await core.invoke<ArrayBuffer | ArrayBufferView | number[]>('read_print_file_bytes', {
     sourcePath,
   });
 
-  return new Uint8Array(result);
+  return toPayloadBytes(result);
 }
 
 export async function listLocalBackupModelLibrary(
@@ -989,6 +994,52 @@ export async function readPrintLayerPreviewPngFromPath(
   });
 
   return new Uint8Array(result);
+}
+
+export type PrintIslandReport = {
+  byteSize: number;
+  affectedLayers: number;
+  firstAffectedLayer: number | null;
+  islandCount: number;
+  pixelCount: number;
+};
+
+export async function processPrintIslandsAtPath(
+  sourcePath: string,
+  formatHint: string,
+  minimumPixels: number,
+  remove: boolean,
+  onProgress: (done: number, total: number) => void,
+): Promise<PrintIslandReport> {
+  const core = await loadTauriCore();
+  if (!core) throw new Error('Print island cleanup is only available in Rambutan Slicer Desktop.');
+  const progress = new core.Channel<[number, number]>(([done, total]) => onProgress(done, total));
+  return core.invoke<PrintIslandReport>('process_print_islands', {
+    sourcePath,
+    formatHint,
+    minimumPixels,
+    remove,
+    progress,
+  });
+}
+
+export async function replacePrintLayerPixelsPngAtPath(
+  sourcePath: string,
+  layerNumber: number,
+  formatHint: string,
+  pngBytes: Uint8Array,
+): Promise<number> {
+  const core = await loadTauriCore();
+  if (!core) {
+    throw new Error('Native print-file editing is only available in DragonFruit Desktop (Tauri runtime).');
+  }
+
+  return core.invoke<number>('replace_print_layer_pixels_png', {
+    sourcePath,
+    layerNumber: Math.max(1, Math.floor(layerNumber)),
+    formatHint,
+    pngBytes: Array.from(pngBytes),
+  });
 }
 
 /**

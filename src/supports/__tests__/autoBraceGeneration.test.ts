@@ -115,7 +115,7 @@ test('buildAutoBracedSnapshot replaces old braces and generates braces with vali
     }
 });
 
-test('buildAutoBracedSnapshot leaves state unchanged when fewer than 3 supports qualify', () => {
+test('buildAutoBracedSnapshot adds an X brace for two nearby supports', () => {
     const snapshot = createEmptySnapshot();
     const modelId = 'model-b';
 
@@ -133,10 +133,11 @@ test('buildAutoBracedSnapshot leaves state unchanged when fewer than 3 supports 
     const settings = createDefaultAutoBracingSettings();
     const result = buildAutoBracedSnapshot(snapshot, settings);
 
-    assert.equal(result.generatedBraceCount, 0);
+    assert.ok(result.generatedBraceCount > 0);
     assert.equal(result.removedBraceCount, 0);
-    assert.equal(result.changed, false);
-    assert.equal(result.skippedSupportCount, 2);
+    assert.equal(result.changed, true);
+    assert.equal(result.skippedSupportCount, 0);
+    assert.equal(result.status, 'complete');
 });
 
 test('buildAutoBracedSnapshot isolated grouping respects min/max limits', () => {

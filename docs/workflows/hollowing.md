@@ -65,7 +65,12 @@ but each exported layer should become a shell. Set the wall thickness from 0.5 t
 10 mm; this modifier is stored per model and applies only to its model triangles.
 Supports and rafts remain solid. The operation uses the rasterized cross-section,
 so its wall is an approximate pixel-distance offset and can vary with printer
-resolution. It does not add infill or dimming.
+resolution.
+
+Set **2D infill density** above zero to add a grid inside each sliced cross-section.
+**2D infill grid spacing** sets the pitch in millimeters. **2D infill pixel
+intensity** sets the grayscale of the grid from 0% (off) to 100% (full intensity).
+The printer and export format determine how intermediate gray values are rendered.
 
 This is separate from voxel hollowing: it does not change the 3D preview, make a
 cavity that can be inspected before slicing, or create drain holes. Use voxel

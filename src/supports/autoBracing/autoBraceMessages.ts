@@ -28,7 +28,7 @@ export function formatBracesCleared(count: number, translate: Translate): string
 
 export function formatAutoBraceStatus(result: AutoBraceResult, translate: Translate): string {
   if (result.status === 'no-eligible-supports') {
-    return translate(msg`No eligible supports found for Auto Bracing.`);
+    return translate(msg`Add two nearby supports with overlapping height to create lateral bracing.`);
   }
 
   const generated = result.generatedBraceCount;

@@ -39,6 +39,13 @@ import {
   type SliceExportArtifact,
   type SliceExportResult,
 } from '@/features/slicing/sliceExportOrchestrator';
+import { CtbMultiParameterRulesCard } from '@/features/slicing/components/CtbMultiParameterRulesCard';
+import {
+  ctbMultiParameterRulesStorageKey,
+  readCtbMultiParameterRules,
+  writeCtbMultiParameterRules,
+  type CtbMultiParameterRule,
+} from '@/features/slicing/ctbMultiParameterRules';
 import { resolveOutputFileExtension, resolveSlicingFormatDefinition } from '@/features/slicing/formats/registry';
 import { pluginNetworkFetch } from '@/utils/pluginNetworkBridge';
 import { resolveCompositeMaterialLabel } from '@/utils/materialLabel';
@@ -73,7 +80,10 @@ import type { HolePunchVerificationResult } from '@/features/hole-punching/holeP
 export type SliceIntent = 'file' | 'upload' | 'print' | 'preview' | 'uvtools';
 
 interface SlicingPanelProps {
+  finalReview?: React.ReactNode;
   models: LoadedModel[];
+  onModelCtbGrayscaleChange?: (modelId: string, percent: number) => void;
+  modelCtbGrayscaleDisabled?: boolean;
   /**
    * The plates a slice can cover, in cascade order. Without them the panel
    * slices every visible model, which is what a single-plate scene means. With
@@ -117,6 +127,8 @@ interface SlicingPanelProps {
   onBenchmarkComplete?: (benchmark: SliceBenchmarkSnapshot) => void;
   onSliceTriggerRef?: React.MutableRefObject<(() => void) | null>;
   shouldAutoSlice?: boolean;
+  magicSliceDestination?: { outputPath: string | null } | null;
+  onMagicSliceConsumed?: () => void;
   skipThumbnailCapture?: boolean;
   onSlicingBusyChange?: (busy: boolean) => void;
   canUpload?: boolean;
@@ -791,10 +803,13 @@ const AUTO_AA_PRESET_OPTIONS: ReadonlyArray<{
 
 export function SlicingPanel({
   models,
+  onModelCtbGrayscaleChange,
+  modelCtbGrayscaleDisabled,
   plateSliceScopes,
   activePlateSliceIndex = 0,
   excludedModelIds = [],
   activeModel,
+  finalReview,
   readinessIslands,
   drainHoleVerificationResults = [],
   estimatedLayerCountOverride,
@@ -811,6 +826,8 @@ export function SlicingPanel({
   onBenchmarkComplete,
   onSliceTriggerRef,
   shouldAutoSlice,
+  magicSliceDestination,
+  onMagicSliceConsumed,
   skipThumbnailCapture,
   onSlicingBusyChange,
   canUpload = false,
@@ -848,6 +865,7 @@ export function SlicingPanel({
   const smoothedMetricsRef = useRef({ layersPerSec: 0, remainingMs: 0 });
   const [showSlicingModal, setShowSlicingModal] = useState(false);
   const [slicingModalStage, setSlicingModalStage] = useState<'running' | 'finished' | 'failed' | 'cancelled'>('running');
+  const [slicingError, setSlicingError] = useState<string | null>(null);
   const [displayProgressPercent, setDisplayProgressPercent] = useState(0);
   const [aaMode, setAaMode] = useState<'Off' | 'Blur' | '3DAA'>(resolveInitialAaMode);
   const [showOutOfBoundsWarningModal, setShowOutOfBoundsWarningModal] = useState(false);
@@ -919,6 +937,8 @@ export function SlicingPanel({
   const [sessionAaOverrideDraft, setSessionAaOverrideDraft] = useState<MaterialDraft | null>(null);
   const [editingSessionAaOverrideDraft, setEditingSessionAaOverrideDraft] = useState<MaterialDraft | null>(null);
   const [isSessionAaOverrideOpen, setIsSessionAaOverrideOpen] = useState(false);
+  const [ctbMultiParameterRules, setCtbMultiParameterRules] = useState<CtbMultiParameterRule[]>([]);
+  const [ctbRulesLoadedKey, setCtbRulesLoadedKey] = useState<string | null>(null);
 
   // Escape closes both anti-aliasing editors; the slicing progress modal is
   // blocking, so it swallows the key instead of letting it through.
@@ -956,7 +976,7 @@ export function SlicingPanel({
   const slicingAbortControllerRef = useRef<AbortController | null>(null);
   const autoSliceTriggeredRef = useRef(false);
   const autoSliceTimeoutRef = useRef<number | null>(null);
-  const handleSliceZipExportRef = useRef<((scopeOverride?: PlateSliceScope) => Promise<boolean>) | null>(null);
+  const handleSliceZipExportRef = useRef<((output?: { outputPath: string | null }) => Promise<boolean>) | null>(null);
   const hasSlicingProgressStartedRef = useRef(false);
 
   const profileState = React.useSyncExternalStore(subscribeToProfileStore, getProfileStoreSnapshot, getProfileStoreServerSnapshot);
@@ -971,7 +991,7 @@ export function SlicingPanel({
     [activeModel],
   );
   const readinessTriangleCount = activeModel?.geometry.sourceTriangleCount ?? activeModel?.polygonCount ?? 0;
-  const readinessOpenIslands = readinessIslands.filteredIslands.filter((island) => !island.supported && !island.grounded).length;
+  const readinessOpenIslands = readinessIslands.annotatedIslands.filter((island) => !island.supported && !island.grounded).length;
   const hollowingModifier = activeModel?.meshModifiers?.hollowing;
   const hollowingEnabled = Boolean(hollowingModifier?.enabled);
   const drainHoleCount = activeModel
@@ -1059,6 +1079,28 @@ export function SlicingPanel({
       materialProfile: effectiveMaterialProfile,
     });
   }, [activePrinterProfile, effectiveMaterialProfile]);
+
+  const ctbRulesStorageKey = activePrinterProfile && activeMaterialProfile
+    && selectedFormat?.outputFormat.toLowerCase() === '.ctb'
+    ? ctbMultiParameterRulesStorageKey(activePrinterProfile.id, activeMaterialProfile.id)
+    : null;
+  useEffect(() => {
+    if (!ctbRulesStorageKey) {
+      setCtbMultiParameterRules([]);
+      setCtbRulesLoadedKey(null);
+      return;
+    }
+    setCtbRulesLoadedKey(null);
+    setCtbMultiParameterRules(readCtbMultiParameterRules(ctbRulesStorageKey));
+    setCtbRulesLoadedKey(ctbRulesStorageKey);
+  }, [ctbRulesStorageKey]);
+  useEffect(() => {
+    if (!ctbRulesStorageKey || ctbRulesLoadedKey !== ctbRulesStorageKey) return;
+    writeCtbMultiParameterRules(ctbRulesStorageKey, ctbMultiParameterRules);
+  }, [ctbMultiParameterRules, ctbRulesLoadedKey, ctbRulesStorageKey]);
+  const activeCtbMultiParameterRules = ctbRulesLoadedKey === ctbRulesStorageKey
+    ? ctbMultiParameterRules
+    : [];
 
   const autoDetectedResinType = useMemo<'opaque' | 'clear'>(() => {
     const name = effectiveMaterialProfile?.name ?? '';
@@ -1873,6 +1915,7 @@ export function SlicingPanel({
         savedPath?: string;
       }>;
     },
+    magicOutput?: { outputPath: string | null },
   ): Promise<boolean> => {
     // A batch passes each plate's scope in turn; a plain run uses the active one.
     const scope = scopeOverride ?? activePlateSliceScope;
@@ -1908,11 +1951,11 @@ export function SlicingPanel({
 
     // A batch writes files into the folder it picked: the intent menus are the single-plate
     // flow's, and none of them means "all of them at once".
-    const intentForRun: SliceIntent = batch ? 'file' : effectiveSliceIntent;
+    const intentForRun: SliceIntent = batch || magicOutput ? 'file' : effectiveSliceIntent;
 
     // The name the slice is written under, also offered in the save dialog so the two agree.
     const outputBaseName = scopeFilenameBase ?? sliceFilenameBase;
-    const proceed = await Promise.resolve(
+    const proceed = Boolean(magicOutput?.outputPath) || await Promise.resolve(
       onBeforeSliceStart?.(
         intentForRun,
         batch
@@ -1924,7 +1967,7 @@ export function SlicingPanel({
       return false;
     }
 
-    const resolvedOutputPath = (resolveOutputPathForIntent?.(intentForRun) ?? '').trim();
+    const resolvedOutputPath = (magicOutput?.outputPath ?? resolveOutputPathForIntent?.(intentForRun) ?? '').trim();
 
     setIsSlicingZip(true);
     setCurrentPhase('Preparing');
@@ -1942,8 +1985,9 @@ export function SlicingPanel({
     smoothedMetricsRef.current = { layersPerSec: 0, remainingMs: 0 };
     setShowSlicingModal(true);
     setSlicingModalStage('running');
+    setSlicingError(null);
     onSlicingBusyChange?.(true);
-    onSliceIntentChanged?.(effectiveSliceIntent);
+    onSliceIntentChanged?.(intentForRun);
     onSliceRunStarted?.(scope ? { plateId: scope.plateId } : undefined);
 
     // Fire scene save concurrently — it's best-effort and independent of mesh preparation.
@@ -2005,6 +2049,7 @@ export function SlicingPanel({
         ditherEnabled: effectiveDitherEnabledForSlice,
         ditherBitDepth: effectiveDitherBitDepthForSlice,
         ditherDeviceGamma: effectiveDitherDeviceGammaForSlice,
+        ctbMultiParameterRules: activeCtbMultiParameterRules,
 
         outputMode: 'return',
         exportThumbnailPng,
@@ -2171,7 +2216,10 @@ export function SlicingPanel({
             totalLayers: plateTotalLayers,
           });
         } else {
-          onSliceArtifactReady?.(result.artifact, scope ? { plateId: scope.plateId } : undefined);
+          onSliceArtifactReady?.(result.artifact, {
+            ...(scope ? { plateId: scope.plateId } : {}),
+            ...(magicOutput?.outputPath ? { savedPath: magicOutput.outputPath } : {}),
+          });
         }
       }
       if (result.benchmark) {
@@ -2185,7 +2233,9 @@ export function SlicingPanel({
         setSlicingModalStage('cancelled');
       } else {
         console.error('Slice ZIP export failed:', error);
-        const message = error instanceof Error ? error.message : 'Unknown slicing error.';
+        const message = error instanceof Error ? error.message : String(error ?? _(msg`Unknown slicing error.`));
+        setSlicingError(message);
+        setSlicingModalStage('failed');
 
         // If disk space error, aggressively clean ALL temp files to recover space
         if (message.includes('not enough space') || message.includes('os error 112') || message.includes('disk full')) {
@@ -2313,7 +2363,7 @@ export function SlicingPanel({
 
   // Populate the slice trigger ref so parent can call slice from outside
   useEffect(() => {
-    handleSliceZipExportRef.current = handleSliceZipExport;
+    handleSliceZipExportRef.current = (output) => handleSliceZipExport(undefined, undefined, output);
   }, [handleSliceZipExport]);
 
   // Populate the slice trigger ref so parent can call slice from outside
@@ -2325,7 +2375,7 @@ export function SlicingPanel({
 
   // Auto-trigger slice when shouldAutoSlice becomes true
   useEffect(() => {
-    if (!shouldAutoSlice) {
+    if (!shouldAutoSlice && !magicSliceDestination) {
       if (autoSliceTimeoutRef.current !== null) {
         window.clearTimeout(autoSliceTimeoutRef.current);
         autoSliceTimeoutRef.current = null;
@@ -2344,7 +2394,11 @@ export function SlicingPanel({
       autoSliceTimeoutRef.current = null;
       if (autoSliceTriggeredRef.current) return;
       autoSliceTriggeredRef.current = true;
-      void handleSliceZipExportRef.current?.();
+      if (magicSliceDestination) {
+        void handleSliceZipExportRef.current?.(magicSliceDestination).finally(() => onMagicSliceConsumed?.());
+      } else {
+        void handleSliceZipExportRef.current?.();
+      }
     }, 500);
 
     return () => {
@@ -2353,7 +2407,7 @@ export function SlicingPanel({
         autoSliceTimeoutRef.current = null;
       }
     };
-  }, [isSlicingZip, shouldAutoSlice]);
+  }, [isSlicingZip, shouldAutoSlice, magicSliceDestination, onMagicSliceConsumed]);
 
   const handleCloseSlicingModal = useCallback(() => {
     setShowSlicingModal(false);
@@ -2501,7 +2555,7 @@ export function SlicingPanel({
                   <span style={{ color: 'var(--text-muted)' }}><Trans>Connected shells</Trans></span>
                   <span className="text-right" style={{ color: 'var(--text-strong)' }}>{readinessShellCount == null ? <Trans>Not analyzed</Trans> : fmt.fixed(readinessShellCount, 0)}</span>
                   <span style={{ color: 'var(--text-muted)' }}><Trans>Open islands</Trans></span>
-                  <span className="text-right" style={{ color: readinessOpenIslands > 0 ? 'var(--warning)' : 'var(--text-strong)' }}>{fmt.fixed(readinessOpenIslands, 0)}</span>
+                  <span className="text-right" style={{ color: readinessOpenIslands > 0 ? 'var(--warning)' : 'var(--text-strong)' }}>{readinessIslands.islandScanComplete ? fmt.fixed(readinessOpenIslands, 0) : <Trans>Not analyzed</Trans>}</span>
                   <span style={{ color: 'var(--text-muted)' }}><Trans>Support elements</Trans></span>
                   <span className="text-right" style={{ color: 'var(--text-strong)' }}>{fmt.fixed(readinessSupportElements, 0)}</span>
                   <span style={{ color: 'var(--text-muted)' }}><Trans>Hollowing</Trans></span>
@@ -2527,6 +2581,7 @@ export function SlicingPanel({
                           : fmt.fixed(suctionCupSummary.findingCount, 0)}
                   </span>
                 </div>
+                {finalReview}
                 {readinessOpenIslands > 0 ? (
                   <p className="text-[11px] leading-snug" style={{ color: 'var(--warning)' }}><Trans>Some islands have no support. Review them in the Support workspace before slicing.</Trans></p>
                 ) : (
@@ -2789,6 +2844,19 @@ export function SlicingPanel({
               )}
             </div>
           </div>
+
+          {ctbRulesStorageKey && (
+            <div className="mt-2">
+              <CtbMultiParameterRulesCard
+                rules={activeCtbMultiParameterRules}
+                defaultExposureSec={effectiveMaterialProfile?.normalExposureSec ?? 2}
+                onChange={setCtbMultiParameterRules}
+                models={visibleModels}
+                onModelGrayscaleChange={onModelCtbGrayscaleChange}
+                modelGrayscaleDisabled={modelCtbGrayscaleDisabled}
+              />
+            </div>
+          )}
 
           {/* Which plates the slice covers: one file for the bed being worked on, or a zip
               with one file per bed. Only worth offering when more than one bed holds
@@ -3151,6 +3219,11 @@ export function SlicingPanel({
             </div>
 
             <div className="p-4 space-y-3">
+              {slicingModalStage === 'failed' && slicingError && (
+                <p role="alert" className="max-h-28 overflow-auto break-words text-xs" style={{ color: 'var(--danger)' }}>
+                  {slicingError}
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="rounded-md border px-3 py-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
                   <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}><Trans>Pipeline Stage</Trans></div>

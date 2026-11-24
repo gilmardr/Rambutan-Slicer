@@ -2,6 +2,8 @@ import JSZip from 'jszip';
 import { asciiFileBaseName } from '@/features/slicing/plateSliceNaming';
 import * as THREE from 'three';
 import type { LoadedModel } from '@/features/scene/useSceneCollectionManager';
+import { resolveModelMeshModifiers } from '@/features/mesh-modifiers/meshModifierStore';
+import { normalizeCtbModelGrayscale } from '@/features/slicing/ctbMultiParameterRules';
 import { type MaterialProfile, type PrinterProfile, getActiveMaterialProfile, getActivePrinterProfile } from '@/features/profiles/profileStore';
 import { calculateTipOffset } from '@/supports/rendering/calculateTipOffset';
 import {
@@ -2154,17 +2156,25 @@ export async function buildSolidSliceMeshForWasm(options: RasterLayerZipExportOp
   // Push model-only triangles first (across all models), then support-only.
   // This produces the same collector layout as manually splitting before slicing.
   const modelSliceRanges: ModelSliceRangeV1[] = [];
+  const isCtb = options.printerProfile.display.outputFormat.toLowerCase() === '.ctb';
   for (const model of visibleModels) {
     const modelTriCount = effectiveModelTriangleCount(model);
     if (modelTriCount > 0) {
       const startTriangle = collector.triangleCount;
       appendModelTrianglesInRange(model, collector, 0, modelTriCount);
-      const hollowing2D = model.meshModifiers?.hollowing2D;
-      if (hollowing2D?.enabled && hollowing2D.wallThicknessMm > 0) {
+      const modifiers = resolveModelMeshModifiers(model);
+      const hollowing2D = modifiers?.hollowing2D;
+      const wallThicknessMm = hollowing2D?.enabled ? hollowing2D.wallThicknessMm : 0;
+      const grayscalePercent = isCtb ? normalizeCtbModelGrayscale(modifiers?.ctbGrayscalePercent) : 100;
+      if (wallThicknessMm > 0 || grayscalePercent < 100) {
         modelSliceRanges.push({
           startTriangle,
           triangleCount: collector.triangleCount - startTriangle,
-          wallThicknessMm: hollowing2D.wallThicknessMm,
+          wallThicknessMm,
+          infillDensityPercent: hollowing2D?.infillDensityPercent,
+          infillCellMm: hollowing2D?.infillCellMm,
+          infillIntensityPercent: hollowing2D?.infillIntensityPercent,
+          grayscalePercent: grayscalePercent < 100 ? grayscalePercent : undefined,
         });
       }
     }

@@ -40,6 +40,13 @@ export type SupportCheckClassifyOptions = {
   cellMm?: number;
 };
 
+/** Start at the build plate, while retaining geometry that crosses below it. */
+export function supportCheckBounds(bounds: THREE.Box3): THREE.Box3 {
+  const scanBounds = bounds.clone();
+  scanBounds.min.z = Math.min(0, bounds.min.z);
+  return scanBounds;
+}
+
 export function clampSupportCheckReach(value: number): number {
   if (!Number.isFinite(value)) return SUPPORT_CHECK_REACH_MM.defaultValue;
   return Math.min(SUPPORT_CHECK_REACH_MM.max, Math.max(SUPPORT_CHECK_REACH_MM.min, value));

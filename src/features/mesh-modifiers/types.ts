@@ -42,6 +42,9 @@ export type ModelHollowingModifier = {
 export type ModelHollowing2DModifier = {
   enabled: boolean;
   wallThicknessMm: number;
+  infillDensityPercent?: number;
+  infillCellMm?: number;
+  infillIntensityPercent?: number;
 };
 
 export type ModelHolePunchPlacement = {
@@ -57,6 +60,7 @@ export type ModelHolePunchPlacement = {
 export type ModelMeshModifiers = {
   hollowing?: ModelHollowingModifier | null;
   hollowing2D?: ModelHollowing2DModifier;
+  ctbGrayscalePercent?: number;
   holePunches?: ModelHolePunchPlacement[];
   holePunchAppliedPlacements?: ModelHolePunchPlacement[];
   holePunchesBakedIntoGeometry?: boolean;

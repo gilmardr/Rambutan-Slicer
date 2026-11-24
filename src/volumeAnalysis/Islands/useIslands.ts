@@ -231,6 +231,7 @@ async function reportSlowStep(label: string, elapsedMs: number): Promise<void> {
 
 export function useIslands({ geom, transform, layerHeightMm, supportTips, plateZ = 0, sourcePath, activeTab, hasRaft = false }: UseIslandsInput) {
   const [scanning, setScanning] = useState(false);
+  const [islandScanComplete, setIslandScanComplete] = useState(false);
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number; phase?: string; phaseNumber?: number; phaseCount?: number } | null>(null);
   const [voxelIslands, setVoxelIslands] = useState<DetectedIsland[]>([]);
   const [minimaIslands, setMinimaIslands] = useState<DetectedIsland[]>([]);
@@ -367,6 +368,7 @@ export function useIslands({ geom, transform, layerHeightMm, supportTips, plateZ
    * context) is non-fatal — voxel results still stand.
    */
   const onRunScan = useCallback(async () => {
+    setIslandScanComplete(false);
     setScanning(true);
     // Clear any progress left by a previous model's scan — the modal must
     // not show the old "layer X of Y" until this scan reports its own.
@@ -502,6 +504,7 @@ export function useIslands({ geom, transform, layerHeightMm, supportTips, plateZ
           scanCacheRef.current.set(cacheKey, { voxel: voxelMapped, minima: minimaMapped, overhang: mappedOverhangs });
         }
 
+        setIslandScanComplete(true);
         usedSideload = true;
       } catch (err) {
         console.warn('[Islands] Sideloaded Rust scan failed, falling back to client-side...', err);
@@ -581,7 +584,9 @@ export function useIslands({ geom, transform, layerHeightMm, supportTips, plateZ
 
         try {
           const minima = await scanMeshMinima(world.positions, minimaK);
+          if (scanEpochRef.current !== epoch) return;
           setMinimaIslands(minima);
+          setIslandScanComplete(true);
           // Cache the scan results for this model + transform
           if (cacheKey) {
             scanCacheRef.current.set(cacheKey, { voxel, minima, overhang: mappedOverhangs });
@@ -933,6 +938,7 @@ export function useIslands({ geom, transform, layerHeightMm, supportTips, plateZ
   );
 
   const clear = useCallback(() => {
+    setIslandScanComplete(false);
     setVoxelIslands([]);
     setMinimaIslands([]);
     setOverhangIslands([]);
@@ -1134,6 +1140,7 @@ export function useIslands({ geom, transform, layerHeightMm, supportTips, plateZ
 
   return {
     scanning,
+    islandScanComplete,
     scanProgress,
     elapsedLabel,
     voxelIslands,
@@ -1141,6 +1148,7 @@ export function useIslands({ geom, transform, layerHeightMm, supportTips, plateZ
     overhangIslands,
     toppleCoverage,
     dragTotalMm3,
+    annotatedIslands,
     filteredIslands,
     orderedIslands,
     voxelOnlyPucks,

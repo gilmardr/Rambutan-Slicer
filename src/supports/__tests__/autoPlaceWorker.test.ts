@@ -8,6 +8,7 @@ import type { DetectedIsland } from '../../volumeAnalysis/Islands/types';
 import type { AutoSupportSettings } from '../autoSupport/settings';
 import { getSettings, setSettings } from '../Settings/state';
 import { createDefaultSettings } from '../Settings/types';
+import { getAutoSupportPresetsServerSnapshot } from '../Settings/autoSupportPresets';
 import { clearHistory } from '../../history/historyStore';
 import { getSnapshot, resetKickstandsInState, resetStore } from '../state';
 import { registerSupportHistoryHandlers } from '../history/useSupportHistoryHandlers';
@@ -16,6 +17,7 @@ import { setModelMesh } from '../autoSupport/meshStore';
 import {
     modelMeshKey,
     runAutoPlaceRequest,
+    runAutoPlaceWorkerRequest,
     serializeIsland,
     serializeModelMesh,
     type AutoPlaceWorkerPayload,
@@ -24,6 +26,7 @@ import {
     AUTO_PLACE_WORKER_STARTUP_TIMEOUT_MS,
     resetAutoPlaceWorker,
     runAutoPlaceInWorker,
+    runAutoPlaceSequenceInWorker,
 } from '../autoSupport/autoPlaceWorkerClient';
 
 /**
@@ -38,14 +41,22 @@ const MODEL = 'model-a';
 
 /**
  * Two runs never share ids: roots and some trunks are minted with `uuidv4()`.
- * Compare the placement, not the identity, by collapsing every UUID to one
- * token before stringifying.
+ * Give each UUID a stable token so the comparison preserves references
+ * between supports, roots and knots.
  */
-const shape = (value: unknown): string =>
-    JSON.stringify(value).replace(
+const shape = (value: unknown): string => {
+    const ids = new Map<string, string>();
+    return JSON.stringify(value).replace(
         /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
-        'U',
+        (id) => {
+            const existing = ids.get(id);
+            if (existing) return existing;
+            const token = `U${ids.size}`;
+            ids.set(id, token);
+            return token;
+        },
     );
+};
 
 /** A 20 mm box rotated 30° about X, with the rotated underside as an island. */
 function rotatedUnderside(): { mesh: THREE.Mesh; island: DetectedIsland } {
@@ -240,6 +251,43 @@ for (const realm of ['absent', 'trapping'] as const) {
         );
     });
 }
+
+test('magic preparation commits the braces generated after optimization', async () => {
+    const { mesh, island } = rotatedUnderside();
+    const { stub, restore } = stubWorker({
+        postMessage(message) {
+            const { payload, requestId } = message as typeof message & { payload: AutoPlaceWorkerPayload };
+            const response = runAutoPlaceWorkerRequest(structuredClone(payload));
+            stub.onmessage?.({ data: structuredClone({ type: 'result', requestId, ...response }) });
+        },
+    });
+    const previousSettings = getSettings();
+    resetStore();
+    clearHistory();
+    const dispose = registerSupportHistoryHandlers();
+    try {
+        setSettings(createDefaultSettings());
+        setModelMesh(MODEL, mesh);
+        const sequence = ['light', 'medium', 'heavy'].map((id) => {
+            const preset = getAutoSupportPresetsServerSnapshot().find((entry) => entry.id === id);
+            assert.ok(preset);
+            return preset.settings;
+        });
+        await runAutoPlaceSequenceInWorker([island], MODEL, sequence, undefined, {
+            consolidation: 'after-sequence',
+            autoBracing: true,
+        });
+        assert.ok(Object.keys(getSnapshot().braces).length > 0, 'the committed forest includes diagonal braces');
+    } finally {
+        resetAutoPlaceWorker();
+        restore();
+        dispose();
+        setModelMesh(MODEL, null);
+        setSettings(previousSettings);
+        resetStore();
+        clearHistory();
+    }
+});
 
 test('a worker that never starts falls back to the in-process run', async (t) => {
     // A worker whose import graph throws while evaluating never registers

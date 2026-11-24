@@ -62,6 +62,61 @@ impl RleAccum {
     }
 }
 
+/// Combine matching raster positions, retaining the brighter grayscale value.
+pub(crate) fn merge_rle_max(lhs_runs: &[RleRun], rhs_runs: &[RleRun]) -> Vec<RleRun> {
+    let mut out = RleAccum::new();
+    let mut lhs_index = 0usize;
+    let mut rhs_index = 0usize;
+    let mut lhs_remaining = 0u32;
+    let mut rhs_remaining = 0u32;
+    let mut lhs_value = 0u8;
+    let mut rhs_value = 0u8;
+
+    loop {
+        if lhs_remaining == 0 {
+            if let Some(run) = lhs_runs.get(lhs_index) {
+                lhs_remaining = run.length;
+                lhs_value = run.value;
+                lhs_index += 1;
+            }
+        }
+
+        if rhs_remaining == 0 {
+            if let Some(run) = rhs_runs.get(rhs_index) {
+                rhs_remaining = run.length;
+                rhs_value = run.value;
+                rhs_index += 1;
+            }
+        }
+
+        if lhs_remaining == 0 && rhs_remaining == 0 {
+            break;
+        }
+
+        let chunk = match (lhs_remaining, rhs_remaining) {
+            (0, rhs) => rhs,
+            (lhs, 0) => lhs,
+            (lhs, rhs) => lhs.min(rhs),
+        };
+        out.push_run(chunk, lhs_value.max(rhs_value));
+
+        if lhs_remaining > 0 {
+            lhs_remaining -= chunk;
+            if lhs_remaining == 0 {
+                lhs_value = 0;
+            }
+        }
+        if rhs_remaining > 0 {
+            rhs_remaining -= chunk;
+            if rhs_remaining == 0 {
+                rhs_value = 0;
+            }
+        }
+    }
+
+    out.finish()
+}
+
 /// Emit `row_count` full rows of zero pixels into the accumulator.
 #[inline]
 pub fn emit_zero_rows(rle: &mut RleAccum, row_count: usize, width: usize) {

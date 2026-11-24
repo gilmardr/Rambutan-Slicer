@@ -185,6 +185,9 @@ Autosave timing is stored in milliseconds: `debounceMs` defaults to `45_000` (45
 | dragonfruit-local-backups:client-id          | localStorage | Local backup client identity    |
 | dragonfruit-local-backups:last-sync-at       | localStorage | Last local sync timestamp       |
 | dragonfruit-local-backups:directory          | localStorage | Selected local backup directory |
+| rambutan-google-drive-backup:enabled          | localStorage | Enable a second backup copy in a Drive for desktop folder |
+| rambutan-google-drive-backup:directory        | localStorage | Selected Drive for desktop sync folder |
+| rambutan-google-drive-backup:last-copy-at     | localStorage | Last time Rambutan wrote a Drive-folder copy |
 
 Rambutan Slicer has no account sign-in or remote-account backup flow. Existing
 dragonfruit-backups:* values from older builds are inert legacy data and are
@@ -198,6 +201,14 @@ payloads in IndexedDB or the scene/autosave files beside a project. The desktop
 the current state file through a sibling staging file and atomic rename, so an
 interrupted write cannot leave a partially written snapshot or replace a good
 current state with one whose history record was never committed.
+
+The optional Google Drive copy is independent of local backups: each snapshot
+is written to both the local backup directory and the selected Google Drive
+for desktop sync folder when enabled. Google Drive for desktop handles network
+upload; Rambutan does not store Google credentials or call the Drive API. The
+folder, enabled flag and last-copy timestamp are device-local settings and are
+not included in backup snapshots. Turning the option off stops future copies
+but leaves files already in the Drive folder untouched.
 
 Desktop sync also copies path-backed entries from `app-recent-opened-files`
 into `<backup>/models/`, using a streamed SHA-256 content name so duplicate

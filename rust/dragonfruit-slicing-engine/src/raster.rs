@@ -2456,10 +2456,7 @@ fn active_model_slice_ranges(
     job.model_slice_ranges
         .iter()
         .filter_map(|range| {
-            if range.triangle_count == 0
-                || !range.wall_thickness_mm.is_finite()
-                || range.wall_thickness_mm <= 0.0
-            {
+            if !range.has_slice_effect() {
                 return None;
             }
             let start = (range.start_triangle as usize).min(model_triangle_count);
@@ -2471,7 +2468,7 @@ fn active_model_slice_ranges(
         .collect()
 }
 
-fn rasterize_layer_with_slice_hollowing(
+fn rasterize_layer_with_model_effects(
     job: &SliceJobV3,
     triangles: &[Triangle],
     layer_indices: &[usize],
@@ -2484,11 +2481,11 @@ fn rasterize_layer_with_slice_hollowing(
     let mut support_indices = Vec::with_capacity(layer_indices.len());
     let mut remaining_indices = Vec::with_capacity(layer_indices.len());
     for &triangle_index in layer_indices {
-        let is_hollowed_model = triangle_index < model_triangle_count
+        let has_model_effect = triangle_index < model_triangle_count
             && ranges
                 .iter()
                 .any(|(start, end, _)| triangle_index >= *start && triangle_index < *end);
-        if is_hollowed_model {
+        if has_model_effect {
             continue;
         }
         remaining_indices.push(triangle_index);
@@ -2551,6 +2548,12 @@ fn rasterize_layer_with_slice_hollowing(
         let (mut model_mask, _) =
             rasterize_layer_with_stats_impl(job, triangles, &range_indices, layer_index, false);
         crate::tolerance::apply_slice_hollowing_to_mask(job, range, &mut model_mask);
+        let scale = u16::from(range.grayscale_scale());
+        if scale < 255 {
+            for pixel in &mut model_mask {
+                *pixel = scale_grayscale(*pixel, scale);
+            }
+        }
         for (destination, source) in combined_mask.iter_mut().zip(model_mask) {
             *destination = (*destination).max(source);
         }
@@ -2568,6 +2571,10 @@ fn rasterize_layer_with_slice_hollowing(
     (combined_mask, stats)
 }
 
+fn scale_grayscale(value: u8, scale: u16) -> u8 {
+    ((u16::from(value) * scale + 127) / 255) as u8
+}
+
 /// Rasterize one layer into an 8-bit grayscale mask (`0` or `255`), optionally
 /// bypassing AA for support/raft geometry when model/support split metadata is
 /// provided in `job.model_triangle_count`.
@@ -2578,18 +2585,28 @@ pub fn rasterize_layer_with_stats(
     layer_index: u32,
     compute_area_stats: bool,
 ) -> (Vec<u8>, LayerAreaStatsV3) {
-    let slice_hollowing_ranges = active_model_slice_ranges(job, triangles.len());
-    if !slice_hollowing_ranges.is_empty() {
-        return rasterize_layer_with_slice_hollowing(
+    let model_ranges = active_model_slice_ranges(job, triangles.len());
+    if !model_ranges.is_empty() {
+        return rasterize_layer_with_model_effects(
             job,
             triangles,
             layer_indices,
             layer_index,
             compute_area_stats,
-            &slice_hollowing_ranges,
+            &model_ranges,
         );
     }
 
+    rasterize_layer_with_stat_partitions(job, triangles, layer_indices, layer_index, compute_area_stats)
+}
+
+fn rasterize_layer_with_stat_partitions(
+    job: &SliceJobV3,
+    triangles: &[Triangle],
+    layer_indices: &[usize],
+    layer_index: u32,
+    compute_area_stats: bool,
+) -> (Vec<u8>, LayerAreaStatsV3) {
     if !supports_should_bypass_aa(job, triangles.len()) {
         return rasterize_layer_with_stats_impl(
             job,
@@ -2676,7 +2693,6 @@ pub fn rasterize_layer(
 /// the dominant 40-56 MB allocation at 8 K resolution for CTB and other
 /// formats that do not need PNG. When `compute_area_stats` is true, a binary
 /// stats mask is captured and 8-connected component analysis is applied.
-#[allow(unused_assignments)]
 pub fn rasterize_layer_rle(
     job: &SliceJobV3,
     triangles: &[Triangle],
@@ -2684,33 +2700,76 @@ pub fn rasterize_layer_rle(
     layer_index: u32,
     compute_area_stats: bool,
 ) -> (Vec<crate::rle::RleRun>, LayerAreaStatsV3) {
-    use crate::rle::{emit_row, emit_zero_rows, RleAccum};
-
+    if layer_indices.is_empty() {
+        return rasterize_layer_rle_impl(job, triangles, layer_indices, layer_index, compute_area_stats);
+    }
+    let model_ranges = active_model_slice_ranges(job, triangles.len());
+    if model_ranges.is_empty() {
+        return rasterize_layer_rle_impl(job, triangles, layer_indices, layer_index, compute_area_stats);
+    }
     let width = job.effective_render_width_px() as usize;
     let height = job.source_height_px as usize;
-    let mut rle = RleAccum::new();
-    let mut stats = LayerAreaStatsV3::default();
-
-    if layer_indices.is_empty() || width == 0 || height == 0 {
-        emit_zero_rows(&mut rle, height, width);
-        return (rle.finish(), stats);
-    }
-
-    let slice_hollowing_ranges = active_model_slice_ranges(job, triangles.len());
-    if !slice_hollowing_ranges.is_empty() {
-        let (mask, stats) = rasterize_layer_with_slice_hollowing(
+    if model_ranges.iter().any(|(_, _, range)| range.has_hollowing()) {
+        let (mask, stats) = rasterize_layer_with_model_effects(
             job,
             triangles,
             layer_indices,
             layer_index,
             compute_area_stats,
-            &slice_hollowing_ranges,
+            &model_ranges,
         );
         return (encode_mask_to_rle(&mask, width, height), stats);
     }
 
+    // Scale and combine each model in RLE form to avoid super-resolution
+    // allocations for solid models, including jobs with 4x or 8x coverage AA.
+    let mut remaining = Vec::with_capacity(layer_indices.len());
+    let mut by_range = vec![Vec::new(); model_ranges.len()];
+    for &triangle in layer_indices {
+        if let Some(index) = model_ranges.iter().position(|&(start, end, _)| (start..end).contains(&triangle)) {
+            by_range[index].push(triangle);
+        } else {
+            remaining.push(triangle);
+        }
+    }
+    let (mut result, _) = rasterize_layer_rle_impl(job, triangles, &remaining, layer_index, false);
+    for ((_, _, range), indices) in model_ranges.iter().zip(by_range) {
+        if indices.is_empty() {
+            continue;
+        }
+        let (mut runs, _) = rasterize_layer_rle_impl(job, triangles, &indices, layer_index, false);
+        let scale = u16::from(range.grayscale_scale());
+        for run in &mut runs {
+            run.value = scale_grayscale(run.value, scale);
+        }
+        result = crate::rle::merge_rle_max(&result, &runs);
+    }
+    let pixel_area_mm2 = f64::from(job.build_width_mm) / width.max(1) as f64
+        * (f64::from(job.build_depth_mm) / height.max(1) as f64);
+    let stats = recompute_layer_stats_from_rle(&result, width, height, pixel_area_mm2, compute_area_stats);
+    (result, stats)
+}
+
+#[allow(unused_assignments)]
+fn rasterize_layer_rle_impl(
+    job: &SliceJobV3,
+    triangles: &[Triangle],
+    layer_indices: &[usize],
+    layer_index: u32,
+    compute_area_stats: bool,
+) -> (Vec<crate::rle::RleRun>, LayerAreaStatsV3) {
+    use crate::rle::{emit_row, emit_zero_rows, RleAccum};
+    let width = job.effective_render_width_px() as usize;
+    let height = job.source_height_px as usize;
+    let mut rle = RleAccum::new();
+    let mut stats = LayerAreaStatsV3::default();
+    if layer_indices.is_empty() || width == 0 || height == 0 {
+        emit_zero_rows(&mut rle, height, width);
+        return (rle.finish(), stats);
+    }
+
     if supports_should_bypass_aa(job, triangles.len()) {
-        let (mask, stats) = rasterize_layer_with_stats(
+        let (mask, stats) = rasterize_layer_with_stat_partitions(
             job,
             triangles,
             layer_indices,
@@ -3646,7 +3705,7 @@ pub fn rasterize_layer_rle_block(
 //
 // The approach:
 //   1. Rasterize at Nx resolution using the ultra-fast binary RLE engine.
-//   2. Call `downsample_binary_rle_to_gray_rle` to collapse every NxN
+//   2. Call `downsample_rle_to_gray_rle` to collapse every NxN
 //      super-pixel block into one output pixel whose gray value is the
 //      fraction of lit super-pixels (0–255).
 //   3. Optionally apply `apply_blur_postprocess_inplace` post-downsample.
@@ -3657,15 +3716,16 @@ pub fn rasterize_layer_rle_block(
 /// per-output-column count arrays using a difference-array trick so that
 /// fully-covered interior columns are O(1) instead of O(out_width).
 #[inline]
-fn accumulate_lit_span(
+fn accumulate_grayscale_span(
     sx_start: usize,
     len: usize,
     factor: usize,
-    out_width: usize,
-    col_lit: &mut [u32],
+    value: u8,
+    col_sum: &mut [u32],
     col_delta: &mut [i32],
 ) {
-    debug_assert_eq!(col_lit.len(), out_width);
+    let out_width = col_sum.len();
+    let value = u32::from(value);
     debug_assert_eq!(col_delta.len(), out_width + 1);
 
     if len == 0 || out_width == 0 {
@@ -3683,51 +3743,52 @@ fn accumulate_lit_span(
 
     // Fast path: entire span fits within one output column.
     if out_right == out_left + 1 {
-        col_lit[out_left] += len as u32;
+        col_sum[out_left] += len as u32 * value;
         return;
     }
 
     // Left partial column: super-pixels from sx_start up to the right edge of out_left.
     let left_boundary = (out_left + 1) * factor; // exclusive right edge of out_left column
     let left_partial = left_boundary - sx_start;
-    col_lit[out_left] += left_partial as u32;
+    col_sum[out_left] += left_partial as u32 * value;
 
-    // Fully covered interior columns: each has exactly `factor` lit super-pixels.
+    // Fully covered interior columns: each has exactly `factor` samples.
     // Use difference-array so this is O(1) regardless of the run length.
     let full_start = out_left + 1;
     let full_end = (sx_end / factor).min(out_width); // exclusive
     if full_start < full_end {
-        col_delta[full_start] += factor as i32;
-        col_delta[full_end] -= factor as i32;
+        let sum = (factor as u32 * value) as i32;
+        col_delta[full_start] += sum;
+        col_delta[full_end] -= sum;
     }
 
     // Right partial column: super-pixels from its left edge up to sx_end.
     let right_col = sx_end / factor;
     if right_col < out_width && sx_end % factor != 0 {
         let right_partial = sx_end - right_col * factor;
-        col_lit[right_col] += right_partial as u32;
+        col_sum[right_col] += right_partial as u32 * value;
     }
 }
 
-/// Downsample a super-resolution binary RLE layer to output resolution.
+/// Downsample a super-resolution RLE layer to output resolution.
 ///
 /// `runs` must cover exactly `super_width × super_height` pixels in row-major
-/// order with binary values (0 or 255).  `factor` must divide both dimensions
+/// order. `factor` must divide both dimensions
 /// evenly; the output covers `(super_width/factor) × (super_height/factor)`
 /// pixels.
 ///
 /// Each `factor × factor` block of super-pixels collapses into one output
-/// pixel with gray value proportional to the lit fraction:
+/// pixel with the mean grayscale value:
 ///
 /// ```text
-/// gray = (lit_count * 255 + max_count/2) / max_count   (rounded)
+/// gray = (grayscale_sum + max_count/2) / max_count   (rounded)
 /// ```
 ///
 /// Pixels below `min_alpha_u8` after rounding are clamped to zero.
 ///
 /// No full-image buffer is allocated at any point — the downsampler works
 /// entirely in O(out_width) per output row.
-pub fn downsample_binary_rle_to_gray_rle(
+pub fn downsample_rle_to_gray_rle(
     runs: &[crate::rle::RleRun],
     super_width: usize,
     super_height: usize,
@@ -3756,9 +3817,9 @@ pub fn downsample_binary_rle_to_gray_rle(
     let out_height = super_height / factor;
     let max_count = (factor * factor) as u32;
 
-    // col_lit[ox]: accumulated lit super-pixel count for output column ox over
+    // col_sum[ox]: accumulated grayscale for output column ox over
     // the current block of `factor` super-rows.
-    let mut col_lit: Vec<u32> = vec![0; out_width];
+    let mut col_sum: Vec<u32> = vec![0; out_width];
     // Difference array for fully-covered interior spans (O(1) per run, O(out_width) flush).
     let mut col_delta: Vec<i32> = vec![0; out_width + 1];
 
@@ -3773,7 +3834,7 @@ pub fn downsample_binary_rle_to_gray_rle(
     let mut output_rows_emitted = 0usize;
 
     for run in runs {
-        let lit = run.value >= 128;
+        let lit = run.value != 0;
         let mut remaining = run.length as usize;
 
         while remaining > 0 {
@@ -3782,12 +3843,12 @@ pub fn downsample_binary_rle_to_gray_rle(
             let take = remaining.min(row_remaining);
 
             if lit {
-                accumulate_lit_span(
+                accumulate_grayscale_span(
                     super_col,
                     take,
                     factor,
-                    out_width,
-                    &mut col_lit,
+                    run.value,
+                    &mut col_sum,
                     &mut col_delta,
                 );
                 has_any_lit = true;
@@ -3807,20 +3868,20 @@ pub fn downsample_binary_rle_to_gray_rle(
                         emit_zero_rows(&mut out_rle, 1, out_width);
                     } else {
                         has_any_lit = false;
-                        // Apply the difference array to col_lit.
+                        // Apply the difference array to col_sum.
                         let mut delta_accum = 0i32;
                         for ox in 0..out_width {
                             delta_accum += col_delta[ox];
-                            col_lit[ox] = col_lit[ox].saturating_add(delta_accum.max(0) as u32);
+                            col_sum[ox] = col_sum[ox].saturating_add(delta_accum.max(0) as u32);
                             col_delta[ox] = 0;
                         }
                         col_delta[out_width] = 0;
                         // Compute gray values into scratch buffer, emit as a single batched RLE row.
                         for ox in 0..out_width {
-                            let lit_count = col_lit[ox];
-                            col_lit[ox] = 0;
+                            let grayscale_sum = col_sum[ox];
+                            col_sum[ox] = 0;
                             let raw =
-                                ((lit_count * 255 + max_count / 2) / max_count).min(255) as u8;
+                                ((grayscale_sum + max_count / 2) / max_count).min(255) as u8;
                             row_buf[ox] = if raw > 0 && raw < min_alpha_u8 {
                                 0u8
                             } else {
@@ -3845,12 +3906,12 @@ pub fn downsample_binary_rle_to_gray_rle(
             let mut delta_accum = 0i32;
             for ox in 0..out_width {
                 delta_accum += col_delta[ox];
-                col_lit[ox] = col_lit[ox].saturating_add(delta_accum.max(0) as u32);
+                col_sum[ox] = col_sum[ox].saturating_add(delta_accum.max(0) as u32);
             }
             for ox in 0..out_width {
-                let lit_count = col_lit[ox];
-                col_lit[ox] = 0;
-                let raw = ((lit_count * 255 + max_count / 2) / max_count).min(255) as u8;
+                let grayscale_sum = col_sum[ox];
+                col_sum[ox] = 0;
+                let raw = ((grayscale_sum + max_count / 2) / max_count).min(255) as u8;
                 row_buf[ox] = if raw > 0 && raw < min_alpha_u8 {
                     0u8
                 } else {

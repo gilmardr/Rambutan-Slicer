@@ -12446,3 +12446,218 @@ msgstr "Zig Zag"
 #: src/supports/autoBracing/AutoBracingSettingsCard.tsx:164
 msgid "Zigzag chains step by their own rise — interval has no effect"
 msgstr "Zigzag chains step by their own rise — interval has no effect"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:35
+msgid "prepGuide.supports"
+msgstr "Add supports"
+
+#. js-lingui-explicit-id
+#: src/components/controls/toolRailEntries.ts:57
+msgid "prepGuide.transformHint"
+msgstr "Adjust the angle before adding supports to avoid large flat layers."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:57
+msgid "prepGuide.exportTip"
+msgstr "After reviewing the layers, download the sliced file from Printing, or use Slice to File in Export. Check that the file format matches your printer."
+
+#. js-lingui-explicit-id
+#: src/components/controls/toolRailEntries.ts:177
+msgid "prepGuide.islandsHint"
+msgstr "Before slicing, check for regions with nothing supporting them from below."
+
+#. js-lingui-explicit-id
+#: src/components/layout/TopBar.tsx:627
+msgid "prepGuide.sliceHint"
+msgstr "Check the printer and material profiles, then slice to preview or save."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:50
+msgid "prepGuide.sliceTip"
+msgstr "Check the printer and material profiles. In Export, choose Just Slice to inspect the layers before saving the print file."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:89
+msgid "prepGuide.close"
+msgstr "Close preparation guide"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:126
+msgid "prepGuide.layerExample"
+msgstr "Example of the layer preview in Rambutan Slicer."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:56
+msgid "prepGuide.export"
+msgstr "Export"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:29
+msgid "prepGuide.hollowTip"
+msgstr "For a bulky part, hollowing can save resin. Add drainage and vent holes, then verify that they reach the cavity. Skip this step if the part should stay solid."
+
+#. js-lingui-explicit-id
+#: src/components/controls/toolRailEntries.ts:182
+msgid "prepGuide.supportsHint"
+msgstr "Generate supports after orienting the model, then review their contacts."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:28
+msgid "prepGuide.hollow"
+msgstr "Hollow and drain"
+
+#. js-lingui-explicit-id
+#: src/components/controls/toolRailEntries.ts:275
+msgid "prepGuide.hollowHint"
+msgstr "Hollow bulky parts and check that drainage holes reach the cavity."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:127
+msgid "prepGuide.astronautExample"
+msgstr "Illustrated example: preparing an astronaut model."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:14
+msgid "prepGuide.import"
+msgstr "Import"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:16
+msgid "prepGuide.importAction"
+msgstr "Import model"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:141
+msgid "prepGuide.next"
+msgstr "Next step"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:36
+msgid "prepGuide.supportsTip"
+msgstr "Once the orientation is set, generate automatic supports as a starting point. Inspect their contacts and add manual supports where needed."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:15
+msgid "prepGuide.importTip"
+msgstr "Open a model and check its dimensions against the build plate. This is especially useful when importing a part from CAD."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:37
+msgid "prepGuide.supportsAction"
+msgstr "Open Automatic Supports"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:51
+#: src/components/layout/PreparationGuide.tsx:58
+msgid "prepGuide.exportAction"
+msgstr "Open Export"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:30
+msgid "prepGuide.hollowAction"
+msgstr "Open Hollow"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:44
+msgid "prepGuide.islandsAction"
+msgstr "Open Islands"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:135
+msgid "prepGuide.previewAction"
+msgstr "Open print preview"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:23
+msgid "prepGuide.orientAction"
+msgstr "Open Transform"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:21
+msgid "prepGuide.orient"
+msgstr "Orient"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:80
+#: src/components/layout/TopBar.tsx:1091
+#: src/components/layout/TopBar.tsx:1092
+msgid "prepGuide.title"
+msgstr "Preparation guide"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:42
+msgid "prepGuide.islands"
+msgstr "Review islands"
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:43
+msgid "prepGuide.islandsTip"
+msgstr "Scan for regions that start printing with nothing below them. Add missing supports and run the check again before slicing."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:22
+msgid "prepGuide.orientTip"
+msgstr "Select the model and use Transform to try an angle that avoids large flat layers. Keep important surfaces away from support contacts."
+
+#. js-lingui-explicit-id
+#: src/components/layout/PreparationGuide.tsx:49
+msgid "prepGuide.slice"
+msgstr "Slice"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:86
+msgid "Confirmed drain holes"
+msgstr "Confirmed drain holes"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:76
+msgid "Final review"
+msgstr "Final review"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:82
+msgid "Floating regions"
+msgstr "Floating regions"
+
+#: src/components/layout/ImportDiagnosticsDialog.tsx:14
+#: src/components/layout/TopBar.tsx:684
+msgid "Import diagnostics"
+msgstr "Import diagnostics"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:86
+msgid "No drain holes placed"
+msgstr "No drain holes placed"
+
+#: src/components/layout/ImportDiagnosticsDialog.tsx:28
+msgid "No import errors in this session."
+msgstr "No import errors in this session."
+
+#: src/components/layout/ImportDiagnosticsDialog.tsx:27
+msgid "Save report"
+msgstr "Save report"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:77
+msgid "Scan islands"
+msgstr "Scan islands"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:36
+msgid "Show more"
+msgstr "Show more"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:91
+msgid "Too shallow"
+msgstr "Too shallow"
+
+#: src/features/slicing/components/FinalPrintReview.tsx:91
+msgid "Uncertain"
+msgstr "Uncertain"
+
+#: src/features/hollowing/HollowingPanel.tsx
+msgid "2D infill density"
+msgstr "2D infill density"
+
+#: src/features/hollowing/HollowingPanel.tsx
+msgid "2D infill grid spacing"
+msgstr "2D infill grid spacing"
+
+#: src/features/hollowing/HollowingPanel.tsx
+msgid "2D infill pixel intensity"
+msgstr "2D infill pixel intensity"

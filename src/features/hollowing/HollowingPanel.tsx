@@ -299,7 +299,7 @@ export function HollowingPanel({
               <Trans>Creates a hollow shell in each slice without changing the 3D model. Supports and rafts stay solid.</Trans>
             </p>
             {hollowing2D.enabled && (
-              <div>
+              <div className="space-y-2">
                 <label className="ui-meta block" style={{ color: 'var(--text-muted)' }}><Trans>2D wall thickness</Trans></label>
                 <ScrollableNumberField
                   value={hollowing2D.wallThicknessMm}
@@ -315,6 +315,28 @@ export function HollowingPanel({
                   disabled={!canEdit || isApplying}
                   className="mt-1"
                 />
+                {([
+                  { key: 'infillDensityPercent', label: msg`2D infill density`, defaultValue: 0, min: 0, max: 100, step: 1, unit: '%' },
+                  { key: 'infillCellMm', label: msg`2D infill grid spacing`, defaultValue: 3, min: 0.8, max: 10, step: 0.1, unit: 'mm' },
+                  { key: 'infillIntensityPercent', label: msg`2D infill pixel intensity`, defaultValue: 100, min: 0, max: 100, step: 1, unit: '%' },
+                ] as const).map(({ key, label, defaultValue, min, max, step, unit }) => (
+                    <div key={key}>
+                      <div className="ui-meta" style={{ color: 'var(--text-muted)' }}>
+                      {_(label)}
+                      </div>
+                      <ScrollableNumberField
+                        value={hollowing2D[key] ?? defaultValue}
+                        onChange={(value) => onHollowing2DChange({ ...hollowing2D, [key]: clampFloat(value, min, max, defaultValue) })}
+                        min={min}
+                        max={max}
+                        step={step}
+                        unit={unit}
+                        ariaLabel={_(label)}
+                        disabled={!canEdit || isApplying || (key !== 'infillDensityPercent' && !hollowing2D.infillDensityPercent)}
+                        className="mt-1"
+                      />
+                    </div>
+                ))}
               </div>
             )}
           </div>

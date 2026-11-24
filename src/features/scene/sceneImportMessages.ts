@@ -252,6 +252,10 @@ export function reportSceneImportFailed(message: string, translate: Translate): 
   return translate(msg`Scene import failed: ${message}`);
 }
 
+export function reportMeshImportFailed(fileName: string, message: string, translate: Translate): string {
+  return translate(msg`Could not load ${fileName}: ${message}`);
+}
+
 export function reportVoxlNoMeshes(translate: Translate): string {
   return translate(msg`VOXL import finished with no importable meshes.`);
 }

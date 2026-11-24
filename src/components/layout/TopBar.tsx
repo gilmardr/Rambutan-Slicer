@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import { MESH_FILE_ACCEPT } from '@/features/scene/meshFileTypes';
 import { useEscapeToClose } from '@/hotkeys/useEscapeToClose';
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
@@ -12,7 +13,7 @@ import type { MatcapVariant, MeshShaderType } from '@/features/shaders/mesh';
 import { AlertDiamondIcon, Button } from '@/components/atoms';
 import { StructuredDialogModal } from '@/components/ui/StructuredDialogModal';
 import { ContextMenu, type ContextMenuEntry } from '@/components/ui/ContextMenu';
-import { Activity, AlertTriangle, Anchor, ChevronDown, FilePlus2, FolderInput, FolderOpen, Lock, Maximize2, Minimize2, Power, Printer, Ruler, Save, SaveAll, Settings, Square, Upload, X } from 'lucide-react';
+import { Activity, AlertTriangle, Anchor, BookOpen, ChevronDown, FilePlus2, FolderInput, FolderOpen, Lock, Maximize2, Minimize2, Power, Printer, Ruler, Save, SaveAll, Settings, Square, Upload, X } from 'lucide-react';
 import {
   applyThemeCustomColors,
   getSavedThemeCustomColors,
@@ -39,6 +40,8 @@ import type { SlicingThumbnailRenderSettings } from '@/components/settings/Perfo
 import type { PreparedModelLibraryEntry } from '@/features/backups/modelLibraryTypes';
 import { useSceneFileInputAccept } from '@/features/plugins/pluginFileTypeExtensions';
 import { formatTopbarPrinterAriaLabel, formatTopbarPrinterTitle, formatTopbarProfileTitle } from '@/components/layout/topBarMessages';
+import { ImportDiagnosticsDialog } from '@/components/layout/ImportDiagnosticsDialog';
+import { PreparationGuide, type PreparationStep } from '@/components/layout/PreparationGuide';
 
 interface TopBarProps {
   meshColor: string;
@@ -107,6 +110,8 @@ interface TopBarProps {
   /** During first-run onboarding, hide the workflow-mode steps and the
    *  scene/view controls so the app bar reads as minimal chrome. */
   hideWorkflowControls?: boolean;
+  preparationStep: PreparationStep;
+  onOpenPreparationTool: (step: Exclude<PreparationStep, 'import'>) => void;
 }
 
 export function TopBar({
@@ -169,10 +174,14 @@ export function TopBar({
   onOpenMonitor,
   warnBeforeProfileSettingsOpen = false,
   hideWorkflowControls = false,
+  preparationStep,
+  onOpenPreparationTool,
 }: TopBarProps) {
   const { _ } = useLingui();
   const sceneFileAccept = useSceneFileInputAccept();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [isPreparationGuideOpen, setIsPreparationGuideOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTabKey>('general');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profileModalTab, setProfileModalTab] = useState<'printer' | 'material'>('printer');
@@ -617,7 +626,7 @@ export function TopBar({
       label: _(msg`Export`),
       step: 3,
       icon: <Upload className="h-3 w-3" strokeWidth={2.5} />,
-      hint: _(msg`Finalize and export output`),
+      hint: _(msg({ id: 'prepGuide.sliceHint', message: 'Check the printer and material profiles, then slice to preview or save.' })),
       locked: !hasModels,
     },
     {
@@ -672,6 +681,9 @@ export function TopBar({
       disabled: topbarActionsDisabled || !onImportSceneChange,
     },
     {
+      id: 'import-diagnostics', label: _(msg`Import diagnostics`), icon: Activity,
+    },
+    {
       id: 'close-program',
       label: _(msg`Close program`),
       icon: Power,
@@ -701,6 +713,9 @@ export function TopBar({
         if (typeof document === 'undefined') break;
         (document.getElementById('topbar-scene-input') as HTMLInputElement | null)?.click();
         break;
+      case 'import-diagnostics':
+        setDiagnosticsOpen(true);
+        break;
       case 'close-program':
         void handleCloseProgram();
         break;
@@ -711,6 +726,20 @@ export function TopBar({
 
   return (
     <>
+      {diagnosticsOpen && <ImportDiagnosticsDialog onClose={() => setDiagnosticsOpen(false)} />}
+      {isPreparationGuideOpen && !hideWorkflowControls && !topbarActionsDisabled && (
+        <PreparationGuide
+          initialStep={preparationStep}
+          hasModels={hasModels}
+          canPreview={hasPrintingData}
+          onClose={() => setIsPreparationGuideOpen(false)}
+          onOpenTool={(step) => {
+            setIsPreparationGuideOpen(false);
+            if (step === 'import') handleAppMenuSelect('import-mesh');
+            else onOpenPreparationTool(step);
+          }}
+        />
+      )}
       <div className={`ui-topbar-blur ${hideWorkflowControls ? 'ui-topbar-blur-transparent' : ''}`} aria-hidden="true" />
       <div
         className={`ui-topbar fixed top-0 left-0 right-0 z-50 flex items-center relative ${hideWorkflowControls ? 'justify-between ui-topbar-transparent' : ''}`}
@@ -859,7 +888,7 @@ export function TopBar({
       <input
         id="topbar-mesh-input"
         type="file"
-        accept=".stl,.obj,.3mf,.zip"
+        accept={MESH_FILE_ACCEPT}
         multiple
         onChange={onLoadMeshChange}
         className="hidden"
@@ -1062,6 +1091,19 @@ export function TopBar({
         <div className={`flex items-center gap-2 transition-opacity ${topbarActionsDisabled ? 'opacity-45 pointer-events-none' : ''}`}>
           {!hideWorkflowControls && (
           <>
+          <Button
+            type="button"
+            variant="secondary"
+            className="!p-2"
+            onClick={() => setIsPreparationGuideOpen(true)}
+            disabled={topbarActionsDisabled}
+            title={_(msg({ id: 'prepGuide.title', message: 'Preparation guide' }))}
+            aria-label={_(msg({ id: 'prepGuide.title', message: 'Preparation guide' }))}
+            aria-haspopup="dialog"
+            data-no-window-drag="true"
+          >
+            <BookOpen className="h-4 w-4" aria-hidden="true" />
+          </Button>
           <ViewTypeDropdown
             value={viewType}
             onChange={onViewTypeChange}

@@ -119,6 +119,7 @@ test('page characterization with one 10 mm cube', async (t) => {
         'Open scene…',
         'Import mesh…',
         'Import scene…',
+        'Import diagnostics',
         'Close program',
       ]);
     });

@@ -809,6 +809,7 @@ export function useSceneLifecycle({
   }, [isDesktopRuntime]);
 
   return {
+    performTopBarSaveScene,
     handleAutosaveRestore,
     handleAutosaveDiscard,
     handleTopBarSaveScene,

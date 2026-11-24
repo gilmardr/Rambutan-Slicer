@@ -636,6 +636,9 @@ export function useHollowingManager({
     const normalized = {
       enabled: next.enabled,
       wallThicknessMm: Number(Math.min(10, Math.max(0.5, next.wallThicknessMm)).toFixed(1)),
+      infillDensityPercent: Math.round(THREE.MathUtils.clamp(next.infillDensityPercent ?? 0, 0, 100)),
+      infillCellMm: Number(THREE.MathUtils.clamp(next.infillCellMm ?? 3, 0.8, 10).toFixed(1)),
+      infillIntensityPercent: Math.round(THREE.MathUtils.clamp(next.infillIntensityPercent ?? 100, 0, 100)),
     };
     setHollowing2DState(normalized);
     deps.current.persistActiveModelModifiers({

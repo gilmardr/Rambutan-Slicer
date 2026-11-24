@@ -13,6 +13,7 @@ export type CollisionMeshInput = {
 
 export type CollisionPair = {
   modelIds: [string, string];
+  location?: [number, number, number];
   kind: 'surface-contact' | 'containment' | 'uncertain';
 };
 
@@ -159,22 +160,30 @@ export function scanModelCollisions(inputs: readonly CollisionMeshInput[]): Coll
         if (a.input.plateId !== b.input.plateId
           || !a.geometry.boundingBox!.intersectsBox(b.geometry.boundingBox!)) continue;
         const modelIds: [string, string] = [a.input.id, b.input.id];
+        const overlap = a.geometry.boundingBox!.clone().intersect(b.geometry.boundingBox!);
+        const location = overlap.getCenter(new THREE.Vector3()).toArray();
+        const contact = new THREE.Line3();
         if (a.bvh.bvhcast(b.bvh, identity, {
-          intersectsTriangles: (left, right) => left.intersectsTriangle(right),
+          intersectsTriangles: (left, right) => {
+            if (!left.intersectsTriangle(right, contact)) return false;
+            const midpoint = contact.getCenter(new THREE.Vector3());
+            if (overlap.containsPoint(midpoint)) midpoint.toArray(location);
+            return true;
+          },
         })) {
-          report.pairs.push({ modelIds, kind: 'surface-contact' });
+          report.pairs.push({ modelIds, location, kind: 'surface-contact' });
           continue;
         }
         if (!a.closed || !b.closed) {
-          report.pairs.push({ modelIds, kind: 'uncertain' });
+          report.pairs.push({ modelIds, location, kind: 'uncertain' });
           continue;
         }
         const classifications = [
           ...a.samples.map((point) => pointInside(point, b)),
           ...b.samples.map((point) => pointInside(point, a)),
         ];
-        if (classifications.includes(true)) report.pairs.push({ modelIds, kind: 'containment' });
-        else if (classifications.includes(null)) report.pairs.push({ modelIds, kind: 'uncertain' });
+        if (classifications.includes(true)) report.pairs.push({ modelIds, location, kind: 'containment' });
+        else if (classifications.includes(null)) report.pairs.push({ modelIds, location, kind: 'uncertain' });
       }
     }
     return report;

@@ -22,7 +22,8 @@ test('overlapping model surfaces are reported with their model IDs', () => {
     box('a', 'plate', [2, 2, 2], [0, 0, 0]),
     box('b', 'plate', [2, 2, 2], [1, 0, 0]),
   ]);
-  assert.deepEqual(report.pairs, [{ modelIds: ['a', 'b'], kind: 'surface-contact' }]);
+  assert.ok(report.pairs[0]?.location?.every(Number.isFinite));
+  assert.deepEqual(report.pairs.map(({ modelIds, kind }) => ({ modelIds, kind })), [{ modelIds: ['a', 'b'], kind: 'surface-contact' }]);
 });
 
 test('a solid fully inside another is detected without a surface crossing', () => {
@@ -30,7 +31,8 @@ test('a solid fully inside another is detected without a surface crossing', () =
     box('outer', 'plate', [4, 4, 4], [0, 0, 0]),
     box('inner', 'plate', [1, 1, 1], [0.2, 0, 0]),
   ]);
-  assert.deepEqual(report.pairs, [{ modelIds: ['outer', 'inner'], kind: 'containment' }]);
+  assert.ok(report.pairs[0]?.location?.every(Number.isFinite));
+  assert.deepEqual(report.pairs.map(({ modelIds, kind }) => ({ modelIds, kind })), [{ modelIds: ['outer', 'inner'], kind: 'containment' }]);
 });
 
 test('models on separate plates do not form a collision pair', () => {

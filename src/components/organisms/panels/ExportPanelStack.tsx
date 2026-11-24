@@ -1,5 +1,6 @@
 import React from 'react';
 import * as THREE from 'three';
+import { msg } from '@lingui/core/macro';
 import { ExportPanel } from '@/features/export/components/ExportPanel';
 import { SlicingPanel, type SliceIntent } from '@/features/slicing/components/SlicingPanel';
 import type { SliceExportArtifact, SliceExportResult } from '@/features/slicing/sliceExportOrchestrator';
@@ -8,8 +9,10 @@ import { modelsOnPlate, plateSliceScope } from '@/features/scene/plates/plateLay
 import type { useSlicingManager } from '@/features/slicing/useSlicingManager';
 import type { UseIslandsReturn } from '@/volumeAnalysis/Islands/useIslands';
 import type { HolePunchVerificationResult } from '@/features/hole-punching/holePunchVerification';
+import { normalizeCtbModelGrayscale } from '@/features/slicing/ctbMultiParameterRules';
 
 export type ExportPanelStackProps = {
+  finalReview: React.ReactNode;
   scene: ReturnType<typeof useSceneCollectionManager>;
   slicing: ReturnType<typeof useSlicingManager>;
   readinessIslands: UseIslandsReturn;
@@ -46,6 +49,8 @@ export type ExportPanelStackProps = {
   handleSlicingBenchmarkComplete: (benchmark: SliceExportResult['benchmark']) => void;
   triggerSliceExportRef: React.MutableRefObject<(() => void) | null>;
   shouldAutoSliceOnExportEntry: boolean;
+  magicSliceDestination: { outputPath: string | null } | null;
+  clearMagicSliceDestination: () => void;
   shouldReturnToPrintingAfterSliceRef: React.MutableRefObject<boolean>;
   setIsSlicingBusy: (busy: boolean) => void;
   canSliceAndUpload: boolean;
@@ -63,6 +68,7 @@ export type ExportPanelStackProps = {
 export function ExportPanelStack({
   scene,
   slicing,
+  finalReview,
   readinessIslands,
   drainHoleVerificationResults,
   supportsRef,
@@ -84,6 +90,8 @@ export function ExportPanelStack({
   handleSlicingBenchmarkComplete,
   triggerSliceExportRef,
   shouldAutoSliceOnExportEntry,
+  magicSliceDestination,
+  clearMagicSliceDestination,
   shouldReturnToPrintingAfterSliceRef,
   setIsSlicingBusy,
   canSliceAndUpload,
@@ -147,10 +155,22 @@ export function ExportPanelStack({
       <SlicingPanel
         key="export-slicing"
         models={scene.models}
+        onModelCtbGrayscaleChange={(modelId, percent) => {
+          if (scene.isPlateLocked(scene.activePlateId)) return;
+          const modifiers = scene.getModelMeshModifiers(modelId);
+          const normalized = normalizeCtbModelGrayscale(percent);
+          if (normalized === normalizeCtbModelGrayscale(modifiers?.ctbGrayscalePercent)) return;
+          scene.setModelMeshModifiers(modelId, {
+            ...modifiers,
+            ctbGrayscalePercent: normalized < 100 ? normalized : undefined,
+          }, { historyDescription: msg`Change model grayscale`, merge: true });
+        }}
+        modelCtbGrayscaleDisabled={scene.isPlateLocked(scene.activePlateId)}
         plateSliceScopes={plateSliceScopes}
         activePlateSliceIndex={activePlateSliceIndex}
         excludedModelIds={excludedSliceModelIds}
         activeModel={scene.activeModel}
+        finalReview={finalReview}
         readinessIslands={readinessIslands}
         drainHoleVerificationResults={drainHoleVerificationResults}
         estimatedLayerCountOverride={estimatedSlicerLayerCount}
@@ -167,6 +187,8 @@ export function ExportPanelStack({
         onBenchmarkComplete={handleSlicingBenchmarkComplete}
         onSliceTriggerRef={triggerSliceExportRef}
         shouldAutoSlice={shouldAutoSliceOnExportEntry}
+        magicSliceDestination={magicSliceDestination}
+        onMagicSliceConsumed={clearMagicSliceDestination}
         skipThumbnailCapture={shouldReturnToPrintingAfterSliceRef.current}
         onSlicingBusyChange={setIsSlicingBusy}
         canUpload={canSliceAndUpload}

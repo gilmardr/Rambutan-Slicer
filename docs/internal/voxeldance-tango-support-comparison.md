@@ -55,6 +55,32 @@ is not publicly documented, and inventing a converter without a published
 specification would risk silently changing support geometry. The Support Projection interface has not received a
 dedicated end-to-end desktop verification and remains **experimental**.
 
+## Feasibility of other Tango features
+
+The Tango comparison is based on VoxelDance's public feature sheet and user
+guides, cross-checked against the current Rambutan source. Tango is not
+installed in the inspected Windows program locations or registered in the
+uninstall inventory, so REA could not inspect its binary or live interface.
+These results do not claim internal Tango behavior or file-format compatibility.
+
+| Tango feature | Rambutan status | Feasibility and implementation boundary |
+| --- | --- | --- |
+| One-click 2D nesting | Available as 2.5D arrange | `src/features/scene/arrange/highPrecisionArrange.ts` and `useArrangeManager.ts` already pack parts on the plate with geometry-aware collision checks. Keep the existing workflow; improve speed or simple one-click access only if user feedback calls for it. |
+| Honeycomb internal structure | No honeycomb pattern; configurable square 2D infill exists for hollow cavities | High feasibility for honeycomb infill inside hollow cavities by extending the existing layer-mask pipeline. Medium feasibility for matching Tango's one-click feature across solid parts because the public feature description does not explain its geometry operation. A full solid-part version may need a 3D interior-volume and shell pipeline rather than only replacing the current 2D cavity pattern. |
+| Dedicated selectable V-support | Not a named support type; branching and fan-out trees are available | Medium-to-high feasibility. The current support graph and branch builders can carry connected structures. A V-support preset can be added over those primitives, but its shape, contact/removal behavior, collision rules, and editing/export round-trip need their own implementation and validation. It would not reproduce Tango's proprietary generator. |
+| Reusable support scripts for painted regions | Partially available | Support Projection applies saved border and infill profiles to one painted area at a time. Queueing multiple painted regions and applying them together is feasible using the existing preset path. Direct import of Tango script files cannot be scoped until VoxelDance documents the format or supplies a public sample specification. |
+| Adaptive layer height and per-height slicing scripts | Missing; one fixed layer height is used per slicing job | Medium-to-high effort. It changes layer-boundary generation, raster sampling, preview/indexing, layer-count estimates, and format encoders. Each printer format also needs evidence that its file structure and firmware accept variable layer heights. This is technically feasible, but should follow a printer-by-printer compatibility matrix. |
+| Auto orientation by print time, support area, or safety | Available with different scoring | `orientationAdvisor.ts` ranks for support contact, height, scarring, or physical safety, and can compare layer-area profiles. This is a functional match at the objective level; scoring parity is not claimed. |
+| Lowest-point support reinforcement | Available with a different algorithm | Auto-support includes mesh-minima reinforcement and stability anchors. No separate Tango-compatible settings or scripts are provided. |
+| Automatic repair and hollowing/drain holes | Available with different pipelines | Rambutan has native mesh repair, shrink-wrap, hollowing, and drain-hole placement/verification. Geometry results and repair classifications are not guaranteed to match Tango. |
+| Cloud synchronization of scripts/settings | Missing | Technically straightforward only after choosing and operating a sync service, account model, conflict policy, and data-retention behavior. The source app can store local profiles and backups, but this repo has no configured Rambutan cloud backend. |
+
+The most useful distinct Tango additions to consider are **honeycomb infill for
+hollow cavities**, a **selectable V-support preset**, and (after choosing
+compatible printers) **adaptive layer height**. Batch application of region
+presets is a workflow improvement over a core capability Rambutan already has.
+Tango-script compatibility remains a separate, currently unscopable import task.
+
 The tree-support claim is covered by `src/supports/__tests__/autoPlace.test.ts`
 and `src/supports/__tests__/fanHost.test.ts`. Its placement and consolidation
 are source-verified; Tango compatibility and algorithm parity are not claimed.

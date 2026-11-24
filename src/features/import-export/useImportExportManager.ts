@@ -1,5 +1,6 @@
 import React from 'react';
 import * as THREE from 'three';
+import { recordImportFailure } from "./importDiagnostics";
 import { detectIsIOS } from '@/hooks/usePlatform';
 import { suppressSceneAutosave } from '@/hooks/useSceneAutosave';
 import { extractFilesFromZip, getFileExtensionLower } from '@/utils/zipImport';
@@ -10,6 +11,10 @@ import {
   readPrintArtifactBytesFromPath,
 } from '@/features/slicing/tauri/nativeSlicerBridge';
 import type { useSceneCollectionManager } from '@/features/scene/useSceneCollectionManager';
+import {
+  MESH_FILE_ACCEPT,
+  MESH_FILE_EXTENSION_SET,
+} from '@/features/scene/meshFileTypes';
 import { SCENE_FILE_EXTENSIONS, sceneFileInputAccept } from '@/features/plugins/pluginFileTypeExtensions';
 import {
   getPluginImportWarningForFileName,
@@ -32,6 +37,7 @@ import {
 type SceneManager = ReturnType<typeof useSceneCollectionManager>;
 
 const COLD_START_SCENE_HANDOFF_DELAY_MS = 1150;
+const MESH_FILE_EXTS = MESH_FILE_EXTENSION_SET;
 
 /** Late / cross-domain dependencies read at event/effect time via deps.current.*.
  *  Home populates this ref AFTER the slicing manager and the select-all model
@@ -192,7 +198,6 @@ export function useImportExportManager({
     zip: File,
     requestedCategory: 'mesh' | 'scene',
   ): Promise<{ meshFiles: File[]; sceneFiles: File[] }> => {
-    const meshExts = new Set(['.stl', '.obj', '.3mf']);
     const sceneExts = new Set(SCENE_FILE_EXTENSIONS.map((ext) => `.${ext}`));
     const oppositeCategory = requestedCategory === 'mesh' ? 'scene' : 'mesh';
 
@@ -211,12 +216,13 @@ export function useImportExportManager({
     try {
       extracted = await extractFilesFromZip(zip);
     } catch (err) {
+      recordImportFailure(zip, 'unpack-zip', err);
       console.error('[ZIP] Failed to read ZIP archive:', err);
       setNativePickerPreparationState({ active: false, label: '', detail: '', progress: null });
       return { meshFiles: [], sceneFiles: [] };
     }
 
-    const meshCandidates = extracted.filter((f) => meshExts.has(getFileExtensionLower(f.name)));
+    const meshCandidates = extracted.filter((f) => MESH_FILE_EXTS.has(getFileExtensionLower(f.name)));
     const sceneCandidates = extracted.filter((f) => sceneExts.has(getFileExtensionLower(f.name)));
 
     // Clear spinner before potentially showing the picker modal (or returning nothing)
@@ -242,6 +248,7 @@ export function useImportExportManager({
     }
 
     if (targetCandidates.length === 0) {
+      recordImportFailure(zip, 'select-zip-entry', 'The archive contains no supported file.');
       return { meshFiles: [], sceneFiles: [] };
     }
 
@@ -258,7 +265,7 @@ export function useImportExportManager({
           });
         });
 
-    const selectedMeshFiles = selectedCandidates.filter((file) => meshExts.has(getFileExtensionLower(file.name)));
+    const selectedMeshFiles = selectedCandidates.filter((file) => MESH_FILE_EXTS.has(getFileExtensionLower(file.name)));
     const selectedSceneFiles = selectedCandidates.filter((file) => sceneExts.has(getFileExtensionLower(file.name)));
 
     return {
@@ -271,7 +278,6 @@ export function useImportExportManager({
     files: File[],
     requestedCategory: 'mesh' | 'scene',
   ): Promise<{ meshFiles: File[]; sceneFiles: File[] }> => {
-    const meshExts = new Set(['.stl', '.obj', '.3mf']);
     const sceneExts = new Set(SCENE_FILE_EXTENSIONS.map((ext) => `.${ext}`));
 
     const meshFiles: File[] = [];
@@ -283,7 +289,7 @@ export function useImportExportManager({
         const expanded = await resolveZipFiles(file, requestedCategory);
         if (expanded.meshFiles.length > 0) meshFiles.push(...expanded.meshFiles);
         if (expanded.sceneFiles.length > 0) sceneFiles.push(...expanded.sceneFiles);
-      } else if (meshExts.has(ext)) {
+      } else if (MESH_FILE_EXTS.has(ext)) {
         meshFiles.push(file);
       } else if (sceneExts.has(ext)) {
         sceneFiles.push(file);
@@ -438,9 +444,8 @@ export function useImportExportManager({
    * directly instead of the renderer parsing bytes in the webview.
    *
    * STL passes no bytes: the path is the whole story, and a 4M-triangle STL
-   * never enters webview memory. OBJ and 3MF still pass their bytes, because the
-   * renderer's own loaders remain the fallback until the native loader has proven
-   * itself on every file they accept.
+   * never enters webview memory. Other formats pass their bytes to the renderer;
+   * STEP in particular is tessellated by the OCCT WebAssembly worker.
    */
   const createPathBackedMeshFile = React.useCallback((sourcePath: string, name: string, sizeBytes?: number | null, bytes?: ArrayBuffer): File => {
     const file = new File(bytes ? [new Uint8Array(bytes)] : [], name, {
@@ -641,7 +646,7 @@ export function useImportExportManager({
       return;
     }
 
-    const webFiles = await pickFilesWithWebInput('.stl,.obj,.3mf,.zip', true);
+    const webFiles = await pickFilesWithWebInput(MESH_FILE_ACCEPT, true);
     if (webFiles.length === 0) return;
     const expanded = await expandPickedFilesWithZip(webFiles, 'mesh');
     if (expanded.meshFiles.length > 0) {

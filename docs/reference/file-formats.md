@@ -17,6 +17,10 @@ Primary mesh import/export format for geometry workflows.
 - Used for model ingestion and print-ready mesh exchange.
 - Export path includes support/raft geometry when configured.
 
+## STEP (.step, .stp)
+
+STEP CAD files can be opened as models. Their surfaces are tessellated into one triangle mesh in millimeters for positioning, repair, and slicing; the original CAD feature tree is not retained.
+
 ## 3MF (`.3mf`)
 
 Supported export format for model + support workflows.

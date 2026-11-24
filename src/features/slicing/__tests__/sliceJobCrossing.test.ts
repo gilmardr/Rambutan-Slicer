@@ -96,6 +96,14 @@ function completeEnvelope(): NativeSolidSliceJobEnvelope {
     zaaPattern: 'base2',
     zaaDuplicateZ: false,
     modelTriangleCount: 10_000_000,
+    modelSliceRanges: [{
+      startTriangle: 0,
+      triangleCount: 12,
+      wallThicknessMm: 2,
+      infillDensityPercent: 60,
+      infillIntensityPercent: 40,
+      grayscalePercent: 35,
+    }],
     containerCompressionLevel: 2,
     buildWidthMm: 218.88,
     buildDepthMm: 122.88,
@@ -155,4 +163,12 @@ test('the struct parser actually found the crossing', () => {
     fields.some((f) => f.aliases.includes('blur_brush_sigma')),
     'serde aliases are not being parsed',
   );
+});
+
+test('model grayscale and slice-only hollowing reach the Rust model ranges', () => {
+  const envelope = completeEnvelope();
+  const payload = JSON.parse(JSON.stringify(toNativeMetadataPayload(envelope)));
+  assert.deepEqual(payload.model_slice_ranges, envelope.modelSliceRanges);
+  assert.equal(payload.model_slice_ranges[0].grayscalePercent, 35);
+  assert.equal(payload.model_slice_ranges[0].infillIntensityPercent, 40);
 });

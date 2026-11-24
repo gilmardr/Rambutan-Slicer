@@ -11,6 +11,16 @@ use crate::engine::SlicerV3Error;
 use crate::types::{LayerAreaStatsV3, RenderedLayersV3, SliceJobV3};
 use std::path::Path;
 
+#[derive(Debug, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrintIslandReport {
+    pub byte_size: u64,
+    pub affected_layers: u32,
+    pub first_affected_layer: Option<u32>,
+    pub island_count: u64,
+    pub pixel_count: u64,
+}
+
 /// Stateful encoder sink that can consume raw masks layer-by-layer during
 /// rasterization and produce final container bytes once all layers are seen.
 pub trait RawMaskStreamEncoder: Send {
@@ -132,6 +142,13 @@ pub trait FormatEncoder: Send + Sync {
         false
     }
 
+    /// Whether this particular job needs connected-component area stats.
+    /// Encoders can opt in conditionally, for example when an optional
+    /// cross-section rule is enabled in the job metadata.
+    fn requires_area_stats_for_job(&self, _job: &SliceJobV3) -> bool {
+        self.requires_area_stats()
+    }
+
     /// Whether this encoder needs per-layer PNG payloads.
     fn requires_png_layers(&self) -> bool {
         true
@@ -187,6 +204,33 @@ pub trait FormatEncoder: Send + Sync {
     ) -> Result<Vec<u8>, SlicerV3Error> {
         Err(SlicerV3Error::UnsupportedOutput(format!(
             "{} encoder does not implement layer preview PNG decoding",
+            self.output_format()
+        )))
+    }
+
+    /// Replace one 1-based layer mask in an already-encoded print artifact.
+    /// The PNG must have the same dimensions as the printer's layer raster.
+    fn replace_layer_pixels_png(
+        &self,
+        _path: &Path,
+        _layer_number: u32,
+        _png_bytes: &[u8],
+    ) -> Result<u64, SlicerV3Error> {
+        Err(SlicerV3Error::UnsupportedOutput(format!(
+            "{} encoder does not implement post-slice layer editing",
+            self.output_format()
+        )))
+    }
+
+    fn process_print_islands(
+        &self,
+        _path: &Path,
+        _minimum_pixels: u32,
+        _remove: bool,
+        _progress: &dyn Fn(u32, u32),
+    ) -> Result<PrintIslandReport, SlicerV3Error> {
+        Err(SlicerV3Error::UnsupportedOutput(format!(
+            "{} encoder does not implement post-slice island cleanup",
             self.output_format()
         )))
     }

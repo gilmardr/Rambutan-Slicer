@@ -54,7 +54,7 @@ export function buildPrepareToolRailEntries({
 }: PrepareToolRailOptions): ToolRailEntry[] {
   const tools: Array<{ mode: TransformMode; label: ToolRailEntry['label']; hint: ToolRailEntry['hint']; icon: ToolRailEntry['icon']; separated?: ToolRailEntry['separated'] }> = [
     { mode: 'select', label: msg({ message: 'Drag', comment: 'Tool rail label. The tool that drags and places models on the plate. Deliberately "Drag" rather than "Arrange": the app uses "Arrange" elsewhere for arranging the whole plate, and Spanish distinguishes the two.' }), hint: msg`Move and place models on the plate`, icon: Hand },
-    { mode: 'transform', label: msg`Transform`, hint: msg`Move, rotate, and scale`, icon: Move3D },
+    { mode: 'transform', label: msg`Transform`, hint: msg({ id: 'prepGuide.transformHint', message: 'Adjust the angle before adding supports to avoid large flat layers.' }), icon: Move3D },
     {
       mode: 'placeOnFace',
       label: msg({ message: 'On-Face', comment: 'Tool rail label. Short for "lay the model flat on a selected face"; keep it terse so the rail entry stays one line.' }),
@@ -174,12 +174,12 @@ export function buildSupportToolRailEntries({
   const panelTools: Record<SupportRailMode, { label: ToolRailEntry['label']; hint: ToolRailEntry['hint']; icon: ToolRailEntry['icon'] }> = {
     islands: {
       label: msg({ message: 'Islands', comment: 'Tool rail label in Support mode. Short for the Islands panel, which scans the model for unsupported islands.' }),
-      hint: msg({ message: 'Scan the model for unsupported islands', comment: 'Tool rail entry in Support mode. Selecting it shows the Islands panel.' }),
+      hint: msg({ id: 'prepGuide.islandsHint', message: 'Before slicing, check for regions with nothing supporting them from below.' }),
       icon: IslandPalmIcon,
     },
     auto: {
       label: msg({ message: 'Automatic', comment: 'Tool rail label in Support mode. Short for the Auto Supports panel, which generates supports automatically.' }),
-      hint: msg({ message: 'Auto support generation', comment: 'Tool rail entry in Support mode. Selecting it shows the Auto Supports panel, which generates supports.' }),
+      hint: msg({ id: 'prepGuide.supportsHint', message: 'Generate supports after orienting the model, then review their contacts.' }),
       icon: AutoSupportIcon,
     },
     manual: {
@@ -272,7 +272,7 @@ export function buildSupportToolRailEntries({
     {
       id: 'hollowing',
       label: msg({ message: 'Hollow', comment: 'Tool rail label in Support mode. One word, like the other tool names: opens the hollowing tool (shell the model, add drainage holes).' }),
-      hint: msg`Create cavity or open-face shell`,
+      hint: msg({ id: 'prepGuide.hollowHint', message: 'Hollow bulky parts and check that drainage holes reach the cavity.' }),
       icon: HollowShellIcon,
       active: hollowingActive,
       tone: 'tool',

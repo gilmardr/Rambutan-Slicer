@@ -43,6 +43,18 @@ const hollowMods = (source: string, cavity: string): ModelMeshModifiers => ({
   holePunchSourcePositionCount: 48,
 });
 
+test('VOXL retains grayscale by model beside its hollowing modifiers', async () => {
+  const models = [
+    testModel('a', { meshModifiers: { ...hollowMods(SOURCE, CAVITY), ctbGrayscalePercent: 35 } }),
+    testModel('b', { meshModifiers: { ctbGrayscalePercent: 65 } }),
+    testModel('c'),
+  ];
+  const bytes = await serializeVoxlDocumentV2(testInput(models), new Map());
+  const { document } = await parseVoxlBinaryV2(bytes);
+  assert.deepEqual(document.models.map((model) => model.meshModifiers?.ctbGrayscalePercent), [35, 65, undefined]);
+  assert.equal(document.models[0].meshModifiers?.hollowing?.sourcePositionsBase64, SOURCE);
+});
+
 test('modifier snapshots move into HSRC/CAVT/PSRC chunks and round-trip byte-for-byte', async () => {
   const model = testModel('m0', { meshModifiers: hollowMods(SOURCE, CAVITY) });
   const bin = await serializeVoxlDocumentV2(testInput([model]), new Map());

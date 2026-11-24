@@ -67,3 +67,14 @@ test('image cutter keeps edge-adjacent pixels in one solid', async () => {
   assert.equal(kernel.split(solidFrom(geometry)).length, 1);
   geometry.dispose();
 });
+
+test('antialiased image coverage positions the contour between pixel centers', async () => {
+  const pixels = pixelsFrom(['#..']);
+  pixels.data[7] = 192;
+  const geometry = createImageCutterGeometry(pixels, 3, 1);
+  assert.ok(geometry);
+  assert.ok(Math.abs(geometry.boundingBox!.max.x - (192 - 127.5) / 192) < 1e-6);
+  assert.equal(geometry.boundingBox!.min.z, -0.5, 'opaque black keeps full depth');
+  assert.equal((await kernelPromise).split(solidFrom(geometry)).length, 1);
+  geometry.dispose();
+});

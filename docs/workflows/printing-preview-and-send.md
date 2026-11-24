@@ -22,6 +22,25 @@ After slicing completes, the app opens Printing mode with the first layer select
 images are smoothed for on-screen readability; this display filtering does not change the
 printer-resolution pixels stored in the exported artifact.
 
+For plain CTB V2–V5 files, use **Edit layer pixels** to paint or erase pixels on the selected
+layer, or remove unsupported islands from it. Apply the edit to save the layer.
+To review the whole file, choose **Scan all layers**. The result gives the island count,
+affected layers and the first layer with an island. **Remove all islands and save** applies
+the reported cleanup to the file. The scan starts above the first layer and checks each
+connected region against the corrected layer directly below it. Review thin details before
+printing, since removing an island also affects regions that depended on it. The saved
+CTB is replaced after all affected layers are written. Encrypted CTB files require separate support.
+
+For CTB output, open **CTB multi-parameter slicing**. **Grayscale by model (%)** adjusts
+each model's pixels from 1% to 100% before the printer profile's grayscale processing.
+This applies to the model geometry, including its 2D infill, across all layers.
+Supports and rafts use the standard intensity. Where geometry overlaps, the brighter
+pixel wins. The per-model settings travel with the VOXL project.
+Add rules by height in millimeters or illuminated cross-section area in square
+millimeters to change the exposure time shared by the entire physical layer.
+Rules apply after the bottom and transition layers, with the last matching rule
+taking precedence. These rules are saved locally for the selected printer and resin.
+
 ## 3) Review print summary
 
 In the Printing panel, confirm:

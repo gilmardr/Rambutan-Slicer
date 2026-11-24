@@ -102,7 +102,7 @@ test('runAutoPlace places standalone trunks and pushes an undoable history entry
         return true;
     });
 
-    const result = runAutoPlace(islands, 'model-a');
+    const result = runAutoPlace(islands, 'model-a', { debugSkipAutoBracing: true });
 
     assert.equal(result.placed.trunk, 2, 'both islands become trunks');
     assert.equal(result.rejectedCandidates, 0);

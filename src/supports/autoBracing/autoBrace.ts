@@ -93,7 +93,7 @@ type PairDistanceOverride = {
  * and the counts below into text — see `formatAutoBraceStatus`.
  */
 export type AutoBraceStatus =
-    /** Fewer eligible trunks than the minimum group size — nothing to brace. */
+    /** Fewer eligible support shafts than the minimum group size — nothing to brace. */
     | 'no-eligible-supports'
     /** Braces were generated and/or legacy braces removed; see the counts. */
     | 'complete';
@@ -110,7 +110,7 @@ function sortSupports(a: SupportSample, b: SupportSample): number {
     if (a.modelId !== b.modelId) return a.modelId.localeCompare(b.modelId);
     if (a.sortAnchor.x !== b.sortAnchor.x) return a.sortAnchor.x - b.sortAnchor.x;
     if (a.sortAnchor.y !== b.sortAnchor.y) return a.sortAnchor.y - b.sortAnchor.y;
-    return a.supportId.localeCompare(b.supportId);
+    return a.sortAnchor.z - b.sortAnchor.z;
 }
 
 function createUniqueIdFactory(prefix: string, existingIds: Set<string>) {
@@ -316,6 +316,7 @@ function buildGroupPairs(
     maxLen: number,
     gridSettings?: { enabled: boolean; spacingMm: number },
     minSpanMm = 0,
+    lateralTrellisEnabled = false,
 ): Edge[] {
     if (group.length < 2) return [];
 
@@ -457,6 +458,70 @@ function buildGroupPairs(
         if (bestCandidate >= 0) link(bestCandidate);
     }
 
+    // The spanning tree and two-axis pass keep the forest connected, but they
+    // intentionally choose only a sparse set of edges. A side trellis needs
+    // the nearby posts in each local direction too, otherwise long rows of
+    // supports can have large unbraced bays. Pick the closest eligible post in
+    // each of eight plan directions, then keep at most four directions per
+    // support. The same clearance and reach checks still apply when the brace
+    // itself is placed below.
+    if (lateralTrellisEnabled) {
+        const supportIndex = new Map(group.map((support, index) => [support.supportId, index] as const));
+        const trellisCandidates = new Set<number>();
+        const sectorWidth = Math.PI / 4;
+        const maxNeighbors = AUTO_BRACING_HARD_RULES.maxTrellisNeighborsPerSupport;
+
+        for (const support of group) {
+            const ownIndex = supportIndex.get(support.supportId);
+            if (ownIndex === undefined) continue;
+            const ownPoint = points[ownIndex];
+            const nearestBySector = new Map<number, number>();
+
+            for (const edgeIndex of edgesBySupport.get(support.supportId) ?? []) {
+                const edge = edges[edgeIndex];
+                const otherId = edge.a.supportId === support.supportId ? edge.b.supportId : edge.a.supportId;
+                const otherIndex = supportIndex.get(otherId);
+                if (otherIndex === undefined) continue;
+                const otherPoint = points[otherIndex];
+                const angle = Math.atan2(otherPoint.y - ownPoint.y, otherPoint.x - ownPoint.x);
+                const sector = (Math.round(angle / sectorWidth) + 8) % 8;
+                const currentIndex = nearestBySector.get(sector);
+                if (currentIndex === undefined) {
+                    nearestBySector.set(sector, edgeIndex);
+                    continue;
+                }
+
+                const currentEdge = edges[currentIndex];
+                if (edge.hDist < currentEdge.hDist - EPS
+                    || (Math.abs(edge.hDist - currentEdge.hDist) <= EPS && edgeIndex < currentIndex)) {
+                    nearestBySector.set(sector, edgeIndex);
+                }
+            }
+
+            const nearestEdges = [...nearestBySector.values()]
+                .sort((aIndex, bIndex) => {
+                    const distance = edges[aIndex].hDist - edges[bIndex].hDist;
+                    if (Math.abs(distance) > EPS) return distance;
+                    return aIndex - bIndex;
+                })
+                .slice(0, maxNeighbors);
+            for (const edgeIndex of nearestEdges) trellisCandidates.add(edgeIndex);
+        }
+
+        const orderedCandidates = [...trellisCandidates].sort((aIndex, bIndex) => {
+            const distance = edges[aIndex].hDist - edges[bIndex].hDist;
+            if (Math.abs(distance) > EPS) return distance;
+            return aIndex - bIndex;
+        });
+        for (const edgeIndex of orderedCandidates) {
+            if (addedEdges.has(edgeIndex)) continue;
+            const edge = edges[edgeIndex];
+            if ((adjacency.get(edge.a.supportId)?.length ?? 0) >= maxNeighbors
+                || (adjacency.get(edge.b.supportId)?.length ?? 0) >= maxNeighbors) continue;
+            link(edgeIndex);
+        }
+    }
+
     return result;
 }
 
@@ -582,6 +647,7 @@ export function buildAutoBracedSnapshot(snapshot: SupportState, inputSettings: A
             settings.maxBraceLengthMm,
             activeGridSettings,
             autoBracingMinPairSpanMm(settings),
+            settings.lateralTrellisEnabled,
         );
         for (const pair of pairs) {
             existingTrunkEdges.push({
@@ -794,6 +860,7 @@ export function buildAutoBracedSnapshot(snapshot: SupportState, inputSettings: A
                 settings.maxBraceLengthMm,
                 activeGridSettings,
                 autoBracingMinPairSpanMm(settings),
+                settings.lateralTrellisEnabled,
             );
             if (modelId) pairsByModel.set(modelId, pairs);
         }
