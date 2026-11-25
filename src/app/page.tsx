@@ -148,11 +148,7 @@ import {
   resolveInitialExportThumbnailRenderOptions,
   type ExportThumbnailRenderOptions,
 } from '@/features/export/exportThumbnailOptions';
-import {
-  PLUGIN_IMPORT_WARNING_DISMISSED_STORAGE_KEY,
-  findPluginImportWarning,
-  isDragonfruitTempArtifactPath,
-} from '@/features/import-export/fileHandling';
+import { isDragonfruitTempArtifactPath } from '@/features/import-export/fileHandling';
 import { getPluginSceneOverlayLoader } from '@/features/plugins/pluginRegistry';
 import { isExperimentEnabled, subscribeToExperiments } from '@/features/experiments/experimentsRegistry';
 import {
@@ -259,6 +255,7 @@ import { getLongPartPlateYaw, computeArrangeSupportBounds } from './home/homeArr
 import { useResinEstimate } from './home/useResinEstimate';
 import { useSceneLifecycle } from './home/useSceneLifecycle';
 import { useEditorDebugPanels } from './home/useEditorDebugPanels';
+import { usePluginImportWarning } from './home/usePluginImportWarning';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -761,10 +758,15 @@ export default function Home() {
   const newDeviceToastTimeoutRef = React.useRef<number | null>(null);
   const [isSceneSaveInProgress, setIsSceneSaveInProgress] = React.useState(false);
   const [isPreSliceSceneSaveInProgress, setIsPreSliceSceneSaveInProgress] = React.useState(false);
-  const [showPluginImportWarningModal, setShowPluginImportWarningModal] = React.useState(false);
-  const [suppressPluginImportWarning, setSuppressPluginImportWarning] = React.useState(false);
-  const [pluginImportWarningSkipFuture, setPluginImportWarningSkipFuture] = React.useState(false);
-  const [activePluginImportWarning, setActivePluginImportWarning] = React.useState<{ title: string; body: string; storageKey: string } | null>(null);
+  const {
+    showPluginImportWarningModal,
+    pluginImportWarningSkipFuture,
+    setPluginImportWarningSkipFuture,
+    activePluginImportWarning,
+    maybeConfirmPluginImportWarning,
+    handleCancelPluginImportWarning,
+    handleContinuePluginImportWarning,
+  } = usePluginImportWarning();
   const [activeSceneFilePath, setActiveSceneFilePath] = React.useState<string | null>(null);
   const [loadedSceneSaveSource, setLoadedSceneSaveSource] = React.useState<{ name: string; path: string | null } | null>(null);
   // Save-format tracking: whether the current scene is the chunked VOXL 3.1
@@ -786,7 +788,6 @@ export default function Home() {
   const [showNewSceneUnsavedChangesModal, setShowNewSceneUnsavedChangesModal] = React.useState(false);
   const [newSceneBusy, setNewSceneBusy] = React.useState<'none' | 'save_and_new' | 'discard_and_new'>('none');
   const [hasUnsavedSceneChanges, setHasUnsavedSceneChanges] = React.useState(false);
-  const pluginImportWarningPendingResolveRef = React.useRef<((proceed: boolean) => void) | null>(null);
   const sceneSaveChoiceResolveRef = React.useRef<((choice: 'overwrite' | 'save_as' | 'cancel') => void) | null>(null);
   const [showDamagedModelDialog, setShowDamagedModelDialog] = React.useState(false);
 
@@ -1204,36 +1205,6 @@ export default function Home() {
   }, [exportThumbnailRenderOptions]);
 
   React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const stored = window.localStorage.getItem(PLUGIN_IMPORT_WARNING_DISMISSED_STORAGE_KEY);
-      setSuppressPluginImportWarning(stored === '1');
-    } catch {
-      setSuppressPluginImportWarning(false);
-    }
-  }, []);
-
-  /** True when the user has already dismissed this specific plugin's warning. */
-  const isPluginImportWarningDismissed = React.useCallback((storageKey: string) => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return window.localStorage.getItem(storageKey) === '1';
-    } catch {
-      return false;
-    }
-  }, []);
-
-  React.useEffect(() => {
-    return () => {
-      if (pluginImportWarningPendingResolveRef.current) {
-        const resolve = pluginImportWarningPendingResolveRef.current;
-        pluginImportWarningPendingResolveRef.current = null;
-        resolve(false);
-      }
-    };
-  }, []);
-
-  React.useEffect(() => {
     if (!scene.sceneImportPlacementPrompt) return;
 
     let wasEscapePressed = false;
@@ -1249,58 +1220,6 @@ export default function Home() {
 
     return unsubscribe;
   }, [scene.sceneImportPlacementPrompt, scene.resolveSceneImportPlacementPrompt]);
-
-  const maybeConfirmPluginImportWarning = React.useCallback(async (filesInput: FileList | File[]) => {
-    // Each plugin declares its own warning and storageKey, so a format is
-    // gated by whether *its* plugin asked for a warning -- not by extension.
-    const warning = findPluginImportWarning(Array.from(filesInput));
-    if (!warning) return true;
-    if (suppressPluginImportWarning && warning.storageKey === PLUGIN_IMPORT_WARNING_DISMISSED_STORAGE_KEY) return true;
-    if (isPluginImportWarningDismissed(warning.storageKey)) return true;
-
-    setActivePluginImportWarning(warning);
-
-    if (pluginImportWarningPendingResolveRef.current) {
-      const pendingResolve = pluginImportWarningPendingResolveRef.current;
-      pluginImportWarningPendingResolveRef.current = null;
-      pendingResolve(false);
-    }
-
-    setPluginImportWarningSkipFuture(false);
-    setShowPluginImportWarningModal(true);
-    return await new Promise<boolean>((resolve) => {
-      pluginImportWarningPendingResolveRef.current = resolve;
-    });
-  }, [isPluginImportWarningDismissed, suppressPluginImportWarning]);
-
-  const resolvePluginImportWarning = React.useCallback((proceed: boolean) => {
-    const resolve = pluginImportWarningPendingResolveRef.current;
-    pluginImportWarningPendingResolveRef.current = null;
-    setPluginImportWarningSkipFuture(false);
-    setShowPluginImportWarningModal(false);
-    resolve?.(proceed);
-  }, []);
-
-  const handleCancelPluginImportWarning = React.useCallback(() => {
-    resolvePluginImportWarning(false);
-  }, [resolvePluginImportWarning]);
-
-  const handleContinuePluginImportWarning = React.useCallback(() => {
-    if (pluginImportWarningSkipFuture) {
-      setSuppressPluginImportWarning(true);
-      if (typeof window !== 'undefined') {
-        try {
-          window.localStorage.setItem(
-            activePluginImportWarning?.storageKey ?? PLUGIN_IMPORT_WARNING_DISMISSED_STORAGE_KEY,
-            '1',
-          );
-        } catch {
-          // Ignore persistence failure and still proceed.
-        }
-      }
-    }
-    resolvePluginImportWarning(true);
-  }, [activePluginImportWarning, pluginImportWarningSkipFuture, resolvePluginImportWarning]);
 
   const resolveSceneSaveChoice = React.useCallback((choice: 'overwrite' | 'save_as' | 'cancel') => {
     const resolve = sceneSaveChoiceResolveRef.current;
