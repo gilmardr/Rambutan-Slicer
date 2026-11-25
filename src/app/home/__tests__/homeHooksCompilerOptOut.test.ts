@@ -21,6 +21,8 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['usePluginImportWarning.ts', 'usePluginImportWarning'],
   ['useSceneSaveChoicePrompt.ts', 'useSceneSaveChoicePrompt'],
   ['useUnsavedSceneChanges.ts', 'useUnsavedSceneChanges'],
+  ['useNewDeviceToast.ts', 'useNewDeviceToast'],
+  ['useSceneSaveError.ts', 'useSceneSaveError'],
 ];
 
 for (const [file, hook] of HOOKS) {

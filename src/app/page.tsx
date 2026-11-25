@@ -248,7 +248,7 @@ import {
 } from '@/components/settings/uvToolsPreferences';
 import { subscribe as subscribeSupportState, getSnapshot as getSupportSnapshot, getModelIdForSupportEntityId } from '@/supports/state';
 import { bracePlacementStore } from '@/supports/SupportTypes/Brace/bracePlacementState';
-import { formatSelectedModelCount, formatArrangeOverflowMessage, formatProcessingElapsedLabel, formatApplyingToModelLabel, formatElapsedLabel, formatUploadToLabel, formatEstimatedPrintTimeLabel, formatLastSuccessfulAutosave, formatPlateLockedNotice } from './home/homeFormatters';
+import { formatSelectedModelCount, formatArrangeOverflowMessage, formatProcessingElapsedLabel, formatApplyingToModelLabel, formatElapsedLabel, formatUploadToLabel, formatEstimatedPrintTimeLabel, formatPlateLockedNotice } from './home/homeFormatters';
 import { countRecordEntries, getDefaultHolePunchDepthMm, createModelTransformKey, PREPARE_TOOL_MODES, isAppMode, isTransformMode } from './home/homeUtils';
 import { getLongPartPlateYaw, computeArrangeSupportBounds } from './home/homeArrangeGeometry';
 import { useResinEstimate } from './home/useResinEstimate';
@@ -257,6 +257,8 @@ import { useEditorDebugPanels } from './home/useEditorDebugPanels';
 import { usePluginImportWarning } from './home/usePluginImportWarning';
 import { useSceneSaveChoicePrompt } from './home/useSceneSaveChoicePrompt';
 import { useUnsavedSceneChanges } from './home/useUnsavedSceneChanges';
+import { useNewDeviceToast } from './home/useNewDeviceToast';
+import { useSceneSaveError } from './home/useSceneSaveError';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -266,10 +268,7 @@ import { buildProjectedCrossSectionZRange } from '@/features/slicing/rasterLayer
 import { resolveCompositeMaterialLabel } from '@/utils/materialLabel';
 
 import type { ModelTransform, TransformMode } from '@/hooks/useModelTransform';
-import {
-  useSceneAutosave,
-  SCENE_AUTOSAVE_FAILED_EVENT,
-} from '@/hooks/useSceneAutosave';
+import { useSceneAutosave } from '@/hooks/useSceneAutosave';
 import { ManifoldWarningModal } from '@/components/modals/ManifoldWarningModal';
 import { TetrahedralRemeshConfirmModal } from '@/components/modals/TetrahedralRemeshConfirmModal';
 import { ShrinkWrapConfirmModal } from '@/components/modals/ShrinkWrapConfirmModal';
@@ -426,7 +425,7 @@ type PendingSupportDragSyncTransaction = {
 };
 
 export default function Home() {
-  const { _, i18n } = useLingui();
+  const { _ } = useLingui();
   const fmt = useLocaleFormat();
   const { stage, sproutParentingLockHeld } = useLeafPlacementState();
   // Supports undo/redo handlers register for the lifetime of the app root, not
@@ -754,9 +753,12 @@ export default function Home() {
     lastPushApplied: null,
     lastAt: null,
   });
-  const [newDeviceToast, setNewDeviceToast] = React.useState<string | null>(null);
-  const [isNewDeviceToastVisible, setIsNewDeviceToastVisible] = React.useState(false);
-  const newDeviceToastTimeoutRef = React.useRef<number | null>(null);
+  const {
+    newDeviceToast,
+    isNewDeviceToastVisible,
+    setIsNewDeviceToastVisible,
+    handleNewDeviceDetected,
+  } = useNewDeviceToast();
   const [isSceneSaveInProgress, setIsSceneSaveInProgress] = React.useState(false);
   const [isPreSliceSceneSaveInProgress, setIsPreSliceSceneSaveInProgress] = React.useState(false);
   const {
@@ -868,45 +870,11 @@ export default function Home() {
     installPerfConsoleAPI();
   }, []);
 
-  /**
-   * User-facing scene-save failure (Ph0.1 sub-phase D).
-   *
-   * Two producers, one surface: the 4 GiB VOXL guard rejecting an explicit save
-   * (D1), and a persistently failing autosave (D3 / finding N4). Both were
-   * previously `console.error` into a console the user never opens — and in the
-   * 4 GiB case the alternative was worse than silence, because the writer
-   * wrapped its `u32` offsets and produced a file that parsed and was wrong.
-   */
-  const [sceneSaveError, setSceneSaveError] = React.useState<{
-    title: string;
-    message: string;
-    detail?: string | null;
-  } | null>(null);
-
-  /**
-   * Persistent autosave failure (Ph0.1 D3, finding N4).
-   *
-   * Fires once per outage, after two consecutive failures — one failure is a
-   * transient (antivirus on the destination, a share blinking), two across a
-   * 30 s debounce is a condition. Before this the user's only signal was a
-   * recovery prompt at next launch showing an hour-old timestamp.
-   */
-  React.useEffect(() => {
-    const onAutosaveFailed = (event: Event) => {
-      const detail = (event as CustomEvent<{ message?: string; lastSuccessAt?: string | null }>).detail;
-      setSceneSaveError({
-        title: _(msg`Autosave is not working`),
-        message: detail?.message ?? _(msg`The background recovery save failed repeatedly.`),
-        detail: detail?.lastSuccessAt
-          ? formatLastSuccessfulAutosave(_, new Date(detail.lastSuccessAt).toLocaleString(i18n.locale))
-          : _(msg`No autosave has succeeded this session. Save your project manually.`),
-      });
-    };
-    window.addEventListener(SCENE_AUTOSAVE_FAILED_EVENT, onAutosaveFailed);
-    return () => window.removeEventListener(SCENE_AUTOSAVE_FAILED_EVENT, onAutosaveFailed);
-  }, [_, i18n.locale, setSceneSaveError]);
-
-  const dismissSceneSaveError = React.useCallback(() => setSceneSaveError(null), []);
+  const {
+    sceneSaveError,
+    setSceneSaveError,
+    dismissSceneSaveError,
+  } = useSceneSaveError();
 
   // Editor toast/notification subsystem (state, refs, fade/show effects,
   // helpers). Triggers stay in Home and call these returned setters; the
@@ -3841,26 +3809,6 @@ export default function Home() {
     };
   }, [invalidatePendingTransformHistory]);
 
-
-  const handleNewDeviceDetected = React.useCallback((deviceId: string) => {
-    setNewDeviceToast(deviceId);
-    setIsNewDeviceToastVisible(true);
-    if (newDeviceToastTimeoutRef.current !== null) {
-      window.clearTimeout(newDeviceToastTimeoutRef.current);
-    }
-    newDeviceToastTimeoutRef.current = window.setTimeout(() => {
-      setIsNewDeviceToastVisible(false);
-      newDeviceToastTimeoutRef.current = null;
-    }, 9000);
-  }, []);
-
-  React.useEffect(() => {
-    return () => {
-      if (newDeviceToastTimeoutRef.current !== null) {
-        window.clearTimeout(newDeviceToastTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const cancelPendingHistoryTransformResyncFrames = React.useCallback(() => {
     if (historyTransformResyncRafRef.current !== null) {
