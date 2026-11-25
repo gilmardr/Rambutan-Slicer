@@ -4192,6 +4192,8 @@ export default function Home() {
     supportAndRaftResinMl,
     setAutoStartRepair,
     setManualRepairModelIds,
+    setTetSurfaceConfirmModelId,
+    setShrinkWrapConfirmModelId,
   });
 
   const jumpHistoryToCounts = React.useCallback((targetUndoCount: number) => {
