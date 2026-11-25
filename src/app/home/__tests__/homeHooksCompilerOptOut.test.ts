@@ -19,6 +19,7 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['useEditorContextMenu.ts', 'useEditorMenuActions'],
   ['useEditorDebugPanels.ts', 'useEditorDebugPanels'],
   ['usePluginImportWarning.ts', 'usePluginImportWarning'],
+  ['useSceneSaveChoicePrompt.ts', 'useSceneSaveChoicePrompt'],
 ];
 
 for (const [file, hook] of HOOKS) {
