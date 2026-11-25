@@ -11,7 +11,7 @@ import { subscribe as subscribeSupportState, getSelectedId, getSelectedCategory,
 import { splitSupportShaft } from '@/supports/SupportPrimitives/Joint/jointUtils';
 import { type ShaftEntity, resolveSegmentEndpoints } from '@/supports/SupportPrimitives/Knot/segmentEndpoints';
 import { knotHostId, spanKnotHostType, getSupportTypeDescriptor, updateSupportEntity } from '@/supports/supportTypeRegistry';
-import { RefreshCw, Plus, Wrench, Undo2, ClipboardList } from 'lucide-react';
+import { RefreshCw, Plus, Wrench, Undo2, ClipboardList, Pyramid } from 'lucide-react';
 import { msg } from '@lingui/core/macro';
 import type { useLingui } from '@lingui/react';
 import { MENU_ITEMS, type EditorMenuAction } from '@/components/ui/EditorContextMenu';
@@ -43,6 +43,8 @@ export type UseEditorMenuActionsInput = {
   supportAndRaftResinMl: number;
   setAutoStartRepair: SetState<boolean>;
   setManualRepairModelIds: SetState<string[] | null>;
+  setTetSurfaceConfirmModelId: SetState<string | null>;
+  setShrinkWrapConfirmModelId: SetState<string | null>;
 };
 
 /**
@@ -147,6 +149,9 @@ export function useEditorContextMenuItems({
             ...item,
             children: [
               { id: 'repair' as const, label: repaired ? msg`Repair Again` : msg`Auto-Repair`, icon: Wrench },
+              // Whole-surface replacements, each behind its own confirmation.
+              { id: 'remesh' as const, label: msg`Remesh`, icon: Pyramid },
+              { id: 'shrinkwrap' as const, label: msg`Shrink-Wrap`, icon: RefreshCw },
               // The second group only exists once there is a repair to undo or report on.
               ...(repaired
                 ? [
@@ -187,7 +192,7 @@ export function useEditorContextMenuItems({
 
     return [
       ...(!hasTargetModel ? (['delete'] as const) : []),
-      ...(!scene.activeModelId ? (['cut', 'copy', 'repair'] as const) : []),
+      ...(!scene.activeModelId ? (['cut', 'copy', 'repair', 'remesh', 'shrinkwrap'] as const) : []),
       ...(!hasTargetModel ? (['mark-as-support-geometry', 'mark-as-model-geometry'] as const) : []),
       ...(!canLink ? (['link-models'] as const) : []),
       ...(!canUnlink ? (['unlink-models'] as const) : []),
@@ -217,6 +222,8 @@ export function useEditorMenuActions({
   supportAndRaftResinMl,
   setAutoStartRepair,
   setManualRepairModelIds,
+  setTetSurfaceConfirmModelId,
+  setShrinkWrapConfirmModelId,
 }: UseEditorMenuActionsInput) {
   // Home is not compiled by the React Compiler (it bails out on it), and this
   // code ran there with its useMemo/useCallback dependency lists honoured as
@@ -423,6 +430,26 @@ export function useEditorMenuActions({
         }
         break;
       }
+      // Remesh and Shrink-Wrap act on the active model only and ask first: Home's
+      // confirm dialogs read these ids and run the pass on Confirm.
+      case 'remesh': {
+        const targetId = scene.activeModelId;
+        if (targetId) {
+          closeEditorContextMenu();
+          setTetSurfaceConfirmModelId(targetId);
+          return;
+        }
+        break;
+      }
+      case 'shrinkwrap': {
+        const targetId = scene.activeModelId;
+        if (targetId) {
+          closeEditorContextMenu();
+          setShrinkWrapConfirmModelId(targetId);
+          return;
+        }
+        break;
+      }
       case 'mark-as-support-geometry': {
         const targetIds = scene.selectedModelIds.length > 0
           ? scene.selectedModelIds
@@ -491,7 +518,7 @@ export function useEditorMenuActions({
         break;
     }
     closeEditorContextMenu();
-  }, [arrangeSpacingMm, closeEditorContextMenu, scene]);
+  }, [arrangeSpacingMm, closeEditorContextMenu, scene, setShrinkWrapConfirmModelId, setTetSurfaceConfirmModelId]);
 
   return {
     handleEditorMenuAction,

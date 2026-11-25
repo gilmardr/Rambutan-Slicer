@@ -17,6 +17,7 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['usePrintJobSender.ts', 'usePrintJobSender'],
   ['useEditorContextMenu.ts', 'useEditorContextMenuItems'],
   ['useEditorContextMenu.ts', 'useEditorMenuActions'],
+  ['useEditorDebugPanels.ts', 'useEditorDebugPanels'],
 ];
 
 for (const [file, hook] of HOOKS) {

@@ -160,7 +160,7 @@ import {
 import { plateCascadeOffsetMm } from '@/features/scene/plates/plateCascade';
 
 // Domain Features
-import { useSceneCollectionManager, getSceneSnapshotRegistryBytes } from '@/features/scene/useSceneCollectionManager';
+import { useSceneCollectionManager } from '@/features/scene/useSceneCollectionManager';
 import { useSupportHistoryHandlers } from '@/supports/history/useSupportHistoryHandlers';
 import { useNativeSpaceMouseLifecycle } from '@/components/scene/camera/useNativeSpaceMouseLifecycle';
 import { useSlicingManager } from '@/features/slicing/useSlicingManager';
@@ -188,13 +188,10 @@ import { useEscapeToClose } from '@/hotkeys/useEscapeToClose';
 import {
   clearHistory,
   clearHistoryDebugEvents,
-  getHistoryDebugEvents,
   getRedoCount,
   getUndoCount,
-  getHistoryStackBytes,
   redo,
   subscribeHistory,
-  subscribeHistoryDebug,
   setHistoryOriginProvider,
   subscribeHistoryOperations,
   undo,
@@ -261,6 +258,7 @@ import { countRecordEntries, getDefaultHolePunchDepthMm, createModelTransformKey
 import { getLongPartPlateYaw, computeArrangeSupportBounds } from './home/homeArrangeGeometry';
 import { useResinEstimate } from './home/useResinEstimate';
 import { useSceneLifecycle } from './home/useSceneLifecycle';
+import { useEditorDebugPanels } from './home/useEditorDebugPanels';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -1039,14 +1037,27 @@ export default function Home() {
   // Repair Now — instead of waiting in the Repair Mesh dialog for a second confirmation.
   const [autoStartRepair, setAutoStartRepair] = React.useState(false);
   const [isManualRepairing, setIsManualRepairing] = React.useState(false);
-  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = React.useState(false);
-  const [isSliceMetricsDebugOpen, setIsSliceMetricsDebugOpen] = React.useState(false);
-
-  const [isHistoryDebugOpen, setIsHistoryDebugOpen] = React.useState(false);
+  const {
+    isDiagnosticsOpen,
+    setIsDiagnosticsOpen,
+    isSliceMetricsDebugOpen,
+    setIsSliceMetricsDebugOpen,
+    isHistoryDebugOpen,
+    setIsHistoryDebugOpen,
+    isTransformDebugOverlayOpen,
+    setIsTransformDebugOverlayOpen,
+    transformDebugTick,
+    historyDebugEvents,
+    historyStackBytes,
+    sceneSnapshotBytes,
+    historyStackCounts,
+    historyPreviewTargetEventId,
+    setHistoryPreviewTargetEventId,
+    isHistoryPreviewActive,
+    setIsHistoryPreviewActive,
+    historyPreviewBaselineRef,
+  } = useEditorDebugPanels();
   const [supportsInfoModelId, setSupportsInfoModelId] = React.useState<string | null>(null);
-  const [isTransformDebugOverlayOpen, setIsTransformDebugOverlayOpen] = React.useState(false);
-
-  const [transformDebugTick, setTransformDebugTick] = React.useState(0);
   const [supportShaftHoverDebug, setSupportShaftHoverDebug] = React.useState<ShaftHoverDebugDetail>({
     segmentId: null,
     point: null,
@@ -1178,24 +1189,6 @@ export default function Home() {
   const [printingDeviceProcessingStartedAtMs, setPrintingDeviceProcessingStartedAtMs] = React.useState<number | null>(null);
   const [printingDeviceProcessingElapsedSec, setPrintingDeviceProcessingElapsedSec] = React.useState(0);
   const lastOwnedPrintTempPathRef = React.useRef<string | null>(null);
-  const [historyDebugEvents, setHistoryDebugEvents] = React.useState<HistoryDebugEvent[]>([]);
-  // Sizes for the history debug panel. Recomputed only while the panel is open —
-  // walking every payload on each push would tax the hot path for a readout
-  // nobody is looking at.
-  const [historyStackBytes, setHistoryStackBytes] = React.useState<{ undo: number; redo: number; total: number }>({
-    undo: 0,
-    redo: 0,
-    total: 0,
-  });
-  const [sceneSnapshotBytes, setSceneSnapshotBytes] = React.useState(0);
-  const isHistoryDebugOpenRef = React.useRef(false);
-  const [historyStackCounts, setHistoryStackCounts] = React.useState<{ undo: number; redo: number }>({
-    undo: 0,
-    redo: 0,
-  });
-  const [historyPreviewTargetEventId, setHistoryPreviewTargetEventId] = React.useState<number | null>(null);
-  const [isHistoryPreviewActive, setIsHistoryPreviewActive] = React.useState(false);
-  const historyPreviewBaselineRef = React.useRef<{ undo: number; redo: number } | null>(null);
   const [isSelectAllModelsActive, setIsSelectAllModelsActive] = React.useState(false);
   const [isTemporarilyDisablingCrossSectionForThumbnail, setIsTemporarilyDisablingCrossSectionForThumbnail] = React.useState(false);
   const [isCrossSectionEnabled, setIsCrossSectionEnabled] = React.useState(true);
@@ -1724,18 +1717,6 @@ export default function Home() {
       epochMs: Date.now(),
     };
   }, [scene.activeModelId, scene.models]);
-
-  React.useEffect(() => {
-    if (!isTransformDebugOverlayOpen) return;
-
-    const intervalId = window.setInterval(() => {
-      setTransformDebugTick((prev) => prev + 1);
-    }, 120);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [isTransformDebugOverlayOpen]);
 
   React.useEffect(() => {
     const handleShaftHover = (evt: Event) => {
@@ -4211,55 +4192,9 @@ export default function Home() {
     supportAndRaftResinMl,
     setAutoStartRepair,
     setManualRepairModelIds,
+    setTetSurfaceConfirmModelId,
+    setShrinkWrapConfirmModelId,
   });
-
-  React.useEffect(() => {
-    const refreshHistoryDebug = () => {
-      setHistoryDebugEvents(getHistoryDebugEvents());
-      setHistoryStackCounts({ undo: getUndoCount(), redo: getRedoCount() });
-      // Sizes only while the panel is open: both walk every entry, and the debug
-      // log updates on every push.
-      if (isHistoryDebugOpenRef.current) {
-        setHistoryStackBytes(getHistoryStackBytes());
-        setSceneSnapshotBytes(getSceneSnapshotRegistryBytes());
-      }
-    };
-
-    refreshHistoryDebug();
-
-    const unsubHistory = subscribeHistory(refreshHistoryDebug);
-    const unsubHistoryDebug = subscribeHistoryDebug(refreshHistoryDebug);
-
-    return () => {
-      unsubHistory();
-      unsubHistoryDebug();
-    };
-  }, []);
-
-  React.useEffect(() => {
-    isHistoryDebugOpenRef.current = isHistoryDebugOpen;
-    // Opening the panel must not wait for the next push to show a number.
-    if (isHistoryDebugOpen) {
-      setHistoryStackBytes(getHistoryStackBytes());
-      setSceneSnapshotBytes(getSceneSnapshotRegistryBytes());
-    }
-  }, [isHistoryDebugOpen]);
-
-  React.useEffect(() => {
-    if (isHistoryDebugOpen) {
-      historyPreviewBaselineRef.current = {
-        undo: getUndoCount(),
-        redo: getRedoCount(),
-      };
-      setIsHistoryPreviewActive(false);
-      setHistoryPreviewTargetEventId(null);
-      return;
-    }
-
-    historyPreviewBaselineRef.current = null;
-    setIsHistoryPreviewActive(false);
-    setHistoryPreviewTargetEventId(null);
-  }, [isHistoryDebugOpen]);
 
   const jumpHistoryToCounts = React.useCallback((targetUndoCount: number) => {
     let safety = 800;
@@ -4291,7 +4226,7 @@ export default function Home() {
     jumpHistoryToCounts(event.undoCount);
     setIsHistoryPreviewActive(true);
     setHistoryPreviewTargetEventId(event.id);
-  }, [jumpHistoryToCounts]);
+  }, [jumpHistoryToCounts, setHistoryPreviewTargetEventId, setIsHistoryPreviewActive]);
 
   const handleHistoryCancelPreview = React.useCallback(() => {
     const baseline = historyPreviewBaselineRef.current;
@@ -4299,7 +4234,7 @@ export default function Home() {
     jumpHistoryToCounts(baseline.undo);
     setIsHistoryPreviewActive(false);
     setHistoryPreviewTargetEventId(null);
-  }, [jumpHistoryToCounts]);
+  }, [historyPreviewBaselineRef, jumpHistoryToCounts, setHistoryPreviewTargetEventId, setIsHistoryPreviewActive]);
 
   React.useEffect(() => {
     let wasDiagnostics = false;
