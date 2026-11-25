@@ -210,6 +210,45 @@ jobs:
       - name: Slice a scene with the TS CLI
         run: npm run check:scene-slice
 
+  rust-engine:
+    name: Rust engine tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # The plugins' encoders (CTB, Elegoo, Anycubic...) are compiled into
+          # the engine, so their tests run here too.
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.23.2"
+          cache: npm
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
+          rustup toolchain install "$channel" --profile minimal
+          rustup default "$channel"
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./rust/dragonfruit-slicing-engine -> target
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The engine compiles the plugins' encoders through a generated module.
+      - name: Generate the plugin registry
+        run: npm run generate:plugin-registry
+
+      - name: Test the slicing engine
+        run: cargo test --release --locked --manifest-path rust/dragonfruit-slicing-engine/Cargo.toml
+
   cargo-locks:
     name: Cargo lockfiles
     runs-on: ubuntu-latest
