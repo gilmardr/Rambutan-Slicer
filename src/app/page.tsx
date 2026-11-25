@@ -6,11 +6,9 @@ import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import type { MessageDescriptor } from '@lingui/core';
-import { detectIsIOS } from '@/hooks/usePlatform';
 import { useUiScale } from '@/hooks/useUiScale';
 import * as THREE from 'three';
-import type { ThreeEvent } from '@react-three/fiber';
-import { AlertTriangle, CheckCircle2, ChevronDown, Download, Gamepad2, LayoutGrid, Loader2, Lock, Maximize2, Minimize2, Play, Printer, Pyramid, Redo2, RefreshCw, Trash2, X } from 'lucide-react';
+import { Gamepad2, Lock, Pyramid, RefreshCw, Trash2 } from 'lucide-react';
 import { SceneCanvas } from '@/components/scene/SceneCanvas';
 import { SceneOverlays } from '@/components/organisms/scene/SceneOverlays';
 import { FloatingPanelStack } from '@/components/layout/FloatingPanelStack';
@@ -44,12 +42,6 @@ import { useImportExportManager } from '@/features/import-export/useImportExport
 import type { ImportExportManagerDeps } from '@/features/import-export/useImportExportManager';
 import { GlobalUpdateIndicator } from '@/features/updater/GlobalUpdateIndicator';
 import { EmptySceneState } from '@/components/layout/EmptySceneState';
-import { IslandScanCard } from '@/components/controls/IslandScanCard';
-import { IslandOverlayControls } from '@/components/controls/IslandOverlayControls';
-import { IslandVoxelControls } from '@/components/controls/IslandVoxelControls';
-import { TerritoryVoxelControls } from '@/components/controls/TerritoryVoxelControls';
-import { IslandListCard } from '@/components/controls/IslandListCard';
-import { ModelManagerPanel } from '../components/controls/ModelManagerPanel';
 import { ModelsPanel } from '@/components/organisms/panels/ModelsPanel';
 import { ModelStatsCard } from '@/components/controls/ModelStatsCard';
 import { FinalPrintReview } from '@/features/slicing/components/FinalPrintReview';
@@ -57,38 +49,24 @@ import { ToolRail, TOOL_RAIL_WIDTH_PX } from '@/components/controls/ToolRail';
 import { buildPrepareToolRailEntries, buildSupportToolRailEntries, type SupportRailMode } from '@/components/controls/toolRailEntries';
 import { SnapAngleReadout } from '@/components/gizmo/rotate/SnapAngleReadout';
 import { RotationHintTooltip } from '@/components/gizmo/rotate/RotationHintTooltip';
-import { TransformControls } from '@/components/controls/TransformControls';
 import {
-  ArrangePanel,
-  type ArrangeAnchorMode,
-  type ArrangeLayoutMode,
-  type ArrangePrecisionMode,
 } from '@/components/controls/ArrangePanel';
-import { DuplicatePanel, type DuplicateLayoutMode } from '../components/controls/DuplicatePanel';
-import { VisualSettingsPanel } from '@/components/controls/VisualSettingsPanel';
 import { contactEndpointsFor, countSupportCollections, MODEL_ID_COLLECTION_KEYS, SUPPORT_COLLECTION_KEYS, SUPPORT_TYPES, type SupportCollectionKey } from '@/supports/supportTypeRegistry';
-import { LayerSlider } from '@/components/controls/LayerSlider';
-import { PrintingLayerGpuPreview } from '@/components/controls/PrintingLayerGpuPreview';
 import { SupportProximityPanel } from '@/components/controls/SupportProximityPanel';
 import { SuctionCupDetectorPanel } from '@/components/organisms/panels/SuctionCupDetectorPanel';
 import { SupportSidebar } from '@/supports/Settings/SupportSidebar';
 import { getSettings as getSupportDisplaySettings, subscribeToSettings as subscribeToSupportSettings, updateNavigationDiscsOnly } from '@/supports/Settings/state';
 import { useLeafPlacementState } from '@/supports/SupportTypes/Leaf/leafPlacementState';
-import { ExportPanel } from '@/features/export/components/ExportPanel';
-import { SlicingPanel, type SliceIntent } from '@/features/slicing/components/SlicingPanel';
+import { type SliceIntent } from '@/features/slicing/components/SlicingPanel';
 import { joinSliceOutputPath, sliceFileBaseName } from '@/features/slicing/plateSliceNaming';
 import { resolveEntirePlateExportBaseName } from '@/features/export/logic/exportFileNaming';
-import { PrintingPanel } from '@/features/printing/components/PrintingPanel';
 import { usePrintingPreviewManager } from '@/features/printing/usePrintingPreviewManager';
 import { useEditorToasts, useTrailingMount } from '@/features/notifications/useEditorToasts';
 import { plateNumberPlaceholder } from '@/features/scene/plates/plateMessages';
 import { ScanProgressBar } from '@/components/scene/ScanProgressBar';
-import { SliceMetricsDebugModal } from '@/features/slicing/components/SliceMetricsDebugModal';
-import { MeshSmoothingSettingsPanel } from '@/features/mesh-smoothing/MeshSmoothingSettingsPanel';
 import { MeshSmoothingBrushCursor } from '@/features/mesh-smoothing/MeshSmoothingBrushCursor';
 import { SupportBlockerCursor } from '@/features/support-blockers/SupportBlockerCursor';
 import {
-  dispatchDeleteModelAction,
   resolveModelActionTargetIds,
 } from '@/features/scene/modelActionTargets';
 import { freeRectsForPlate, type PlateRect } from '@/features/scene/arrange/plateFreeSpace';
@@ -116,24 +94,10 @@ import {
   useOrganicCutSession,
 } from '@/features/organicCut';
 import { MirrorTool } from '@/features/mirror/MirrorTool';
-import { bakeWithFlips } from '@/features/mirror/logic/bakeWithFlips';
-import { buildMirrorSupportTransforms, reflectTransformAcrossWorldAxis } from '@/features/mirror/logic/buildMirrorSupportTransforms';
-import type { MirrorAxis } from '@/features/mirror/types';
-import type { GeometryWithBounds } from '@/hooks/useStlGeometry';
-import { RtspRelayCanvasPlayer } from '@/components/monitoring/RtspRelayCanvasPlayer';
-import { BlockingOverlay, Button, IconButton, Toast, ToastViewport } from '@/components/atoms';
+import { BlockingOverlay, Button, Toast, ToastViewport } from '@/components/atoms';
 import { EditorContextMenu } from '@/components/ui/EditorContextMenu';
 import { StructuredDialogModal } from '@/components/ui/StructuredDialogModal';
 import { eulerFromGlobalEuler, quaternionFromGlobalEuler } from '@/utils/rotation';
-import { DiagnosticsModal } from '@/components/modals/DiagnosticsModal';
-import { HistoryDebugModal } from '@/components/modals/HistoryDebugModal';
-import { ModelSupportsModal } from '@/components/modals/ModelSupportsModal';
-import { DestructiveTransformModal } from '@/components/modals/DestructiveTransformModal';
-import { PrintingResliceModal } from '@/components/modals/PrintingResliceModal';
-import { SliceCompletedModal } from '@/components/modals/SliceCompletedModal';
-import { UvToolsLaunchingModal } from '@/components/modals/UvToolsLaunchingModal';
-import { ZipFilePickerModal } from '@/components/modals/ZipFilePickerModal';
-import { extractFilesFromZip, getFileExtensionLower } from '@/utils/zipImport';
 import {
   getToolLayout,
   isModelsPanelVisibleEnabled,
@@ -152,77 +116,35 @@ import {
   shouldUsePreciseBoundsForTransform,
 } from '@/utils/modelBounds';
 import { computeProjectedFootprintHull, computeProjectedFootprintSize } from '@/utils/modelFootprint';
-import { bytesToBase64, base64ToBytes } from '@/utils/base64';
-import { snapshotGeometryPositions, geometryFromSnapshot } from '@/utils/geometrySnapshot';
 import {
-  getDirectionScaleFactor,
-  getRadialScaleFactor,
-  getUniformScaleFactorForThickness,
-  worldMmToLocalMm,
-  computeVoxelResolution,
 } from '@/utils/geometryScaling';
-import { serializeHollowingModifier } from '@/features/hollowing/hollowingSerialize';
 import type {
-  HollowPreviewState,
-  HollowPreviewCacheEntry,
-  HollowingSourceEntry,
-  CavityGeometryEntry,
 } from '@/features/hollowing/hollowingPreviewTypes';
 import {
-  createHolePunchWorldFrame,
-  cloneHolePunchWorldFrame,
-  inferOpenFaceFromHit,
-  type HolePunchWorldFrame,
   type HolePunchPlacementState,
 } from '@/features/hole-punching/holePunchGeometry';
 import {
-  toPersistedHolePunchPlacements,
   fromPersistedHolePunchPlacements,
-  serializeHolePunchPlacements,
-  serializeSingleHolePunchPlacement,
 } from '@/features/hole-punching/holePunchPersistence';
 import {
-  createGeometryFromPreviewPositions,
-  disposeHollowPreviewCacheEntry,
-  disposeHollowPreviewGeometryIfUncached,
 } from '@/features/hollowing/hollowingPreviewCache';
 import {
-  formatPrintingMonitorEstimatedTime,
-  formatPrintingMonitorUsedMaterial,
-  formatPrintingMonitorAreaMm2,
-  parsePrintingMonitorSeconds,
-  parsePrintingMonitorMaterialMl,
-  parsePrintingMonitorAreaMm2,
-  normalizePrintingMonitorWebcamAspectRatio,
-  resolvePrintingMonitorAbsoluteUrl,
 } from '@/features/printing/printingMonitorFormat';
 import { usePrintingMonitorManager } from '@/features/printing/usePrintingMonitorManager';
 import {
   readJsonObject,
   readBooleanField,
-  readStringField,
-  readNumberField,
 } from '@/utils/jsonFields';
 import {
-  PRINTING_MONITOR_DEBUG_CHANNELS,
-  type FleetUploadMaterialOption,
-  type PrintingMonitorRecentPlate,
-  type PrintingMonitorPendingConfirmation,
-  type PrintingMonitorDebugChannelState,
-  type PrintingMonitorDebugState,
-  type PrintingMonitorFeatureToggleResponse,
-  type PrintingMonitorDebugChannel,
 } from '@/features/printing/printingMonitorTypes';
 import {
   EMPTY_HOME_SUPPORT_COLLECTIONS_SNAPSHOT,
   EMPTY_HOME_KICKSTAND_COLLECTIONS_SNAPSHOT,
   getHomeSupportCollectionsSnapshot,
   getHomeKickstandCollectionsSnapshot,
-  type HomeSupportCollectionsSnapshot,
 } from '@/features/supports/supportSnapshotHelpers';
 import {
   EXPORT_THUMBNAIL_RENDER_OPTIONS_STORAGE_KEY,
-  DEFAULT_EXPORT_THUMBNAIL_RENDER_OPTIONS,
   resolveInitialExportThumbnailRenderOptions,
   type ExportThumbnailRenderOptions,
 } from '@/features/export/exportThumbnailOptions';
@@ -230,23 +152,11 @@ import {
   PLUGIN_IMPORT_WARNING_DISMISSED_STORAGE_KEY,
   findPluginImportWarning,
   isDragonfruitTempArtifactPath,
-  isSupportedPrepareDropName,
-  getDroppedFileMimeType,
-  isSceneFileName,
-  extractTauriDroppedPaths,
-  isLikelyFileDragPayload,
-  getPrepareDropSupportStateFromDataTransfer,
-  buildDroppedFilesSignature,
-  type LaunchSceneFileEntry,
-  type SceneFileHandoffPayload,
 } from '@/features/import-export/fileHandling';
 import { getPluginSceneOverlayLoader } from '@/features/plugins/pluginRegistry';
 import { isExperimentEnabled, subscribeToExperiments } from '@/features/experiments/experimentsRegistry';
 import {
-  type HullCacheEntry,
-  type ArrangeModel as HighPrecisionArrangeModel,
 } from '@/features/scene/arrange/highPrecisionArrange';
-import { computeHighPrecisionArrangeResultWorker } from '@/features/scene/arrange/highPrecisionArrangeWorkerClient';
 import { plateCascadeOffsetMm } from '@/features/scene/plates/plateCascade';
 
 // Domain Features
@@ -265,10 +175,8 @@ import { installPerfConsoleAPI } from '@/supports/PlacementLogic/Pathfinding/pat
 import { getUnappliedModifiers } from '@/features/mesh-modifiers/unappliedModifiers';
 import type { UnappliedModifierAction } from '@/components/organisms/modals/ModifierModals';
 import { getAutomaticOrientationSuggestion, getOrientationBusy, setOrientationBusy, subscribeOrientationBusy, OrientElapsed } from '@/components/controls/AutoRotationPanel';
-import { IslandOverlay } from '@/components/scene/IslandOverlay';
 import { useSupportInteractionManager } from '@/features/supports/useSupportInteractionManager';
 import { useUndoRedoHotkeys } from '@/hotkeys/useUndoRedoHotkeys';
-import { useOrganicCutHotkeys, useOrganicCutPreviewHotkey } from '@/hotkeys/useOrganicCutHotkeys';
 import { hotkeyStore, useActionActive, isActionActiveSync, isPrimaryModifierPressed } from '@/hotkeys/hotkeyStore';
 import { useDeleteHotkey } from '@/features/delete/useDeleteHotkey';
 import { registerDeleteHandler } from '@/features/delete/deleteRegistry';
@@ -277,7 +185,6 @@ import { useInteriorViewHotkey } from '@/hotkeys/useInteriorViewHotkey';
 import { usePrepareTransformHotkeys } from '@/hotkeys/usePrepareTransformHotkeys';
 import { useHotkeyConfig } from '@/hotkeys/HotkeyContext';
 import { useEscapeToClose } from '@/hotkeys/useEscapeToClose';
-import { matchesConfiguredHotkeyDown, matchesConfiguredHotkeyUp } from '@/hotkeys/hotkeyConfig';
 import {
   clearHistory,
   clearHistoryDebugEvents,
@@ -310,10 +217,7 @@ import { FirstRunOnboarding } from '@/components/layout/FirstRunOnboarding';
 import {
   getProfileMonitoringUiAdapter,
   getProfileNetworkUiAdapter,
-  type PrinterMonitoringSnapshot,
-  type PrinterMonitoringWebcamInfo,
 } from '@/features/plugins/pluginRegistry';
-import { GENERATED_BUILTIN_COMPLEX_PLUGIN_DEFINITIONS } from '@/features/plugins/generatedBuiltinComplexPlugins';
 import {
   getActiveMaterialProfile,
   getActivePrinterProfile,
@@ -339,7 +243,6 @@ import {
   launchExternalProcess,
   pickSavePathWithNativeDialog,
   pickSavePathWithNativeDialogOptions,
-  pickOpenFilesWithNativeDialog,
   readPrintArtifactBytesFromPath,
   replacePrintLayerPixelsPngAtPath,
   processPrintIslandsAtPath,
@@ -351,7 +254,7 @@ import {
   getSavedUvToolsSettings,
   resolveUvToolsExecutablePath,
 } from '@/components/settings/uvToolsPreferences';
-import { subscribe as subscribeSupportState, getSnapshot as getSupportSnapshot, getModelIdForSupportEntityId, transformSupportsForModel } from '@/supports/state';
+import { subscribe as subscribeSupportState, getSnapshot as getSupportSnapshot, getModelIdForSupportEntityId } from '@/supports/state';
 import { bracePlacementStore } from '@/supports/SupportTypes/Brace/bracePlacementState';
 import { formatSelectedModelCount, formatArrangeOverflowMessage, formatProcessingElapsedLabel, formatApplyingToModelLabel, formatElapsedLabel, formatUploadToLabel, formatEstimatedPrintTimeLabel, formatLastSuccessfulAutosave, formatPlateLockedNotice } from './home/homeFormatters';
 import { countRecordEntries, getDefaultHolePunchDepthMm, createModelTransformKey, PREPARE_TOOL_MODES, isAppMode, isTransformMode } from './home/homeUtils';
@@ -362,20 +265,15 @@ import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
 import { getRaftSettings, getRaftSettingsForModel, subscribeToRaftStore } from '@/supports/Rafts/Crenelated/RaftState';
-import { getFinalSocketPosition } from '@/supports/SupportPrimitives/ContactCone/contactConeUtils';
 import { getSupportsForModel } from '@/supports/PlacementLogic/SupportModelLinker';
 import { buildProjectedCrossSectionZRange } from '@/features/slicing/rasterLayerZipExport';
 import { resolveCompositeMaterialLabel } from '@/utils/materialLabel';
 
 import type { ModelTransform, TransformMode } from '@/hooks/useModelTransform';
-import type { SupportMode } from '@/supports/types';
 import {
   useSceneAutosave,
   SCENE_AUTOSAVE_FAILED_EVENT,
 } from '@/hooks/useSceneAutosave';
-import { SceneAutosaveRecoveryModal } from '@/components/scene/SceneAutosaveRecoveryModal';
-import { MeshRepairReportModal } from '@/components/scene/MeshRepairReportModal';
-import { MeshRepairConfirmModal } from '@/components/scene/MeshRepairConfirmModal';
 import { ManifoldWarningModal } from '@/components/modals/ManifoldWarningModal';
 import { TetrahedralRemeshConfirmModal } from '@/components/modals/TetrahedralRemeshConfirmModal';
 import { ShrinkWrapConfirmModal } from '@/components/modals/ShrinkWrapConfirmModal';
@@ -385,29 +283,15 @@ import { solidRemeshProgressFraction, translateSolidRemeshPhase } from '@/compon
 import type { SolidRemeshOptions, TetWrapOptions } from '@/utils/meshShrinkwrap';
 import { cancelMeshRepair } from '@/utils/meshRepair';
 
-import { IslandScanWorkflowCard } from '@/volumeAnalysis/IslandScan/workflow/IslandScanWorkflowCard';
-import { IslandVolumesHierarchyCard } from '@/volumeAnalysis/IslandVolumes/components/IslandVolumesHierarchyCard';
 import { pluginNetworkFetch } from '@/utils/pluginNetworkBridge';
 import { clonePlainData } from '@/utils/plainDataClone';
-import { fetchRtspRelayStatus } from '@/utils/rtspRelayBridge';
 import {
-  hollowApplyFromCapturedSource,
-  hollowFromGeometry,
-  hollowPreviewFromCapturedSource,
-  stageHollowPreviewSource,
-  type HollowReport,
 } from '@/utils/meshHollowing';
 import {
-  punchFromCapturedSource,
-  stagePunchSource,
-  type PunchOptions,
 } from '@/utils/meshPunching';
 import type {
   ModelMeshModifiers,
   ModelMeshModifiersHistoryOptions,
-  ModelHolePunchPlacement,
-  ModelHollowingModifier,
-  MeshModifierOpenFace,
 } from '@/features/mesh-modifiers/types';
 import {
   deleteSupportsForModelLabel,
@@ -429,9 +313,6 @@ type PendingModifierResetAction = 'hollowing' | 'hole_punch' | 'clear_hollowing'
 
 const EMPTY_SUPPORT_BOUNDS_BY_MODEL_ID = new Map<string, THREE.Box3>();
 
-const HOLE_PUNCH_OUTSIDE_PROTRUSION_MM = 3;
-const HOLE_PUNCH_AUTO_DEPTH_RAY_START_OFFSET_MM = 0.3;
-const HOLE_PUNCH_AUTO_DEPTH_MIN_INSIDE_MM = 1;
 const HOLLOW_PREVIEW_DEBOUNCE_MS = 90;
 
 /**
@@ -516,7 +397,6 @@ if (typeof window !== 'undefined') {
   installReactDevtoolsSemverGuard();
 }
 
-const COLD_START_SCENE_HANDOFF_DELAY_MS = 1150;
 const REMOTE_OFFLINE_LAYER_HEIGHT_GLOBAL_STORAGE_KEY = 'dragonfruit.slicing.remoteOfflineLayerHeightMm';
 const REMOTE_OFFLINE_LAYER_HEIGHT_CHANGED_EVENT = 'dragonfruit:slicing-remote-offline-layer-height-changed';
 const SUPPORT_DRAG_HOLD_FALLBACK_MS = 320;
@@ -730,10 +610,7 @@ export default function Home() {
     deps: hollowingDepsRef,
   });
   const {
-    isPreviewingHollowing,
-    setIsPreviewingHollowing,
     hollowPreview,
-    setHollowPreview,
     hollowingState,
     setHollowingState,
     isShellOpenFaceSelected,
@@ -742,55 +619,31 @@ export default function Home() {
     setHollowingDraftEnabled,
     hollowingEditMode,
     setHollowingEditMode,
-    blockedHollowVoxelIndices,
     setBlockedHollowVoxelIndices,
-    editingBlockedHollowVoxelIndices,
     setEditingBlockedHollowVoxelIndices,
     isApplyingBlockersHollowing,
-    setIsApplyingBlockersHollowing,
     isApplyingHollowing,
-    setIsApplyingHollowing,
-    editingBlockedHollowVoxelIndicesRef,
     hollowingEditModeRef,
     hollowPreviewDebounceTimerRef,
-    hollowPreviewRequestSeqRef,
     hollowPreviewResultCacheRef,
-    hollowPreviewWarmupKeyRef,
     hollowingSourceByModelIdRef,
     cavityGeometryByModelIdRef,
     cavityGeometryVersion,
     defaultHollowingState,
     isHollowingApplied,
-    persistedHollowingSignature,
-    draftHollowingSignature,
     isShellFaceSelectionPending,
     isHollowingDirty,
-    canResetHollowing,
-    blockedHollowVoxelIndexSet,
-    editingBlockedHollowVoxelIndexSet,
     blockedPreviewVoxelInstanceIdSet,
-    handleApplyHollowing,
     handleResetHollowing,
     handleClearAppliedHollowing,
-    handleResetHollowingSettings,
-    handleHollowingStateChange,
-    applyEditingBlockedHollowVoxelIndices,
-    commitBlockedHollowVoxelIndices,
     toggleBlockedHollowVoxelIndex,
-    requestResetHollowing,
-    requestClearAppliedHollowing,
     clearPendingHollowPreviewDebounce,
     buildHollowPreviewRequest,
-    cacheHollowPreviewResult,
-    materializeHollowPreviewCacheEntry,
     primeHollowPreviewCache,
     runHollowPreview,
     clearHollowPreview,
     resolveBlockedHollowVoxelMarqueeSelection,
     handleBlockedHollowVoxelMarqueeSelection,
-    handleStartHollowVoxelEditing,
-    handleClearHollowVoxelEditing,
-    handleDoneHollowVoxelEditing,
   } = hollowing;
 
   // Ref for supports group (used for export)
@@ -1063,39 +916,20 @@ export default function Home() {
     isHistoryActionToastVisible,
     setIsHistoryActionToastVisible,
     isSceneImportToastVisible,
-    setIsSceneImportToastVisible,
     exportSuccessToast,
     setExportSuccessToast,
     isExportSuccessToastVisible,
     setIsExportSuccessToastVisible,
     exportErrorToast,
-    setExportErrorToast,
     isExportErrorToastVisible,
-    setIsExportErrorToastVisible,
     isSaveToastVisible,
-    setIsSaveToastVisible,
     isSaveToastAnimatedVisible,
-    setIsSaveToastAnimatedVisible,
     saveToastMode,
-    setSaveToastMode,
     historyActionToastFadeTimeoutRef,
     historyActionToastClearTimeoutRef,
-    printingMonitorErrorToastFadeTimeoutRef,
-    printingMonitorErrorToastClearTimeoutRef,
-    sceneImportToastFadeTimeoutRef,
     exportSuccessToastFadeTimeoutRef,
-    exportErrorToastFadeTimeoutRef,
-    saveToastHideTimeoutRef,
-    saveToastClearTimeoutRef,
-    saveToastEnterRafRef,
-    saveToastShownAtRef,
     printingMonitorErrorToast,
-    setPrintingMonitorErrorToast,
     isPrintingMonitorErrorToastVisible,
-    setIsPrintingMonitorErrorToastVisible,
-    lastPrintingMonitorErrorToastRef,
-    clearPrintingMonitorErrorToastTimeouts,
-    normalizePrintingMonitorErrorMessage,
     setPrintingMonitorError,
     handleExportSuccess,
     showOperationError,
@@ -1120,7 +954,6 @@ export default function Home() {
   // Ctrl+Shift+O replay even when a printer already exists.
   const [onboardingMounted, setOnboardingMounted] = React.useState(false);
   const [wizardActive, setWizardActive] = React.useState(false);
-  const [prepareSmoothingSettingsExpanded, setPrepareSmoothingSettingsExpanded] = React.useState(true);
   const [selectedHolePunchPlacementIds, setSelectedHolePunchPlacementIds] = React.useState<string[]>([]);
   const [hoveredHolePunchPlacementId, setHoveredHolePunchPlacementId] = React.useState<string | null>(null);
   const [holePunchHoverPlacement, setHolePunchHoverPlacement] = React.useState<HolePunchPlacementState | null>(null);
@@ -1235,39 +1068,19 @@ export default function Home() {
     printingDisplayedLayer,
     setPrintingDisplayedLayer,
     isPrintingLayerScrubbing,
-    setIsPrintingLayerScrubbing,
-    printingPngLoadedUrl,
-    setPrintingPngLoadedUrl,
     isSceneLayerScrubbing,
-    setIsSceneLayerScrubbing,
-    isPrintingPreviewSettled,
     setIsPrintingPreviewSettled,
     isPrintingSettledCanvasReady,
     setIsPrintingSettledCanvasReady,
-    printingPreviewZoom,
     setPrintingPreviewZoom,
-    printingPreviewPan,
-    setPrintingPreviewPan,
-    isPrintingPreviewPanning,
     setIsPrintingPreviewPanning,
     printingPreviewViewportRef,
     printingPreviewCanvasRef,
     printingPreviewSettleTimeoutRef,
     printingPreviewSettledRef,
-    printingPreviewCanvasRenderNonceRef,
-    printingPreviewLoadNonceRef,
-    pendingPrintingSelectedLayerRef,
-    printingSelectedLayerRafRef,
     printingSelectedLayerRef,
-    printingPreviewZoomRef,
-    printingPreviewPanRef,
-    printingPreviewPanPendingRef,
-    printingPreviewPanRafRef,
     printingPreviewDragRef,
-    schedulePrintingPreviewSettle,
     queuePrintingPreviewPan,
-    clampPrintingPreviewPan,
-    clampPrintingLayer,
     handlePrintingLayerChange,
     handlePrintingLayerScrubStart,
     handlePrintingLayerScrubEnd,
@@ -1281,10 +1094,6 @@ export default function Home() {
     isPrintingPngLoaded,
     shouldShowScrubPreview,
     printingPreviewPngUrlForDisplay,
-    printingPreviewDeMirrorTransform,
-    printingPreviewMirrorScale,
-    isPrintingPreviewLowResActive,
-    printingPreviewScrubQualityScale,
     printingPreviewScrubUpscaleTransform,
     printingPreviewVisualTransform,
     printingPreviewCursor,
@@ -1311,7 +1120,6 @@ export default function Home() {
   const [exportThumbnailRenderOptions, setExportThumbnailRenderOptions] = React.useState<ExportThumbnailRenderOptions>(resolveInitialExportThumbnailRenderOptions);
   const previousSceneModeRef = React.useRef<typeof scene.mode>(scene.mode);
   const preservedNonPrintingLayerIndexRef = React.useRef<number | null>(null);
-  const lastSliceHistoryEventIdRef = React.useRef<number | null>(null);
   const triggerSliceExportRef = React.useRef<(() => void) | null>(null);
   const modeBeforePrintingRef = React.useRef<typeof scene.mode>('prepare');
   const shouldReturnToPrintingAfterSliceRef = React.useRef(false);
@@ -1616,29 +1424,23 @@ export default function Home() {
   });
   const {
     isPrepareDragActive,
-    setIsPrepareDragActive,
     isPrepareDragUnsupported,
-    setIsPrepareDragUnsupported,
     exportThumbnailCaptureRunnerRef,
     handleRegisterExportThumbnailCapture,
     captureExportThumbnailPng,
-    runExportThumbnailCapture,
     zipPickerState,
     setZipPickerState,
     zipPickerResolveRef,
     nativePickerPreparationState,
     setNativePickerPreparationState,
     pendingStartupSceneHandoff,
-    setPendingStartupSceneHandoff,
     handleTopBarOpenScene,
-    handleImportSceneInputChange,
     handleLoadMeshChangeWithZip,
     handleImportSceneChangeWithZip,
     handleReopenRecentFile,
     handleOpenPreparedModel,
     handleOpenMeshDialog,
     handleOpenSceneDialog,
-    importSceneFilesWithPluginWarning,
     handleDroppedPrepareFiles,
     handlePrepareDragEnter,
     handlePrepareDragOver,
@@ -2490,8 +2292,8 @@ export default function Home() {
   const rightClickGestureRef = React.useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const suppressEditorContextMenuUntilRef = React.useRef(0);
   const cameraResumeTimeoutRef = React.useRef<number | null>(null);
-  const { getHotkey } = useHotkeyConfig();
-  const supportSpotlightHoldHotkey = getHotkey('SUPPORTS', 'TEMP_SPOTLIGHT_HOLD');
+  // Kept for its subscription: Home re-renders when the hotkey config changes.
+  useHotkeyConfig();
 
   const {
     editorContextMenuTitle,
@@ -2609,7 +2411,6 @@ export default function Home() {
     artifact: SliceExportArtifact,
     context?: { plateId?: string; totalLayers?: number; savedPath?: string; savedDirectory?: string },
   ) => {
-    const plateId = context?.plateId ?? scene.activePlateId;
     recordPrintingSlice(artifact, context);
     setShowPrintingResliceModal(false);
     setPrintingSendStatusText(null);
@@ -2997,86 +2798,45 @@ export default function Home() {
   const {
     printingTargetPickerOpen,
     setPrintingTargetPickerOpen,
-    printingTargetPickerMode,
     setPrintingTargetPickerMode,
     printingTargetDeviceId,
     setPrintingTargetDeviceId,
     printingTargetMaterialId,
     setPrintingTargetMaterialId,
     printingTargetMaterialOptions,
-    setPrintingTargetMaterialOptions,
     isPrintingTargetMaterialsLoading,
-    setIsPrintingTargetMaterialsLoading,
     printingTargetMaterialError,
-    setPrintingTargetMaterialError,
-    printingTargetMaterialsCacheRef,
     printingMonitorSnapshot,
-    setPrintingMonitorSnapshot,
-    printingMonitorWebcamInfo,
-    setPrintingMonitorWebcamInfo,
     printingMonitorRelayBaseWsUrl,
-    setPrintingMonitorRelayBaseWsUrl,
-    printingMonitorRelaySetupError,
-    setPrintingMonitorRelaySetupError,
     printingMonitorRelayDebugTransport,
-    setPrintingMonitorRelayDebugTransport,
     printingMonitorRelayReclaimDebug,
-    setPrintingMonitorRelayReclaimDebug,
     isPrintingMonitorThumbnailLoaded,
-    setIsPrintingMonitorThumbnailLoaded,
     printingMonitorThumbnailDisplayUrl,
-    setPrintingMonitorThumbnailDisplayUrl,
     isPrintingMonitorWebcamLoaded,
     setIsPrintingMonitorWebcamLoaded,
     printingMonitorWebcamLoadError,
     setPrintingMonitorWebcamLoadError,
-    printingMonitorWebcamAspectRatio,
     setPrintingMonitorWebcamAspectRatio,
-    printingMonitorWebcamRefreshNonce,
-    setPrintingMonitorWebcamRefreshNonce,
     isPrintingMonitorWebcamResetBusy,
-    setIsPrintingMonitorWebcamResetBusy,
     isPrintingMonitorWebcamSnapshotSaving,
-    setIsPrintingMonitorWebcamSnapshotSaving,
-    printingMonitorWebcamExpanded,
     setPrintingMonitorWebcamExpanded,
     printingMonitorRecentPlates,
-    setPrintingMonitorRecentPlates,
     isPrintingMonitorRecentPlatesLoading,
-    setIsPrintingMonitorRecentPlatesLoading,
     printingMonitorRecentPlatesError,
-    setPrintingMonitorRecentPlatesError,
     printingMonitorPlatesStoragePath,
-    setPrintingMonitorPlatesStoragePath,
-    printingMonitorSelectedPlateId,
-    setPrintingMonitorSelectedPlateId,
     isPrintingMonitorPolling,
-    setIsPrintingMonitorPolling,
     isPrintingMonitorStatusRequestInFlight,
-    setIsPrintingMonitorStatusRequestInFlight,
-    printingMonitorLastStatusSuccessAtMs,
-    setPrintingMonitorLastStatusSuccessAtMs,
-    printingMonitorNowEpochMs,
-    setPrintingMonitorNowEpochMs,
     printingMonitorActionBusy,
-    setPrintingMonitorActionBusy,
     printingMonitorControlPendingAction,
-    setPrintingMonitorControlPendingAction,
     printingMonitorActionStatus,
-    setPrintingMonitorActionStatus,
     printingMonitorPendingConfirmation,
     setPrintingMonitorPendingConfirmation,
-    printingMonitorDeviceId,
     setPrintingMonitorDeviceId,
     printingMonitorViewMode,
     setPrintingMonitorViewMode,
     printingMonitorDashboardSnapshots,
-    setPrintingMonitorDashboardSnapshots,
-    isPrintingMonitorDashboardRefreshing,
-    setIsPrintingMonitorDashboardRefreshing,
     isPrintingMonitorPrinterMenuOpen,
     setIsPrintingMonitorPrinterMenuOpen,
-    isPrintingMonitorPrinterThumbnailFailed,
     setIsPrintingMonitorPrinterThumbnailFailed,
     printingMonitorModalOpen,
     setPrintingMonitorModalOpen,
@@ -3085,53 +2845,25 @@ export default function Home() {
     isPrintingMonitorRtspDebugOpen,
     setIsPrintingMonitorRtspDebugOpen,
     printingMonitorDebugCopyState,
-    setPrintingMonitorDebugCopyState,
     printingMonitorLastFeatureToggleResponse,
-    setPrintingMonitorLastFeatureToggleResponse,
-    printingMonitorDebugState,
-    setPrintingMonitorDebugState,
     printingMonitorPrinterMenuRef,
     printingMonitorWebcamViewportRef,
-    printingMonitorThumbnailCacheRef,
-    printingMonitorWebcamRequestInFlightRef,
-    printingMonitorWebcamBusyUntilEpochMsRef,
-    printingMonitorWebcamAutoPollBlockedRef,
-    printingMonitorWebcamConsecutiveTimeoutsRef,
     printingMonitorRelayAutoRetryCountRef,
     printingMonitorRelayAutoRetryTimeoutRef,
-    printingMonitorWebcamReadinessTokenRef,
-    printingMonitorWebcamReadinessTimeoutRef,
-    printingMonitorStartFocusDeviceIdRef,
-    printingMonitorRecentPlatesRequestIdRef,
-    printingMonitorRecentPlatesRef,
-    printingMonitorSelectedPlateIdRef,
-    printingMonitorRecentPlatesCacheRef,
     printingMonitorLeftColumnRef,
     printingMonitorWebcamSectionRef,
-    printingMonitorWebcamFollowerHeightPxRef,
-    monitorReachabilityInconclusiveCountsRef,
     selectedPrinterMonitorSnapshot,
-    setSelectedPrinterMonitorSnapshot,
     printingMonitoringAdapter,
     printingTargetDevice,
     monitorSelectableDevices,
     dashboardMonitorDevices,
-    dashboardOnlineMonitorDevices,
     monitoringDevice,
-    monitoringDeviceId,
-    monitoringDeviceHost,
-    monitoringDevicePort,
-    monitoringDeviceMainboardId,
-    printingMonitorRecentPlatesCacheKey,
     printingTargetMaterialGroups,
     requiresRemoteMaterialSelectionForUpload,
     isPreSliceTargetPicker,
-    printingMonitorPlateId,
     printingMonitorThumbnailUrl,
-    printingMonitorThumbnailCacheKey,
     printingMonitorInlineWebcamUrl,
     printingMonitorRtspSourceUrl,
-    printingMonitorIsDesktopRuntime,
     printingMonitorWebcamUrl,
     printingMonitorWebcamUsesRelayWs,
     printingMonitorRtspDebugSummary,
@@ -3140,23 +2872,12 @@ export default function Home() {
     printingMonitorModalWidthClass,
     printingMonitorWebcamStatusPresentation,
     printingMonitorWebcamDisplayPresentation,
-    printingMonitorUiPolicy,
-    printingMonitorBusyGraceMs,
-    printingMonitorReachabilityMaxInconclusivePolls,
-    printingMonitorSupportsWebcamStreamSlotReset,
-    printingMonitorWebcamMaxConsecutiveTimeouts,
-    printingMonitorWebcamTimeoutCooldownMs,
-    printingMonitorWebcamFailureCooldownMs,
     printingMonitorWebcamCanResetStreamSlot,
-    monitorWebcamRotationDeg,
-    shouldSwapMonitorWebcamAspect,
     monitorWebcamTransform,
     printingMonitorCanExpandWebcam,
     printingMonitorDetailWebcamExpanded,
     monitorWebcamDisplayAspectRatio,
-    printingMonitorStateTextNormalized,
     printingMonitorIsPauseTransition,
-    printingMonitorIsCancelTransition,
     printingMonitorHasActivePrint,
     printingMonitorAnyActionBusy,
     printingMonitorCancelButtonAnimating,
@@ -3168,12 +2889,10 @@ export default function Home() {
     printingMonitorDisplayCurrentLayer,
     printingMonitorDisplayTotalLayers,
     printingMonitorDisplayMaterialProfile,
-    isPrintingMonitorSelectedPrinterOfflineRaw,
     isPrintingMonitorWithinSlowResponseGrace,
     printingMonitorSlowResponseGraceRemainingSec,
     shouldShowPrintingMonitorSlowResponseCard,
     isPrintingMonitorSelectedPrinterOffline,
-    hasMonitorSelectableTarget,
     hasPrintingMonitorFleet,
     printingMonitorPrinterThumbnailSrc,
     printingMonitorHeaderUsesFleetLabelOrder,
@@ -3187,7 +2906,6 @@ export default function Home() {
     schedulePrintingMonitorMjpegReadinessCheck,
     triggerPrintingMonitorWebcamRetry,
     handleSavePrintingMonitorWebcamSnapshot,
-    flushMonitors,
     handleResetPrintingMonitorWebcamStreamSlot,
     openPrintingMonitorForTargetDevice,
     executeStartMonitorRecentPlate,
@@ -4591,7 +4309,7 @@ export default function Home() {
     let wasPrintMonitor = false;
     let wasPrintRtsp = false;
 
-    const unsubscribe = hotkeyStore.subscribe((state) => {
+    const unsubscribe = hotkeyStore.subscribe(() => {
       const isDiagnosticsActive = isActionActiveSync('DEBUG', 'DIAGNOSTICS');
       const isHistoryActive = isActionActiveSync('DEBUG', 'HISTORY');
       const isTransformActive = isActionActiveSync('DEBUG', 'TRANSFORM');
@@ -5503,7 +5221,7 @@ export default function Home() {
   }, []);
 
   // Temporary: LYS Ghost Viewer State
-  const [ghostData, setGhostData] = React.useState<any>(null);
+  const [ghostData] = React.useState<any>(null);
   const LysGhostOverlay = React.useMemo(
     () => {
       const loader = getPluginSceneOverlayLoader('lys-import');
@@ -5819,83 +5537,35 @@ export default function Home() {
   });
   const {
     arrangePrecisionMode,
-    setArrangePrecisionMode,
-    arrangeAllowRotateOnZ,
-    setArrangeAllowRotateOnZ,
     arrangeLayoutMode,
-    setArrangeLayoutMode,
-    arrangeAnchorMode,
-    setArrangeAnchorMode,
-    arrangeArrayCountX,
-    setArrangeArrayCountX,
-    arrangeArrayCountY,
-    setArrangeArrayCountY,
-    arrangeArrayCountZ,
-    setArrangeArrayCountZ,
-    arrangeArrayGapX,
-    setArrangeArrayGapX,
-    arrangeArrayGapY,
-    setArrangeArrayGapY,
-    arrangeArrayGapZ,
-    setArrangeArrayGapZ,
-    activeArrangeOperation,
-    setActiveArrangeOperation,
-    isAutoArranging,
-    setIsAutoArranging,
-    arrangeOverlayElapsedSec,
-    setArrangeOverlayElapsedSec,
     arrangeOverlayModelCount,
-    setArrangeOverlayModelCount,
     duplicateTotalCopies,
-    setDuplicateTotalCopies,
     duplicateSpacingMm,
-    setDuplicateSpacingMm,
     showArrangeBlockingOverlay,
     arrangeOverlayContent,
     arrangeOverlayElapsedLabel,
     duplicateLayoutMode,
-    setDuplicateLayoutMode,
     duplicatePrecisionMode,
-    setDuplicatePrecisionMode,
     duplicateArrayCountX,
-    setDuplicateArrayCountX,
     duplicateArrayCountY,
-    setDuplicateArrayCountY,
     duplicateArrayCountZ,
-    setDuplicateArrayCountZ,
     duplicateArrayGapX,
-    setDuplicateArrayGapX,
     duplicateArrayGapY,
-    setDuplicateArrayGapY,
     duplicateArrayGapZ,
-    setDuplicateArrayGapZ,
     isDuplicating,
-    setIsDuplicating,
     duplicatePreviewTransforms,
     setDuplicatePreviewTransforms,
     duplicateGhostPlateOffsets,
     setDuplicateGhostPlateOffsets,
     arrangeArrayPreviewItems,
-    setArrangeArrayPreviewItems,
     duplicateSourcePreviewTransform,
     setDuplicateSourcePreviewTransform,
     duplicateApplySourceModel,
-    setDuplicateApplySourceModel,
     duplicateApplySourceTransform,
-    setDuplicateApplySourceTransform,
-    effectiveDuplicateTotalCopies,
-    isDuplicateSetupBlockingArrange,
-    buildHighPrecisionArrangeSupportLocalPoints,
     buildHighPrecisionArrangeModels,
-    resolveArrangeVisibleModels,
-    applyArrangeTransforms,
     handleAutoArrangeModels,
     handleHighPrecisionArrangeModels,
-    computeManualArrayArrangeUpdates,
     handleManualArrayArrangeModels,
-    computeArrangeSlots,
-    handleConfirmDuplicate,
-    handleFillPlateDuplicate,
   } = arrange;
 
   const magicSceneActionsRef = React.useRef({
@@ -7882,48 +7552,24 @@ export default function Home() {
     holePunchPlacements,
     setHolePunchPlacements,
     holePunchPlacementsRef,
-    holePunchDragStateRef,
-    suppressHolePunchClickPlacementIdRef,
-    suppressHolePunchGizmoReleaseClickUntilRef,
-    holePunchAutoDepthRaycasterRef,
-    holePunchAutoDepthMeshRef,
     selectedHolePunchPlacementIdSet,
-    selectedHolePunchPlacements,
     canUseAutoHolePunchDepth,
     syncHolePunchPanelFromSelection,
     activeHolePunchPlacements,
-    previousRecommendedHolePunchDepthRef,
-    appliedHolePunchPlacementsSignature,
-    draftHolePunchPlacementsSignature,
-    isHolePunchApplied,
-    holePunchNeedsBake,
-    isHolePunchDirty,
     appliedHolePunchPlacementIds,
-    canResetHolePunch,
-    persistHolePunchPlacementsForModel,
     computeAutoHolePunchDepthMmForGeometry,
-    computeAutoHolePunchDepthMm,
-    buildHolePunchPlacementForHit,
-    buildHolePunchPlacementFromHit,
     handleHolePunchClick,
     handleHolePunchHover,
-    handleSelectHolePunchPlacement,
     handleHolePunchPlacementDragStart,
     handleHolePunchPlacementDragMove,
     handleHolePunchPlacementDragEnd,
-    holePunchGizmoDragRef,
     handleHolePunchGizmoMoveStart,
     handleHolePunchGizmoMove,
     handleHolePunchGizmoMoveEnd,
-    holePunchGizmoRotateRef,
     handleHolePunchGizmoRotateStart,
     handleHolePunchGizmoRotate,
     handleHolePunchGizmoRotateEnd,
-    handleDeleteSelectedHolePunchPlacement,
-    handleHolePunchStateChange,
     handleResetHolePunch,
-    requestResetHolePunch,
-    handleApplyHolePunch,
   } = holePunch;
 
   const selectModelsForSupports = scene.mode === 'support' && transformMgr.transformMode !== 'hollowing';
