@@ -187,7 +187,6 @@ import {
   getRedoCount,
   getUndoCount,
   redo,
-  subscribeHistory,
   setHistoryOriginProvider,
   subscribeHistoryOperations,
   undo,
@@ -257,6 +256,7 @@ import { useSceneLifecycle } from './home/useSceneLifecycle';
 import { useEditorDebugPanels } from './home/useEditorDebugPanels';
 import { usePluginImportWarning } from './home/usePluginImportWarning';
 import { useSceneSaveChoicePrompt } from './home/useSceneSaveChoicePrompt';
+import { useUnsavedSceneChanges } from './home/useUnsavedSceneChanges';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -796,21 +796,15 @@ export default function Home() {
   const [closeUnsavedChangesBusy, setCloseUnsavedChangesBusy] = React.useState<'none' | 'save_and_close' | 'discard_and_close'>('none');
   const [showNewSceneUnsavedChangesModal, setShowNewSceneUnsavedChangesModal] = React.useState(false);
   const [newSceneBusy, setNewSceneBusy] = React.useState<'none' | 'save_and_new' | 'discard_and_new'>('none');
-  const [hasUnsavedSceneChanges, setHasUnsavedSceneChanges] = React.useState(false);
+  const {
+    hasUnsavedSceneChanges,
+    hasUnsavedSceneChangesRef,
+    markSceneSaveBaseline,
+  } = useUnsavedSceneChanges({ scene });
   const [showDamagedModelDialog, setShowDamagedModelDialog] = React.useState(false);
 
   // ZIP file picker modal
-  const hasUnsavedSceneChangesRef = React.useRef(false);
   const allowProgrammaticWindowCloseRef = React.useRef(false);
-  const sceneSaveBaselineRef = React.useRef<{
-    undo: number;
-    redo: number;
-    modelCount: number;
-  }>({
-    undo: getUndoCount(),
-    redo: getRedoCount(),
-    modelCount: scene.models.length,
-  });
   const [historyTransformResyncTick, setHistoryTransformResyncTick] = React.useState(0);
   const historyTransformResyncTokenRef = React.useRef(0);
   const historyTransformResyncRafRef = React.useRef<number | null>(null);
@@ -1228,43 +1222,6 @@ export default function Home() {
 
     return unsubscribe;
   }, [scene.sceneImportPlacementPrompt, scene.resolveSceneImportPlacementPrompt]);
-
-  const markSceneSaveBaseline = React.useCallback(() => {
-    sceneSaveBaselineRef.current = {
-      undo: getUndoCount(),
-      redo: getRedoCount(),
-      modelCount: scene.models.length,
-    };
-    setHasUnsavedSceneChanges(false);
-    hasUnsavedSceneChangesRef.current = false;
-  }, [scene.models.length]);
-
-  const recomputeUnsavedSceneChanges = React.useCallback(() => {
-    const baseline = sceneSaveBaselineRef.current;
-    const undoCount = getUndoCount();
-    const redoCount = getRedoCount();
-    const modelCount = scene.models.length;
-
-    const dirty = modelCount > 0 && (
-      undoCount !== baseline.undo
-      || redoCount !== baseline.redo
-      || modelCount !== baseline.modelCount
-    );
-
-    setHasUnsavedSceneChanges(dirty);
-    hasUnsavedSceneChangesRef.current = dirty;
-  }, [scene.models.length]);
-
-  React.useEffect(() => {
-    const unsubscribe = subscribeHistory(recomputeUnsavedSceneChanges);
-    return () => {
-      unsubscribe();
-    };
-  }, [recomputeUnsavedSceneChanges]);
-
-  React.useEffect(() => {
-    recomputeUnsavedSceneChanges();
-  }, [recomputeUnsavedSceneChanges, scene.models.length]);
 
   // ── Import / drag-drop / scene-handoff + export-thumbnail capture ──────────
   //   Extracted to useImportExportManager. Late/cross-domain deps (isDesktopRuntime,
