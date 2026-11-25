@@ -142,6 +142,11 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # `build:tauri` ends with verify:release-imports, which drives Chromium
+      # through playwright-core; same step as the macOS job in release.yml.
+      - name: Install Chromium for release import verification
+        run: npx playwright-core install chromium
+
       # Next asks for this on every run ("No build cache found"): its compiler and
       # fetch caches live in `.next/cache`, and restoring that across runs is worth
       # a minute or two of each frontend build. Keyed on the lockfile and the

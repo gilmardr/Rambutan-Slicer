@@ -134,9 +134,12 @@ fs.mkdirSync(outputRoot, { recursive: true });
 
 const mainlineVersion = await latestMainlineVersion();
 const usedIds = new Set();
+/* No `exclude` here or per version: website/src/lib/docs.ts then takes it from
+   each snapshot's own nav file (docs-nav.json or mkdocs.yml), so a directory a
+   branch keeps out of its menu (internal, brand, release...) stays out of its
+   build too. */
 const manifest = {
   default: '',
-  exclude: ['internal'],
   versions: [],
 };
 
@@ -171,7 +174,6 @@ for (const ref of versions) {
     label: labelFor(ref),
     version: ref === 'main' ? mainlineVersion ?? undefined : undefined,
     root,
-    exclude: ['internal'],
     ref,
     resolved,
   });
