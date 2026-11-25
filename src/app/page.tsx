@@ -256,6 +256,7 @@ import { useResinEstimate } from './home/useResinEstimate';
 import { useSceneLifecycle } from './home/useSceneLifecycle';
 import { useEditorDebugPanels } from './home/useEditorDebugPanels';
 import { usePluginImportWarning } from './home/usePluginImportWarning';
+import { useSceneSaveChoicePrompt } from './home/useSceneSaveChoicePrompt';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -774,9 +775,17 @@ export default function Home() {
   // downgrades a 3.1 file; manual saves always write 3.1 and latch this true.
   // Defaults true (newest) for fresh scenes.
   const [sceneFormatChunked, setSceneFormatChunked] = React.useState(true);
-  const [showSceneSaveChoiceModal, setShowSceneSaveChoiceModal] = React.useState(false);
-  const [sceneSaveChoiceFileName, setSceneSaveChoiceFileName] = React.useState<string | null>(null);
-  const [sceneSaveChoicePath, setSceneSaveChoicePath] = React.useState<string | null>(null);
+  const {
+    showSceneSaveChoiceModal,
+    setShowSceneSaveChoiceModal,
+    sceneSaveChoiceFileName,
+    setSceneSaveChoiceFileName,
+    sceneSaveChoicePath,
+    setSceneSaveChoicePath,
+    sceneSaveChoiceResolveRef,
+    resolveSceneSaveChoice,
+    promptSceneSaveChoice,
+  } = useSceneSaveChoicePrompt();
   const [autosaveRecovery, setAutosaveRecovery] = React.useState<{
     savedAt: string;
     /** The payload discovery resolved — the restore reads this exact file. */
@@ -788,7 +797,6 @@ export default function Home() {
   const [showNewSceneUnsavedChangesModal, setShowNewSceneUnsavedChangesModal] = React.useState(false);
   const [newSceneBusy, setNewSceneBusy] = React.useState<'none' | 'save_and_new' | 'discard_and_new'>('none');
   const [hasUnsavedSceneChanges, setHasUnsavedSceneChanges] = React.useState(false);
-  const sceneSaveChoiceResolveRef = React.useRef<((choice: 'overwrite' | 'save_as' | 'cancel') => void) | null>(null);
   const [showDamagedModelDialog, setShowDamagedModelDialog] = React.useState(false);
 
   // ZIP file picker modal
@@ -1220,58 +1228,6 @@ export default function Home() {
 
     return unsubscribe;
   }, [scene.sceneImportPlacementPrompt, scene.resolveSceneImportPlacementPrompt]);
-
-  const resolveSceneSaveChoice = React.useCallback((choice: 'overwrite' | 'save_as' | 'cancel') => {
-    const resolve = sceneSaveChoiceResolveRef.current;
-    sceneSaveChoiceResolveRef.current = null;
-    setShowSceneSaveChoiceModal(false);
-    setSceneSaveChoiceFileName(null);
-    setSceneSaveChoicePath(null);
-    resolve?.(choice);
-  }, []);
-
-  const promptSceneSaveChoice = React.useCallback(async (
-    options: { fileName: string; scenePath: string | null },
-  ): Promise<'overwrite' | 'save_as' | 'cancel'> => {
-    if (sceneSaveChoiceResolveRef.current) {
-      sceneSaveChoiceResolveRef.current('cancel');
-      sceneSaveChoiceResolveRef.current = null;
-    }
-
-    setSceneSaveChoiceFileName(options.fileName);
-    setSceneSaveChoicePath(options.scenePath);
-    setShowSceneSaveChoiceModal(true);
-
-    return await new Promise<'overwrite' | 'save_as' | 'cancel'>((resolve) => {
-      sceneSaveChoiceResolveRef.current = resolve;
-    });
-  }, []);
-
-  React.useEffect(() => {
-    if (!showSceneSaveChoiceModal) return;
-
-    let wasEscapePressed = false;
-
-    const unsubscribe = hotkeyStore.subscribe((state) => {
-      const active = state.activeKeys;
-      const isEscapePressed = active.has('escape');
-      if (isEscapePressed && !wasEscapePressed) {
-        resolveSceneSaveChoice('cancel');
-      }
-      wasEscapePressed = isEscapePressed;
-    });
-
-    return unsubscribe;
-  }, [resolveSceneSaveChoice, showSceneSaveChoiceModal]);
-
-  React.useEffect(() => {
-    return () => {
-      if (sceneSaveChoiceResolveRef.current) {
-        sceneSaveChoiceResolveRef.current('cancel');
-        sceneSaveChoiceResolveRef.current = null;
-      }
-    };
-  }, []);
 
   const markSceneSaveBaseline = React.useCallback(() => {
     sceneSaveBaselineRef.current = {
