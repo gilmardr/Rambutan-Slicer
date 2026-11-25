@@ -61,7 +61,9 @@ os arquivos separados, e informe onde obter o código-fonte da versão usada.
 
 As ilustrações do mascote em `docs/assets/cards/` explicam as funcionalidades e
 não são capturas de tela da interface. Os presets públicos do UVtools foram
-usados só como referência de fatos técnicos (resolução e tamanho da tela);
+usados só como referência de fatos técnicos (resolução e tamanho da tela), e a
+descrição do formato CXDLPv4 do UVtools serviu de referência para a disposição
+dos campos do encoder `.cxdlpv4`, escrito de forma independente;
 nenhum arquivo do UVtools foi copiado para o repositório.
 
 ## Análise de concorrentes e REA

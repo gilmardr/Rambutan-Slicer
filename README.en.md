@@ -129,7 +129,7 @@ Technical documentation for each tool is in [`docs/dev/`](docs/dev/).
 
 ## Printers and formats
 
-Printer profiles come from the plugins in `plugins/` and cover models from Anycubic, Concepts3D (Athena), Creality, Elegoo and UniFormation, plus a generic profile. Output formats include CTB, GOO, Anycubic's Photon formats, CXDLP, NanoDLP and LUMEN.
+Printer profiles come from the plugins in `plugins/` and cover models from Anycubic, Concepts3D (Athena), Creality, Elegoo and UniFormation, plus a generic profile. Output formats include CTB, GOO, Anycubic's Photon formats, CXDLPv4 (Creality's HALOT-MAGE line), NanoDLP and LUMEN. The older CXDLP (HALOT-ONE, LITE, RAY and SKY) and the HALOT-X1 series' CXDLPv4 are not written yet.
 
 Screen dimensions in the profiles were checked against the public [UVtools](https://github.com/sn4k3/UVtools) presets and the manufacturers' specifications. When a profile is corrected, the app offers the update to anyone who already has it saved. Still, print a calibration part the first time you use a printer.
 

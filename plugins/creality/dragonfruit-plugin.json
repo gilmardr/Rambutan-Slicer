@@ -91,7 +91,7 @@
     },
     {
       "presetId": "creality-halot-mage-pro-cxdlpv4",
-      "profileVersion": 2,
+      "profileVersion": 3,
       "manufacturer": "Creality",
       "name": "HALOT-MAGE PRO",
       "family": "HALOT-MAGE PRO",
@@ -101,12 +101,13 @@
       "display": {
         "resolutionX": 7680,
         "resolutionY": 4320,
-        "outputFormat": ".cxdlpv4"
+        "outputFormat": ".cxdlpv4",
+        "settingsMode": "simple"
       }
     },
     {
       "presetId": "creality-halot-mage-s-14k-cxdlpv4",
-      "profileVersion": 1,
+      "profileVersion": 2,
       "manufacturer": "Creality",
       "name": "HALOT-MAGE S 14K",
       "family": "HALOT-MAGE S",
@@ -116,12 +117,13 @@
       "display": {
         "resolutionX": 13320,
         "resolutionY": 5120,
-        "outputFormat": ".cxdlpv4"
+        "outputFormat": ".cxdlpv4",
+        "settingsMode": "simple"
       }
     },
     {
       "presetId": "creality-halot-mage-ctb-v4",
-      "profileVersion": 2,
+      "profileVersion": 3,
       "manufacturer": "Creality",
       "name": "HALOT-MAGE",
       "family": "HALOT-MAGE",
@@ -131,8 +133,7 @@
       "display": {
         "resolutionX": 7680,
         "resolutionY": 4320,
-        "outputFormat": ".ctb",
-        "formatVersion": "v4",
+        "outputFormat": ".cxdlpv4",
         "settingsMode": "simple"
       }
     },

@@ -12,7 +12,7 @@ import { cubeModel } from './helpers/captureAppSliceJob';
 
 const HALOT_MAGE_PRESET_ID = 'creality-halot-mage-ctb-v4';
 
-test('HALOT-MAGE profile assembles an export job for its CTB v4 screen', () => {
+test('HALOT-MAGE profile assembles a CXDLPv4 export job for its screen', () => {
   const preset = getAvailablePrinterPresets().find((entry) => entry.presetId === HALOT_MAGE_PRESET_ID);
   assert.ok(preset, 'HALOT-MAGE official preset is registered');
 
@@ -34,8 +34,8 @@ test('HALOT-MAGE profile assembles an export job for its CTB v4 screen', () => {
 
   assert.equal(profile.name, 'HALOT-MAGE');
   assert.equal(profile.networkSupport, undefined, 'this preset does not declare direct network sending');
-  assert.equal(job.outputFormat, '.ctb');
-  assert.equal(job.formatVersion, 'v4');
+  assert.equal(job.outputFormat, '.cxdlpv4');
+  assert.equal(job.formatVersion, undefined);
   assert.equal(job.sourceWidthPx, 7680);
   assert.equal(job.sourceHeightPx, 4320);
   assert.equal(job.buildWidthMm, 228.096);

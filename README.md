@@ -129,7 +129,7 @@ A documentação técnica de cada ferramenta está em [`docs/dev/`](docs/dev/).
 
 ## Impressoras e formatos
 
-Os perfis de impressora vêm dos plugins em `plugins/` e cobrem modelos de Anycubic, Concepts3D (Athena), Creality, Elegoo e UniFormation, além de um perfil genérico. Os formatos de saída incluem CTB, GOO, os formatos Photon da Anycubic, CXDLP, NanoDLP e LUMEN.
+Os perfis de impressora vêm dos plugins em `plugins/` e cobrem modelos de Anycubic, Concepts3D (Athena), Creality, Elegoo e UniFormation, além de um perfil genérico. Os formatos de saída incluem CTB, GOO, os formatos Photon da Anycubic, CXDLPv4 (linha HALOT-MAGE da Creality), NanoDLP e LUMEN. O CXDLP antigo (HALOT-ONE, LITE, RAY e SKY) e o CXDLPv4 da série HALOT-X1 ainda não são gerados.
 
 As dimensões de tela dos perfis foram conferidas com os presets públicos do [UVtools](https://github.com/sn4k3/UVtools) e com as especificações dos fabricantes. Quando um perfil é corrigido, o app oferece a atualização a quem já usa o perfil salvo. Mesmo assim, imprima uma peça de calibração ao usar uma impressora pela primeira vez.
 
