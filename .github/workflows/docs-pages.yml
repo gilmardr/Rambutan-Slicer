@@ -1,21 +1,11 @@
 name: Deploy Site
 
 on:
+  # Manual only until website/ is rebranded from DragonFruit to Rambutan
+  # Slicer: publishing it as is would present this fork as the Open Resin
+  # Alliance's official site. Restore the push and workflow_run (Release)
+  # triggers after the rebrand.
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - docs/**
-      - website/**
-      - scripts/materialize-doc-placeholder-assets.mjs
-      - scripts/prepare-docs-versions.mjs
-      - .github/workflows/docs-pages.yml
-  workflow_run:
-    workflows:
-      - Release
-    types:
-      - completed
 
 permissions:
   contents: read
