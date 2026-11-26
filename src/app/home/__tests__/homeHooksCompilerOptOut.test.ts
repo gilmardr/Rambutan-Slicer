@@ -34,6 +34,9 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['useCameraBackgroundWorkPause.ts', 'useCameraBackgroundWorkPause'],
   ['useRemoteOfflineLayerHeightSnapshot.ts', 'useRemoteOfflineLayerHeightSnapshot'],
   ['useActiveModelSupportTips.ts', 'useActiveModelSupportTips'],
+  ['useHoldEmptyStateDuringSceneImport.ts', 'useHoldEmptyStateDuringSceneImport'],
+  ['useSaveAsHotkey.ts', 'useSaveAsHotkey'],
+  ['useOverhangViewToggle.ts', 'useOverhangViewToggle'],
 ];
 
 for (const [file, hook] of HOOKS) {
