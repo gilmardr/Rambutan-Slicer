@@ -127,12 +127,6 @@ import {
   OrbitPivotIndicator,
   TrackpadGesturePoseApplier,
 } from './SceneCanvasCameraControllers';
-import {
-  ORTHO_MAX_RADIUS,
-  ORTHO_MIN_RADIUS,
-  dollyOrthoToCursor,
-  orthoWheelRadiusScale,
-} from '@/components/scene/camera/orthoDolly';
 import { useMarqueeSelectionHandlers } from './useMarqueeSelectionHandlers';
 import {
   marqueeModeForDrag,
@@ -157,7 +151,6 @@ import { setSupportPlacementGuideZ, useSupportPlacementGuideActive } from './sup
 import { setModelMesh } from '@/supports/autoSupport/meshStore';
 import { setSupportNavigationActive } from '@/supports/interaction/navigationActiveStore';
 import { useIsLinux } from '@/hooks/usePlatform';
-import type { CameraProjectionMode } from '@/components/settings/cameraProjectionPreferences';
 import type { CameraFeelPreset } from '@/components/settings/cameraFeelPreferences';
 import { DEFAULT_CAMERA_TRACKPAD_SETTINGS } from '@/components/settings/cameraTrackpadPreferences';
 import { DEFAULT_VIEW3D_SETTINGS, type View3DSettings } from '@/components/settings/view3dPreferences';
@@ -195,12 +188,19 @@ import {
   type TrackpadGestureAction,
   type TrackpadGesturePose,
 } from '@/components/scene/camera/trackpadGesturePose';
-import { projectModelMesh, makeSupportPointProjector, resolveTrackpadGestureAction } from './sceneCanvasProjection';
+import { projectModelMesh, makeSupportPointProjector } from './sceneCanvasProjection';
 import { PEARL_MODEL_COLOR, LOGO_RED_MODEL_COLOR, getModelBaseColor, usesLogoRedModelColor } from './modelBaseColor';
 import { GhostPreviewTransform, GhostPreviewInstances } from './GhostPreviewInstances';
 import { useCrossSectionCapDebugPanel } from './useCrossSectionCapDebugPanel';
 import { CrossSectionCapDebugPanel } from './CrossSectionCapDebugPanel';
 import { useDiagnosticsOrbitBenchmark } from './useDiagnosticsOrbitBenchmark';
+import { useWheelZoomInteraction } from './useWheelZoomInteraction';
+import { useModelHoverEvents } from './useModelHoverEvents';
+import { useSupportGizmoInteractionLock } from './useSupportGizmoInteractionLock';
+import { useEntryDropAnimationTicker } from './useEntryDropAnimationTicker';
+import { useSelectDragWindowListeners } from './useSelectDragWindowListeners';
+import { useEntryDropQueue } from './useEntryDropQueue';
+import { useTrackpadWheelGestures } from './useTrackpadWheelGestures';
 import { useCanvasCameraPreferences, useIsLightTheme, useThemeAccentColors } from './useCanvasPreferences';
 
 const Canvas = dynamic(() => import('@react-three/fiber').then(m => m.Canvas), { ssr: false });
@@ -1324,64 +1324,15 @@ export function SceneCanvas({
     });
   }, [modelPickerEnabled]);
 
-  React.useEffect(() => {
-    const handleModelPointerHoverImmediate = (event: Event) => {
-      if (!modelPickerEnabled) return;
-      const customEvent = event as CustomEvent<{ modelId?: string | null }>;
-      const modelId = customEvent.detail?.modelId ?? null;
-      onModelHoverModelChange(modelId);
-    };
-
-    const handleSupportRaftModelPointerHover = (event: Event) => {
-      if (!modelPickerEnabled) return;
-      const customEvent = event as CustomEvent<{ modelId?: string | null; category?: string | null }>;
-      const category = customEvent.detail?.category;
-      if (category === 'raft') {
-        const modelId = customEvent.detail?.modelId ?? null;
-        if (modelId) {
-          pendingHoverModelIdRef.current = null;
-          if (hoverModelRafRef.current !== null) {
-            cancelAnimationFrame(hoverModelRafRef.current);
-            hoverModelRafRef.current = null;
-          }
-          setHoveredMeshModelId((prev) => (prev === null ? prev : null));
-          setHoveredSupportPointerModelId((prev) => (prev === null ? prev : null));
-        }
-        if (modelId) {
-          setHoveredRaftModelId((prev) => (prev === modelId ? prev : modelId));
-        } else {
-          setHoveredRaftModelId((prev) => (prev === null ? prev : null));
-        }
-        return;
-      }
-
-      if (category === 'support') {
-        const modelId = customEvent.detail?.modelId ?? null;
-        if (modelId) {
-          pendingHoverModelIdRef.current = null;
-          if (hoverModelRafRef.current !== null) {
-            cancelAnimationFrame(hoverModelRafRef.current);
-            hoverModelRafRef.current = null;
-          }
-          setHoveredMeshModelId((prev) => (prev === null ? prev : null));
-          setHoveredRaftModelId((prev) => (prev === null ? prev : null));
-        }
-        if (modelId) {
-          setHoveredSupportPointerModelId((prev) => (prev === modelId ? prev : modelId));
-        } else {
-          setHoveredSupportPointerModelId((prev) => (prev === null ? prev : null));
-        }
-      }
-    };
-
-    window.addEventListener('model-pointer-hover-immediate', handleModelPointerHoverImmediate as EventListener);
-    window.addEventListener('support-raft-model-pointer-hover', handleSupportRaftModelPointerHover as EventListener);
-
-    return () => {
-      window.removeEventListener('model-pointer-hover-immediate', handleModelPointerHoverImmediate as EventListener);
-      window.removeEventListener('support-raft-model-pointer-hover', handleSupportRaftModelPointerHover as EventListener);
-    };
-  }, [modelPickerEnabled, onModelHoverModelChange]);
+  useModelHoverEvents({
+    modelPickerEnabled,
+    onModelHoverModelChange,
+    pendingHoverModelIdRef,
+    hoverModelRafRef,
+    setHoveredMeshModelId,
+    setHoveredSupportPointerModelId,
+    setHoveredRaftModelId,
+  });
 
   const selectModelFromPointerHit = React.useCallback((modelId: string | null | undefined) => {
     if (mode !== 'prepare') return;
@@ -4106,71 +4057,17 @@ export function SceneCanvas({
     prevTransformModeRef.current = transformMode;
   }, [mode, transformMode]);
 
-  React.useEffect(() => {
-    const currentIds = new Set(models.map((model) => model.id));
-    const initialDropOffsets: Record<string, number> = {};
-    const shouldDeferLargeModelDrop = cameraIntroRunId > cameraIntroCompletedRunId;
-
-    // Start animation for newly added mesh files
-    for (const model of models) {
-      const isKnown = knownModelIdsRef.current.has(model.id);
-      if (isKnown) continue;
-
-      knownModelIdsRef.current.add(model.id);
-
-      const isMeshFile = model.fileUrl.startsWith('blob:') || /\.(stl|3mf)$/i.test(model.name);
-      if (!isMeshFile) continue;
-
-      const dropFrom = Math.max(16, Math.min(64, model.geometry.size.z * 0.45));
-      const disableDropAnimation = model.polygonCount >= LARGE_MODEL_DROP_DEFER_THRESHOLD_POLYS;
-      if (disableDropAnimation) continue;
-
-      const skipBounce = model.polygonCount >= LARGE_MODEL_BOUNCE_THRESHOLD_POLYS;
-      const deferDrop = shouldDeferLargeModelDrop && model.polygonCount >= LARGE_MODEL_DROP_DEFER_THRESHOLD_POLYS;
-
-      if (deferDrop) {
-        pendingEntryAnimRef.current[model.id] = {
-          fromZ: dropFrom,
-          runId: cameraIntroRunId,
-          skipBounce,
-        };
-      } else {
-        // Start timer on the first rendered animation frame.
-        // This keeps the drop motion intact even if initial GPU upload blocks
-        // the main thread for hundreds of milliseconds.
-        entryAnimRef.current[model.id] = {
-          startMs: null,
-          fromZ: dropFrom,
-          skipBounce,
-        };
-        initialDropOffsets[model.id] = dropFrom;
-      }
-    }
-
-    // Cleanup removed models
-    const nextKnown = new Set<string>();
-    for (const id of knownModelIdsRef.current) {
-      if (currentIds.has(id)) {
-        nextKnown.add(id);
-      } else {
-        delete entryAnimRef.current[id];
-        delete pendingEntryAnimRef.current[id];
-      }
-    }
-    knownModelIdsRef.current = nextKnown;
-
-    setEntryDropOffsets((previous) => {
-      const next: Record<string, number> = {
-        ...initialDropOffsets,
-      };
-      Object.entries(previous).forEach(([id, offset]) => {
-        if (currentIds.has(id) && offset > 0.0001 && next[id] == null) {
-          next[id] = offset;
-        }
-      });
-      return next;
-    });
-  }, [cameraIntroCompletedRunId, cameraIntroRunId, models]);
+  useEntryDropQueue({
+    models,
+    cameraIntroRunId,
+    cameraIntroCompletedRunId,
+    knownModelIdsRef,
+    LARGE_MODEL_DROP_DEFER_THRESHOLD_POLYS,
+    LARGE_MODEL_BOUNCE_THRESHOLD_POLYS,
+    pendingEntryAnimRef,
+    entryAnimRef,
+    setEntryDropOffsets,
+  });
 
   React.useEffect(() => {
     const pendingEntries = Object.entries(pendingEntryAnimRef.current).filter(([, pending]) => pending.runId <= cameraIntroCompletedRunId);
@@ -4194,62 +4091,13 @@ export function SceneCanvas({
     }));
   }, [cameraIntroCompletedRunId]);
 
-  React.useEffect(() => {
-    let frame = 0;
-
-    const tick = () => {
-      const entries = Object.entries(entryAnimRef.current);
-      if (entries.length === 0) return;
-
-      const now = performance.now();
-      const nextOffsets: Record<string, number> = {};
-
-      for (const [id, animation] of entries) {
-        if (animation.startMs == null) {
-          animation.startMs = now;
-          nextOffsets[id] = animation.fromZ;
-          continue;
-        }
-
-        const t = Math.min(1, (now - animation.startMs) / DROP_ANIMATION_DURATION_MS);
-
-        // Drop -> impact -> optional rebound -> settle
-        const impactT = animation.skipBounce ? 1 : 0.72;
-        let zOffset = 0;
-
-        if (t < impactT) {
-          const p = t / impactT;
-          // Accelerating descent for more weight
-          zOffset = animation.fromZ * (1 - p * p);
-        } else if (!animation.skipBounce) {
-          const q = (t - impactT) / (1 - impactT);
-          // One clear rebound arc after impact (rubber-ball feel)
-          const reboundHeight = Math.max(4.5, animation.fromZ * 0.2);
-          zOffset = reboundHeight * 4 * q * (1 - q);
-        }
-
-        if (t >= 1 || zOffset <= 0.0001) {
-          delete entryAnimRef.current[id];
-        } else {
-          nextOffsets[id] = zOffset;
-        }
-      }
-
-      setEntryDropOffsets(nextOffsets);
-
-      if (Object.keys(entryAnimRef.current).length > 0) {
-        frame = requestAnimationFrame(tick);
-      }
-    };
-
-    if (Object.keys(entryAnimRef.current).length > 0) {
-      frame = requestAnimationFrame(tick);
-    }
-
-    return () => {
-      if (frame) cancelAnimationFrame(frame);
-    };
-  }, [cameraIntroCompletedRunId, models.length]);
+  useEntryDropAnimationTicker({
+    entryAnimRef,
+    DROP_ANIMATION_DURATION_MS,
+    setEntryDropOffsets,
+    cameraIntroCompletedRunId,
+    models,
+  });
 
   // Interaction State
   const { isDraggingHandle } = useCurveInteractionState();
@@ -4666,91 +4514,17 @@ export function SceneCanvas({
     return true;
   }, [cameraTrackpadOrbitAcceleration, cameraTrackpadPanAcceleration]);
 
-  React.useEffect(() => {
-    const container = containerRef.current;
-    if (!container || typeof window === 'undefined') return;
-
-    const clearPendingZoomEnd = () => {
-      if (wheelZoomEndTimeoutRef.current === null) return;
-      window.clearTimeout(wheelZoomEndTimeoutRef.current);
-      wheelZoomEndTimeoutRef.current = null;
-    };
-
-    const endZoomInteraction = () => {
-      clearPendingZoomEnd();
-      if (!wheelZoomInteractionActiveRef.current) return;
-
-      wheelZoomInteractionActiveRef.current = false;
-      setIsWheelZoomInteracting(false);
-      window.dispatchEvent(new CustomEvent('picking-zoom-end', {
-        detail: { resumeAfterMs: navigationResumeDelayRef.current },
-      }));
-    };
-
-    const beginZoomInteraction = () => {
-      if (wheelZoomInteractionActiveRef.current) return;
-      wheelZoomInteractionActiveRef.current = true;
-      setIsWheelZoomInteracting(true);
-      window.dispatchEvent(new Event('picking-zoom-start'));
-    };
-
-    const scheduleZoomInteractionEnd = () => {
-      clearPendingZoomEnd();
-      wheelZoomEndTimeoutRef.current = window.setTimeout(() => {
-        wheelZoomEndTimeoutRef.current = null;
-        endZoomInteraction();
-      }, 120);
-    };
-
-    const onWheel = (event: WheelEvent) => {
-      if (!container.contains(event.target as Node | null)) return;
-      const controls = orbitControlsRef.current;
-      if (!controls || controls.enabled === false) return;
-      const device = wheelDeviceClassifierRef.current.classify(event, event.timeStamp);
-      // Trackpad: allow zoom only for pinch gestures (ctrlKey).
-      // Regular two-finger scroll should never trigger zoom.
-      // An 'unknown' verdict zooms: a wheel must always zoom, and that is the
-      // reading a bare wheel event gets everywhere else.
-      if (device === 'trackpad' && !event.ctrlKey) {
-        return;
-      }
-      try {
-        if (resolveTrackpadGestureAction(event, device, cameraTrackpadSettings, cameraTrackpadModifierKey) !== null) {
-          return;
-        }
-      } catch (error) {
-        console.error('[SceneCanvas] Trackpad gesture resolution failed; falling back to wheel zoom.', error);
-      }
-
-      beginZoomInteraction();
-
-      window.dispatchEvent(new Event('picking-zoom-change'));
-      scheduleZoomInteractionEnd();
-    };
-
-    const forceZoomInteractionEnd = () => {
-      endZoomInteraction();
-    };
-
-    window.addEventListener('wheel', onWheel, { passive: true });
-    window.addEventListener('pointerup', forceZoomInteractionEnd, true);
-    window.addEventListener('pointercancel', forceZoomInteractionEnd, true);
-    window.addEventListener('mouseup', forceZoomInteractionEnd, true);
-    window.addEventListener('contextmenu', forceZoomInteractionEnd, true);
-    window.addEventListener('blur', forceZoomInteractionEnd);
-    document.addEventListener('visibilitychange', forceZoomInteractionEnd);
-
-    return () => {
-      window.removeEventListener('wheel', onWheel);
-      window.removeEventListener('pointerup', forceZoomInteractionEnd, true);
-      window.removeEventListener('pointercancel', forceZoomInteractionEnd, true);
-      window.removeEventListener('mouseup', forceZoomInteractionEnd, true);
-      window.removeEventListener('contextmenu', forceZoomInteractionEnd, true);
-      window.removeEventListener('blur', forceZoomInteractionEnd);
-      document.removeEventListener('visibilitychange', forceZoomInteractionEnd);
-      endZoomInteraction();
-    };
-  }, [cameraTrackpadModifierKey, cameraTrackpadSettings]);
+  useWheelZoomInteraction({
+    containerRef,
+    wheelZoomEndTimeoutRef,
+    wheelZoomInteractionActiveRef,
+    setIsWheelZoomInteracting,
+    navigationResumeDelayRef,
+    orbitControlsRef,
+    wheelDeviceClassifierRef,
+    cameraTrackpadSettings,
+    cameraTrackpadModifierKey,
+  });
 
   React.useEffect(() => {
     return () => {
@@ -4837,62 +4611,10 @@ export function SceneCanvas({
     };
   }, []);
 
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    type SupportGizmoWindowState = Window & {
-      __jointGizmoDragging?: boolean;
-      __knotGizmoDragging?: boolean;
-      __bezierGizmoDragging?: boolean;
-      __jointGizmoGuardUntil?: number;
-      __knotGizmoGuardUntil?: number;
-      __bezierGizmoGuardUntil?: number;
-    };
-
-    const clearPendingSupportGizmoTimeout = () => {
-      if (supportGizmoInteractionTimeoutRef.current === null) return;
-      window.clearTimeout(supportGizmoInteractionTimeoutRef.current);
-      supportGizmoInteractionTimeoutRef.current = null;
-    };
-
-    const refreshSupportGizmoInteraction = () => {
-      const w = window as SupportGizmoWindowState;
-      const dragging = !!(w.__jointGizmoDragging || w.__knotGizmoDragging || w.__bezierGizmoDragging);
-      const guardUntil = Math.max(
-        Number(w.__jointGizmoGuardUntil ?? 0),
-        Number(w.__knotGizmoGuardUntil ?? 0),
-        Number(w.__bezierGizmoGuardUntil ?? 0),
-      );
-      const now = Date.now();
-      const guardActive = guardUntil > now;
-
-      setSupportGizmoInteractionActive(dragging || guardActive);
-      clearPendingSupportGizmoTimeout();
-
-      if (!dragging && guardActive) {
-        supportGizmoInteractionTimeoutRef.current = window.setTimeout(() => {
-          supportGizmoInteractionTimeoutRef.current = null;
-          refreshSupportGizmoInteraction();
-        }, Math.max(0, guardUntil - now + 1));
-      }
-    };
-
-    const handleSupportGizmoInteractionLock = () => {
-      refreshSupportGizmoInteraction();
-    };
-
-    refreshSupportGizmoInteraction();
-    window.addEventListener('joint-gizmo-interaction-lock', handleSupportGizmoInteractionLock as EventListener);
-    window.addEventListener('knot-gizmo-interaction-lock', handleSupportGizmoInteractionLock as EventListener);
-    window.addEventListener('bezier-gizmo-interaction-lock', handleSupportGizmoInteractionLock as EventListener);
-
-    return () => {
-      window.removeEventListener('joint-gizmo-interaction-lock', handleSupportGizmoInteractionLock as EventListener);
-      window.removeEventListener('knot-gizmo-interaction-lock', handleSupportGizmoInteractionLock as EventListener);
-      window.removeEventListener('bezier-gizmo-interaction-lock', handleSupportGizmoInteractionLock as EventListener);
-      clearPendingSupportGizmoTimeout();
-    };
-  }, []);
+  useSupportGizmoInteractionLock({
+    supportGizmoInteractionTimeoutRef,
+    setSupportGizmoInteractionActive,
+  });
 
   const handleOrbitStart = React.useCallback(() => {
     // Anything that is not a trackpad gesture — a mouse drag, OrbitControls'
@@ -4973,121 +4695,24 @@ export function SceneCanvas({
     }, 140);
   }, [clearPendingTrackpadGestureEnd, handleOrbitEnd]);
 
-  React.useEffect(() => {
-    const container = containerRef.current;
-    if (!container || typeof window === 'undefined') return;
-
-    const onTrackpadWheel = (event: WheelEvent) => {
-      if (!container.contains(event.target as Node | null)) return;
-
-      try {
-        const action = resolveTrackpadGestureAction(
-          event,
-          wheelDeviceClassifierRef.current.classify(event, event.timeStamp),
-          cameraTrackpadSettings,
-          cameraTrackpadModifierKey,
-        );
-        if (action === null) {
-          // Orthographic wheel is a real dolly: move the camera along its view
-          // axis and let OrthoFrustumSync derive the frustum from the new
-          // radius. OrbitControls' zoom is disabled in ortho, so we own it — and
-          // that is exactly why this path must check the idle signal itself.
-          // OrbitControls being disabled is how every other owner of the camera
-          // announces itself: a live SpaceMouse gesture, the Home / focus /
-          // mode-framing animations. Without the check the wheel dollies against
-          // them, fighting the SpaceMouse over the same dolly radius.
-          const camera = cameraRef.current;
-          const zoomControls = orbitControlsRef.current;
-          if (zoomControls && zoomControls.enabled === false) return;
-          if (camera instanceof THREE.OrthographicCamera && zoomControls) {
-            const rect = container.getBoundingClientRect();
-            if (rect.width > 0 && rect.height > 0) {
-              event.preventDefault();
-              const ndcX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-              const ndcY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-              const aspect = (camera.right - camera.left) / Math.max(1e-6, camera.top - camera.bottom);
-              const nextTarget = dollyOrthoToCursor({
-                camera,
-                target: zoomControls.target,
-                ndcX,
-                ndcY,
-                radiusScale: orthoWheelRadiusScale(event.deltaY, zoomControls.zoomSpeed),
-                minRadius: ORTHO_MIN_RADIUS,
-                maxRadius: ORTHO_MAX_RADIUS,
-                aspect,
-                options: { sceneRadius: orthoSceneRadiusMm, fovDeg: perspectiveFov },
-              });
-              zoomControls.target.copy(nextTarget);
-              zoomControls.update();
-            }
-          }
-          return;
-        }
-
-        const controls = orbitControlsRef.current;
-        if (!controls || controls.enabled === false) return;
-
-        event.preventDefault();
-        event.stopPropagation();
-
-        if (!orbitInteractionActiveRef.current) {
-          trackpadGestureActionRef.current = action;
-          handleOrbitStart();
-        } else {
-          trackpadGestureActionRef.current = action;
-        }
-
-        if (!applyTrackpadGesture(action, event)) {
-          trackpadGestureActionRef.current = null;
-          handleOrbitEnd();
-          return;
-        }
-
-        handleOrbitChange();
-        scheduleTrackpadGestureEnd();
-      } catch (error) {
-        console.error('[SceneCanvas] Trackpad wheel handler failed; disabling current trackpad gesture frame.', error);
-        trackpadGestureActionRef.current = null;
-        clearPendingTrackpadGestureEnd();
-      }
-    };
-
-    const forceTrackpadGestureEnd = () => {
-      clearPendingTrackpadGestureEnd();
-      if (trackpadGestureActionRef.current === null) return;
-      trackpadGestureActionRef.current = null;
-      handleOrbitEnd();
-    };
-
-    container.addEventListener('wheel', onTrackpadWheel, { capture: true, passive: false });
-    window.addEventListener('blur', forceTrackpadGestureEnd);
-    document.addEventListener('visibilitychange', forceTrackpadGestureEnd);
-
-    return () => {
-      container.removeEventListener('wheel', onTrackpadWheel, true);
-      window.removeEventListener('blur', forceTrackpadGestureEnd);
-      document.removeEventListener('visibilitychange', forceTrackpadGestureEnd);
-      // Deliberately NOT forceTrackpadGestureEnd(): this effect re-runs whenever
-      // one of the callbacks it closes over gets a new identity, which happens
-      // mid-gesture (the first wheel event calls onCameraChange, that updates
-      // page state, and the changed callbacks rebuild this effect). Ending the
-      // gesture there killed the interaction on every event — the camera only
-      // moved because the old code moved it synchronously, inside the wheel
-      // handler. The gesture's own ends are the idle timeout, blur /
-      // visibilitychange, and unmount.
-    };
-  }, [
-    applyTrackpadGesture,
-    cameraTrackpadModifierKey,
+  useTrackpadWheelGestures({
+    containerRef,
+    wheelDeviceClassifierRef,
     cameraTrackpadSettings,
-    clearPendingTrackpadGestureEnd,
-    handleOrbitChange,
-    handleOrbitEnd,
-    handleOrbitStart,
+    cameraTrackpadModifierKey,
+    cameraRef,
+    orbitControlsRef,
     orthoSceneRadiusMm,
     perspectiveFov,
+    orbitInteractionActiveRef,
+    trackpadGestureActionRef,
+    handleOrbitStart,
+    applyTrackpadGesture,
+    handleOrbitEnd,
+    handleOrbitChange,
     scheduleTrackpadGestureEnd,
-  ]);
+    clearPendingTrackpadGestureEnd,
+  });
 
   React.useEffect(() => {
     const container = containerRef.current;
@@ -5648,61 +5273,17 @@ export function SceneCanvas({
     handleSelectModeDragStart(modelId, clientX, clientY);
   }, [handleSelectModeDragStart, mode, onActiveModelChange, transformMode]);
 
-  // Window-level pointer tracking for the select-mode drag: candidate presses
-  // only start moving once the pointer crosses the drag threshold, and moves /
-  // release are followed globally so the drag survives leaving the mesh.
-  React.useEffect(() => {
-    if (mode !== 'prepare' || transformMode !== 'select') return;
-
-    const handleWindowPointerMove = (e: PointerEvent) => {
-      const candidate = selectDragCandidateRef.current;
-      if (!candidate) return;
-
-      // Only a held left button drives the model move — a right-button orbit
-      // started while the left press is still down must not drag the model.
-      if ((e.buttons & 1) === 0) {
-        if (selectDragActiveRef.current) finishSelectDrag();
-        return;
-      }
-
-      if (!selectDragActiveRef.current) {
-        const dx = e.clientX - candidate.clientX;
-        const dy = e.clientY - candidate.clientY;
-        if (dx * dx + dy * dy < SELECT_DRAG_START_DIST_SQ) return;
-        if (!beginSelectDrag(candidate)) {
-          clearSelectDragCandidate();
-          return;
-        }
-        // Let the isGizmoDragging render (which attaches the dragged model's
-        // supports to its group) land before the first move — the same cadence
-        // the gizmo uses, so supports never detach at the start of a drag.
-        return;
-      }
-
-      applySelectDragMove(e.clientX, e.clientY);
-    };
-
-    const handleWindowPointerUp = () => {
-      if (!selectDragCandidateRef.current && !selectDragActiveRef.current) return;
-      finishSelectDrag();
-    };
-
-    window.addEventListener('pointermove', handleWindowPointerMove);
-    window.addEventListener('pointerup', handleWindowPointerUp);
-    window.addEventListener('pointercancel', handleWindowPointerUp);
-    return () => {
-      window.removeEventListener('pointermove', handleWindowPointerMove);
-      window.removeEventListener('pointerup', handleWindowPointerUp);
-      window.removeEventListener('pointercancel', handleWindowPointerUp);
-    };
-  }, [
-    applySelectDragMove,
-    beginSelectDrag,
-    clearSelectDragCandidate,
-    finishSelectDrag,
+  useSelectDragWindowListeners({
     mode,
     transformMode,
-  ]);
+    selectDragCandidateRef,
+    selectDragActiveRef,
+    finishSelectDrag,
+    SELECT_DRAG_START_DIST_SQ,
+    beginSelectDrag,
+    clearSelectDragCandidate,
+    applySelectDragMove,
+  });
 
   React.useEffect(() => {
     if (mode !== 'prepare' || transformMode !== 'select') return;
