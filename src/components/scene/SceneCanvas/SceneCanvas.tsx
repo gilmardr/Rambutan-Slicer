@@ -198,6 +198,8 @@ import { useWheelZoomInteraction } from './useWheelZoomInteraction';
 import { useModelHoverEvents } from './useModelHoverEvents';
 import { useSupportGizmoInteractionLock } from './useSupportGizmoInteractionLock';
 import { useEntryDropAnimationTicker } from './useEntryDropAnimationTicker';
+import { useSelectDragWindowListeners } from './useSelectDragWindowListeners';
+import { useEntryDropQueue } from './useEntryDropQueue';
 import { useTrackpadWheelGestures } from './useTrackpadWheelGestures';
 import { useCanvasCameraPreferences, useIsLightTheme, useThemeAccentColors } from './useCanvasPreferences';
 
@@ -4055,71 +4057,17 @@ export function SceneCanvas({
     prevTransformModeRef.current = transformMode;
   }, [mode, transformMode]);
 
-  React.useEffect(() => {
-    const currentIds = new Set(models.map((model) => model.id));
-    const initialDropOffsets: Record<string, number> = {};
-    const shouldDeferLargeModelDrop = cameraIntroRunId > cameraIntroCompletedRunId;
-
-    // Start animation for newly added mesh files
-    for (const model of models) {
-      const isKnown = knownModelIdsRef.current.has(model.id);
-      if (isKnown) continue;
-
-      knownModelIdsRef.current.add(model.id);
-
-      const isMeshFile = model.fileUrl.startsWith('blob:') || /\.(stl|3mf)$/i.test(model.name);
-      if (!isMeshFile) continue;
-
-      const dropFrom = Math.max(16, Math.min(64, model.geometry.size.z * 0.45));
-      const disableDropAnimation = model.polygonCount >= LARGE_MODEL_DROP_DEFER_THRESHOLD_POLYS;
-      if (disableDropAnimation) continue;
-
-      const skipBounce = model.polygonCount >= LARGE_MODEL_BOUNCE_THRESHOLD_POLYS;
-      const deferDrop = shouldDeferLargeModelDrop && model.polygonCount >= LARGE_MODEL_DROP_DEFER_THRESHOLD_POLYS;
-
-      if (deferDrop) {
-        pendingEntryAnimRef.current[model.id] = {
-          fromZ: dropFrom,
-          runId: cameraIntroRunId,
-          skipBounce,
-        };
-      } else {
-        // Start timer on the first rendered animation frame.
-        // This keeps the drop motion intact even if initial GPU upload blocks
-        // the main thread for hundreds of milliseconds.
-        entryAnimRef.current[model.id] = {
-          startMs: null,
-          fromZ: dropFrom,
-          skipBounce,
-        };
-        initialDropOffsets[model.id] = dropFrom;
-      }
-    }
-
-    // Cleanup removed models
-    const nextKnown = new Set<string>();
-    for (const id of knownModelIdsRef.current) {
-      if (currentIds.has(id)) {
-        nextKnown.add(id);
-      } else {
-        delete entryAnimRef.current[id];
-        delete pendingEntryAnimRef.current[id];
-      }
-    }
-    knownModelIdsRef.current = nextKnown;
-
-    setEntryDropOffsets((previous) => {
-      const next: Record<string, number> = {
-        ...initialDropOffsets,
-      };
-      Object.entries(previous).forEach(([id, offset]) => {
-        if (currentIds.has(id) && offset > 0.0001 && next[id] == null) {
-          next[id] = offset;
-        }
-      });
-      return next;
-    });
-  }, [cameraIntroCompletedRunId, cameraIntroRunId, models]);
+  useEntryDropQueue({
+    models,
+    cameraIntroRunId,
+    cameraIntroCompletedRunId,
+    knownModelIdsRef,
+    LARGE_MODEL_DROP_DEFER_THRESHOLD_POLYS,
+    LARGE_MODEL_BOUNCE_THRESHOLD_POLYS,
+    pendingEntryAnimRef,
+    entryAnimRef,
+    setEntryDropOffsets,
+  });
 
   React.useEffect(() => {
     const pendingEntries = Object.entries(pendingEntryAnimRef.current).filter(([, pending]) => pending.runId <= cameraIntroCompletedRunId);
@@ -5325,61 +5273,17 @@ export function SceneCanvas({
     handleSelectModeDragStart(modelId, clientX, clientY);
   }, [handleSelectModeDragStart, mode, onActiveModelChange, transformMode]);
 
-  // Window-level pointer tracking for the select-mode drag: candidate presses
-  // only start moving once the pointer crosses the drag threshold, and moves /
-  // release are followed globally so the drag survives leaving the mesh.
-  React.useEffect(() => {
-    if (mode !== 'prepare' || transformMode !== 'select') return;
-
-    const handleWindowPointerMove = (e: PointerEvent) => {
-      const candidate = selectDragCandidateRef.current;
-      if (!candidate) return;
-
-      // Only a held left button drives the model move — a right-button orbit
-      // started while the left press is still down must not drag the model.
-      if ((e.buttons & 1) === 0) {
-        if (selectDragActiveRef.current) finishSelectDrag();
-        return;
-      }
-
-      if (!selectDragActiveRef.current) {
-        const dx = e.clientX - candidate.clientX;
-        const dy = e.clientY - candidate.clientY;
-        if (dx * dx + dy * dy < SELECT_DRAG_START_DIST_SQ) return;
-        if (!beginSelectDrag(candidate)) {
-          clearSelectDragCandidate();
-          return;
-        }
-        // Let the isGizmoDragging render (which attaches the dragged model's
-        // supports to its group) land before the first move — the same cadence
-        // the gizmo uses, so supports never detach at the start of a drag.
-        return;
-      }
-
-      applySelectDragMove(e.clientX, e.clientY);
-    };
-
-    const handleWindowPointerUp = () => {
-      if (!selectDragCandidateRef.current && !selectDragActiveRef.current) return;
-      finishSelectDrag();
-    };
-
-    window.addEventListener('pointermove', handleWindowPointerMove);
-    window.addEventListener('pointerup', handleWindowPointerUp);
-    window.addEventListener('pointercancel', handleWindowPointerUp);
-    return () => {
-      window.removeEventListener('pointermove', handleWindowPointerMove);
-      window.removeEventListener('pointerup', handleWindowPointerUp);
-      window.removeEventListener('pointercancel', handleWindowPointerUp);
-    };
-  }, [
-    applySelectDragMove,
-    beginSelectDrag,
-    clearSelectDragCandidate,
-    finishSelectDrag,
+  useSelectDragWindowListeners({
     mode,
     transformMode,
-  ]);
+    selectDragCandidateRef,
+    selectDragActiveRef,
+    finishSelectDrag,
+    SELECT_DRAG_START_DIST_SQ,
+    beginSelectDrag,
+    clearSelectDragCandidate,
+    applySelectDragMove,
+  });
 
   React.useEffect(() => {
     if (mode !== 'prepare' || transformMode !== 'select') return;
