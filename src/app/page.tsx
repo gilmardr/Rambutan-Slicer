@@ -34,7 +34,6 @@ import {
 import { useMirrorManager } from '@/features/mirror/useMirrorManager';
 import { useArrangeManager } from '@/features/scene/arrange/useArrangeManager';
 import { useHolePunchManager } from '@/features/hole-punching/useHolePunchManager';
-import { type MeshShaderType } from '@/features/shaders/mesh';
 import { useHollowingManager } from '@/features/hollowing/useHollowingManager';
 import type { HollowingManagerDeps } from '@/features/hollowing/useHollowingManager';
 import { useModifierApplyOverlay } from '@/features/hollowing/useModifierApplyOverlay';
@@ -261,6 +260,9 @@ import { useModifierApplyOverlayElapsedLabel } from './home/useModifierApplyOver
 import { useCameraBackgroundWorkPause } from './home/useCameraBackgroundWorkPause';
 import { useRemoteOfflineLayerHeightSnapshot } from './home/useRemoteOfflineLayerHeightSnapshot';
 import { useActiveModelSupportTips } from './home/useActiveModelSupportTips';
+import { useHoldEmptyStateDuringSceneImport } from './home/useHoldEmptyStateDuringSceneImport';
+import { useSaveAsHotkey } from './home/useSaveAsHotkey';
+import { useOverhangViewToggle } from './home/useOverhangViewToggle';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -5459,23 +5461,7 @@ export default function Home() {
   }, [nativePickerPreparationState, scene.importProgress, scene.pluginImportPhase, _]);
 
   const showInlineEmptyLoading = scene.models.length === 0 && (importOverlayState.active || pendingStartupSceneHandoff);
-  const [holdEmptyStateSceneImportUi, setHoldEmptyStateSceneImportUi] = React.useState(false);
-
-  React.useEffect(() => {
-    const isSceneImportActive =
-      (scene.importProgress.active
-        && (scene.importProgress.type === 'scene' || scene.importProgress.type === 'mesh'))
-      || scene.pluginImportPhase === 'processing';
-
-    if (isSceneImportActive && scene.models.length === 0) {
-      setHoldEmptyStateSceneImportUi(true);
-      return;
-    }
-
-    if (!isSceneImportActive && holdEmptyStateSceneImportUi) {
-      setHoldEmptyStateSceneImportUi(false);
-    }
-  }, [holdEmptyStateSceneImportUi, scene.importProgress.active, scene.importProgress.type, scene.pluginImportPhase, scene.models.length]);
+  const holdEmptyStateSceneImportUi = useHoldEmptyStateDuringSceneImport({ scene });
 
   const showEmptyStatePanel = scene.models.length === 0 || holdEmptyStateSceneImportUi;
   const showEmptyStateLoading = showInlineEmptyLoading || holdEmptyStateSceneImportUi;
@@ -6510,19 +6496,7 @@ export default function Home() {
     };
   }, [isSelectAllModelsActive]);
 
-  const saveAsActive = useActionActive('GLOBAL', 'SAVE_AS');
-  const wasSaveAsActive = React.useRef(false);
-
-  React.useEffect(() => {
-    if (!saveAsActive || wasSaveAsActive.current) {
-      wasSaveAsActive.current = saveAsActive;
-      return;
-    }
-    wasSaveAsActive.current = true;
-
-    if (scene.models.length === 0) return;
-    handleTopBarSaveSceneAs();
-  }, [saveAsActive, scene.models.length, handleTopBarSaveSceneAs]);
+  useSaveAsHotkey({ scene, handleTopBarSaveSceneAs });
 
   React.useEffect(() => {
     let cancelled = false;
@@ -7017,20 +6991,10 @@ export default function Home() {
     ? 'xray'
     : scene.shaderType;
 
-  // The Overhangs quick toggle remembers what it interrupted, so turning it off
-  // puts the viewport back where it was rather than on an arbitrary mode.
-  const preOverhangViewTypeRef = React.useRef<MeshShaderType>('soft_clay');
-  const toggleOverhangView = React.useCallback((next: boolean) => {
-    if (next) {
-      if (scene.shaderType !== 'overhang_heatmap') {
-        preOverhangViewTypeRef.current = scene.shaderType;
-      }
-      scene.setShaderType('overhang_heatmap');
-      return;
-    }
-    const previous = preOverhangViewTypeRef.current;
-    scene.setShaderType(previous === 'overhang_heatmap' ? 'soft_clay' : previous);
-  }, [scene.shaderType, scene.setShaderType]);
+  const toggleOverhangView = useOverhangViewToggle({
+    shaderType: scene.shaderType,
+    setShaderType: scene.setShaderType,
+  });
 
   // Populate the hollowing manager deps now that the hole-punch manager and
   // shared callbacks exist (breaks the TDZ/dependency cycle).
