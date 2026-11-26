@@ -194,7 +194,7 @@ import {
   getWorkspaceCameraSettingsSnapshot,
   subscribeToWorkspaceCameraSettings,
 } from '@/components/settings/workspaceCameraPreferences';
-import { openProfileSettingsModal, PROFILE_SETTINGS_MODAL_OPEN_CHANGE_EVENT } from '@/components/settings/profileModalEvents';
+import { openProfileSettingsModal } from '@/components/settings/profileModalEvents';
 import { FirstRunOnboarding } from '@/components/layout/FirstRunOnboarding';
 import {
   getProfileMonitoringUiAdapter,
@@ -263,6 +263,7 @@ import { useActiveModelSupportTips } from './home/useActiveModelSupportTips';
 import { useHoldEmptyStateDuringSceneImport } from './home/useHoldEmptyStateDuringSceneImport';
 import { useSaveAsHotkey } from './home/useSaveAsHotkey';
 import { useOverhangViewToggle } from './home/useOverhangViewToggle';
+import { useStaleSliceKickFromPrinting } from './home/useStaleSliceKickFromPrinting';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -4415,36 +4416,7 @@ export default function Home() {
     }
   }, [scene.models.length, scene.mode, scene, slicedPlates]);
 
-  // Track whether the profile settings modal is currently open so we can
-  // defer the printing-workspace kick until after the user closes it.
-  const isProfileModalOpenRef = React.useRef(false);
-  const pendingPrintingKickRef = React.useRef(false);
-  React.useEffect(() => {
-    const handler = (e: Event) => {
-      const isOpen = (e as CustomEvent<{ isOpen: boolean }>).detail.isOpen;
-      isProfileModalOpenRef.current = isOpen;
-      if (!isOpen && pendingPrintingKickRef.current) {
-        pendingPrintingKickRef.current = false;
-        scene.setMode('prepare');
-        setShowPrintingResliceModal(true);
-      }
-    };
-    window.addEventListener(PROFILE_SETTINGS_MODAL_OPEN_CHANGE_EVENT, handler);
-    return () => window.removeEventListener(PROFILE_SETTINGS_MODAL_OPEN_CHANGE_EVENT, handler);
-  }, [scene]);
-
-  // If artifact becomes invalid while already in printing workspace, kick back and show modal.
-  // If the profile settings modal is currently open, defer until it closes.
-  React.useEffect(() => {
-    if (scene.mode === 'printing' && isActiveSliceStale) {
-      if (isProfileModalOpenRef.current) {
-        pendingPrintingKickRef.current = true;
-      } else {
-        scene.setMode('prepare');
-        setShowPrintingResliceModal(true);
-      }
-    }
-  }, [isActiveSliceStale, scene.mode, scene]);
+  useStaleSliceKickFromPrinting({ scene, isActiveSliceStale, setShowPrintingResliceModal });
 
   // Auto-trigger upload/print when entering printing workspace via a Slice & Upload / Slice & Print intent
   React.useEffect(() => {
