@@ -51,7 +51,7 @@ import { SnapAngleReadout } from '@/components/gizmo/rotate/SnapAngleReadout';
 import { RotationHintTooltip } from '@/components/gizmo/rotate/RotationHintTooltip';
 import {
 } from '@/components/controls/ArrangePanel';
-import { contactEndpointsFor, countSupportCollections, MODEL_ID_COLLECTION_KEYS, SUPPORT_COLLECTION_KEYS, SUPPORT_TYPES, type SupportCollectionKey } from '@/supports/supportTypeRegistry';
+import { contactEndpointsFor, countSupportCollections, SUPPORT_COLLECTION_KEYS, SUPPORT_TYPES, type SupportCollectionKey } from '@/supports/supportTypeRegistry';
 import { SupportProximityPanel } from '@/components/controls/SupportProximityPanel';
 import { SuctionCupDetectorPanel } from '@/components/organisms/panels/SuctionCupDetectorPanel';
 import { SupportSidebar } from '@/supports/Settings/SupportSidebar';
@@ -99,12 +99,8 @@ import { EditorContextMenu } from '@/components/ui/EditorContextMenu';
 import { StructuredDialogModal } from '@/components/ui/StructuredDialogModal';
 import { eulerFromGlobalEuler, quaternionFromGlobalEuler } from '@/utils/rotation';
 import {
-  getToolLayout,
-  isModelsPanelVisibleEnabled,
   setModelsPanelVisibleEnabled,
   setToolLayout,
-  TOOL_LAYOUT_EVENT,
-  type ToolLayout,
 } from '@/components/layout/floatingLayoutPreferences';
 
 import { initializeBVH } from '@/utils/bvh';
@@ -143,11 +139,6 @@ import {
   getHomeSupportCollectionsSnapshot,
   getHomeKickstandCollectionsSnapshot,
 } from '@/features/supports/supportSnapshotHelpers';
-import {
-  EXPORT_THUMBNAIL_RENDER_OPTIONS_STORAGE_KEY,
-  resolveInitialExportThumbnailRenderOptions,
-  type ExportThumbnailRenderOptions,
-} from '@/features/export/exportThumbnailOptions';
 import { isDragonfruitTempArtifactPath } from '@/features/import-export/fileHandling';
 import { getPluginSceneOverlayLoader } from '@/features/plugins/pluginRegistry';
 import { isExperimentEnabled, subscribeToExperiments } from '@/features/experiments/experimentsRegistry';
@@ -248,7 +239,7 @@ import {
 } from '@/components/settings/uvToolsPreferences';
 import { subscribe as subscribeSupportState, getSnapshot as getSupportSnapshot, getModelIdForSupportEntityId } from '@/supports/state';
 import { bracePlacementStore } from '@/supports/SupportTypes/Brace/bracePlacementState';
-import { formatSelectedModelCount, formatArrangeOverflowMessage, formatProcessingElapsedLabel, formatApplyingToModelLabel, formatElapsedLabel, formatUploadToLabel, formatEstimatedPrintTimeLabel, formatLastSuccessfulAutosave, formatPlateLockedNotice } from './home/homeFormatters';
+import { formatArrangeOverflowMessage, formatProcessingElapsedLabel, formatApplyingToModelLabel, formatElapsedLabel, formatUploadToLabel, formatEstimatedPrintTimeLabel, formatPlateLockedNotice } from './home/homeFormatters';
 import { countRecordEntries, getDefaultHolePunchDepthMm, createModelTransformKey, PREPARE_TOOL_MODES, isAppMode, isTransformMode } from './home/homeUtils';
 import { getLongPartPlateYaw, computeArrangeSupportBounds } from './home/homeArrangeGeometry';
 import { useResinEstimate } from './home/useResinEstimate';
@@ -257,19 +248,26 @@ import { useEditorDebugPanels } from './home/useEditorDebugPanels';
 import { usePluginImportWarning } from './home/usePluginImportWarning';
 import { useSceneSaveChoicePrompt } from './home/useSceneSaveChoicePrompt';
 import { useUnsavedSceneChanges } from './home/useUnsavedSceneChanges';
+import { useNewDeviceToast } from './home/useNewDeviceToast';
+import { useSceneSaveError } from './home/useSceneSaveError';
+import { useManifoldWarning } from './home/useManifoldWarning';
+import { useToolRailLayout } from './home/useToolRailLayout';
+import { useExportThumbnailRenderOptions } from './home/useExportThumbnailRenderOptions';
+import { useOnboardingWizard } from './home/useOnboardingWizard';
+import { useModelStatsClearance } from './home/useModelStatsClearance';
+import { useDestructiveTransformGuard } from './home/useDestructiveTransformGuard';
+import { useEditorRightClickGesture } from './home/useEditorRightClickGesture';
+import { useModifierApplyOverlayElapsedLabel } from './home/useModifierApplyOverlayElapsedLabel';
+import { useCameraBackgroundWorkPause } from './home/useCameraBackgroundWorkPause';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
 import { getRaftSettings, getRaftSettingsForModel, subscribeToRaftStore } from '@/supports/Rafts/Crenelated/RaftState';
-import { getSupportsForModel } from '@/supports/PlacementLogic/SupportModelLinker';
 import { buildProjectedCrossSectionZRange } from '@/features/slicing/rasterLayerZipExport';
 import { resolveCompositeMaterialLabel } from '@/utils/materialLabel';
 
 import type { ModelTransform, TransformMode } from '@/hooks/useModelTransform';
-import {
-  useSceneAutosave,
-  SCENE_AUTOSAVE_FAILED_EVENT,
-} from '@/hooks/useSceneAutosave';
+import { useSceneAutosave } from '@/hooks/useSceneAutosave';
 import { ManifoldWarningModal } from '@/components/modals/ManifoldWarningModal';
 import { TetrahedralRemeshConfirmModal } from '@/components/modals/TetrahedralRemeshConfirmModal';
 import { ShrinkWrapConfirmModal } from '@/components/modals/ShrinkWrapConfirmModal';
@@ -290,8 +288,6 @@ import type {
   ModelMeshModifiersHistoryOptions,
 } from '@/features/mesh-modifiers/types';
 import {
-  deleteSupportsForModelLabel,
-  deleteSupportsForModelsLabel,
   HOLLOWING_SETTINGS_LABEL,
   modelTransformLabel,
   ORGANIC_CUT_LABEL,
@@ -426,7 +422,7 @@ type PendingSupportDragSyncTransaction = {
 };
 
 export default function Home() {
-  const { _, i18n } = useLingui();
+  const { _ } = useLingui();
   const fmt = useLocaleFormat();
   const { stage, sproutParentingLockHeld } = useLeafPlacementState();
   // Supports undo/redo handlers register for the lifetime of the app root, not
@@ -487,15 +483,11 @@ export default function Home() {
     [scene.activePlateId, scene.models, scene.resolveModelPlateId],
   );
 
-  // Warn when an imported mesh fails the manifold_csg validity check — the same
-  // models shown with the red striped overlay in the viewport. Only a single
-  // warning is shown per import job: as soon as any newly-imported model is
-  // flagged, every currently-flagged model is marked as warned so the rest of
-  // the batch does not pop additional modals.
-  const warnedManifoldModelIdsRef = React.useRef<Set<string>>(new Set());
-  const [showManifoldWarning, setShowManifoldWarning] = React.useState(false);
-  // The model the warning's Repair Now button repairs: the first flagged one.
-  const [manifoldWarningModelId, setManifoldWarningModelId] = React.useState<string | null>(null);
+  const {
+    showManifoldWarning,
+    setShowManifoldWarning,
+    manifoldWarningModelId,
+  } = useManifoldWarning({ scene });
   // Restarting the timer on every refusal means holding the lock and clicking about
   // keeps one toast on screen rather than stacking them.
   notifyPlateLockedRef.current = (plateId) => {
@@ -516,16 +508,6 @@ export default function Home() {
     const plate = index >= 0 ? scene.plates[index] : undefined;
     return plate?.name.trim() || plateNumberPlaceholder((index >= 0 ? index : 0) + 1, _);
   }, [_, plateLockedNoticePlateId, scene.activePlateId, scene.plates]);
-  React.useEffect(() => {
-    const flagged = scene.models.filter(
-      (model) => model.geometry?.meshDefects?.nativeRepairReport?.model_is_manifold === false,
-    );
-    const hasUnwarned = flagged.some((model) => !warnedManifoldModelIdsRef.current.has(model.id));
-    if (!hasUnwarned) return;
-    for (const model of flagged) warnedManifoldModelIdsRef.current.add(model.id);
-    setManifoldWarningModelId(flagged[0].id);
-    setShowManifoldWarning(true);
-  }, [scene.models]);
 
   const importSceneFile = scene.importSceneFile;
   const importSceneFiles = scene.importSceneFiles;
@@ -754,9 +736,12 @@ export default function Home() {
     lastPushApplied: null,
     lastAt: null,
   });
-  const [newDeviceToast, setNewDeviceToast] = React.useState<string | null>(null);
-  const [isNewDeviceToastVisible, setIsNewDeviceToastVisible] = React.useState(false);
-  const newDeviceToastTimeoutRef = React.useRef<number | null>(null);
+  const {
+    newDeviceToast,
+    isNewDeviceToastVisible,
+    setIsNewDeviceToastVisible,
+    handleNewDeviceDetected,
+  } = useNewDeviceToast();
   const [isSceneSaveInProgress, setIsSceneSaveInProgress] = React.useState(false);
   const [isPreSliceSceneSaveInProgress, setIsPreSliceSceneSaveInProgress] = React.useState(false);
   const {
@@ -868,45 +853,11 @@ export default function Home() {
     installPerfConsoleAPI();
   }, []);
 
-  /**
-   * User-facing scene-save failure (Ph0.1 sub-phase D).
-   *
-   * Two producers, one surface: the 4 GiB VOXL guard rejecting an explicit save
-   * (D1), and a persistently failing autosave (D3 / finding N4). Both were
-   * previously `console.error` into a console the user never opens — and in the
-   * 4 GiB case the alternative was worse than silence, because the writer
-   * wrapped its `u32` offsets and produced a file that parsed and was wrong.
-   */
-  const [sceneSaveError, setSceneSaveError] = React.useState<{
-    title: string;
-    message: string;
-    detail?: string | null;
-  } | null>(null);
-
-  /**
-   * Persistent autosave failure (Ph0.1 D3, finding N4).
-   *
-   * Fires once per outage, after two consecutive failures — one failure is a
-   * transient (antivirus on the destination, a share blinking), two across a
-   * 30 s debounce is a condition. Before this the user's only signal was a
-   * recovery prompt at next launch showing an hour-old timestamp.
-   */
-  React.useEffect(() => {
-    const onAutosaveFailed = (event: Event) => {
-      const detail = (event as CustomEvent<{ message?: string; lastSuccessAt?: string | null }>).detail;
-      setSceneSaveError({
-        title: _(msg`Autosave is not working`),
-        message: detail?.message ?? _(msg`The background recovery save failed repeatedly.`),
-        detail: detail?.lastSuccessAt
-          ? formatLastSuccessfulAutosave(_, new Date(detail.lastSuccessAt).toLocaleString(i18n.locale))
-          : _(msg`No autosave has succeeded this session. Save your project manually.`),
-      });
-    };
-    window.addEventListener(SCENE_AUTOSAVE_FAILED_EVENT, onAutosaveFailed);
-    return () => window.removeEventListener(SCENE_AUTOSAVE_FAILED_EVENT, onAutosaveFailed);
-  }, [_, i18n.locale, setSceneSaveError]);
-
-  const dismissSceneSaveError = React.useCallback(() => setSceneSaveError(null), []);
+  const {
+    sceneSaveError,
+    setSceneSaveError,
+    dismissSceneSaveError,
+  } = useSceneSaveError();
 
   // Editor toast/notification subsystem (state, refs, fade/show effects,
   // helpers). Triggers stay in Home and call these returned setters; the
@@ -946,15 +897,13 @@ export default function Home() {
 
   const [interiorView, setInteriorView] = React.useState(false);
   const isSupportSpotlightHoldActive = useActionActive('SUPPORTS', 'TEMP_SPOTLIGHT_HOLD');
-  const [allowPrepareWithoutPrinter, setAllowPrepareWithoutPrinter] = React.useState(false);
-  // First-run onboarding. `mounted` avoids SSR/client mismatches: the wizard is
-  // only rendered after hydration. `wizardActive` latches the wizard open for
-  // the session once it starts, so it can play its finalization step after a
-  // printer is added instead of unmounting the moment a profile exists. It is
-  // (re)opened whenever there are no printer profiles, and by the debug
-  // Ctrl+Shift+O replay even when a printer already exists.
-  const [onboardingMounted, setOnboardingMounted] = React.useState(false);
-  const [wizardActive, setWizardActive] = React.useState(false);
+  const {
+    allowPrepareWithoutPrinter,
+    onboardingMounted,
+    wizardActive,
+    setWizardActive,
+    handleUseWithoutPrinter,
+  } = useOnboardingWizard({ hasPrinterProfiles, hasActivePrinterProfile });
   const [selectedHolePunchPlacementIds, setSelectedHolePunchPlacementIds] = React.useState<string[]>([]);
   const [hoveredHolePunchPlacementId, setHoveredHolePunchPlacementId] = React.useState<string | null>(null);
   const [holePunchHoverPlacement, setHolePunchHoverPlacement] = React.useState<HolePunchPlacementState | null>(null);
@@ -980,29 +929,11 @@ export default function Home() {
   });
   const [pendingModifierResetAction, setPendingModifierResetAction] = React.useState<PendingModifierResetAction | null>(null);
   const [pendingBlockerResetState, setPendingBlockerResetState] = React.useState<HollowingPanelState | null>(null);
-  // Tool rail's `Models` entry. Defaults to shown, which is how the list behaved
-  // before the rail existed; the stored value is applied on mount, not at render,
-  // because localStorage does not exist during the server render.
-  const [modelsPanelVisible, setModelsPanelVisible] = React.useState<boolean>(true);
-  React.useEffect(() => {
-    setModelsPanelVisible(isModelsPanelVisibleEnabled());
-  }, []);
-  // Column on the left edge or bar under the app bar; Settings and the rail's own
-  // context menu both write the preference and announce it. The fold animation
-  // itself lives in `ToolRail`, which measures the entries as the layout lands.
-  const [toolLayout, setToolLayoutState] = React.useState<ToolLayout>('horizontal');
-  React.useEffect(() => {
-    setToolLayoutState(getToolLayout());
-
-    const handleToolLayoutChanged = (event: Event) => {
-      setToolLayoutState((event as CustomEvent<{ layout?: ToolLayout }>).detail?.layout ?? getToolLayout());
-    };
-
-    window.addEventListener(TOOL_LAYOUT_EVENT, handleToolLayoutChanged as EventListener);
-    return () => {
-      window.removeEventListener(TOOL_LAYOUT_EVENT, handleToolLayoutChanged as EventListener);
-    };
-  }, []);
+  const {
+    modelsPanelVisible,
+    setModelsPanelVisible,
+    toolLayout,
+  } = useToolRailLayout();
   const [editorContextMenuPos, setEditorContextMenuPos] = React.useState<{ x: number; y: number } | null>(null);
   // Support mode's rail selects a panel or interaction tool, like Prepare's selects a
   // transform mode: the selected tool's panel is the one shown and the others are
@@ -1131,7 +1062,7 @@ export default function Home() {
     () => getDefaultHolePunchDepthMm(hollowingState.shellThicknessMm),
     [hollowingState.shellThicknessMm],
   );
-  const [exportThumbnailRenderOptions, setExportThumbnailRenderOptions] = React.useState<ExportThumbnailRenderOptions>(resolveInitialExportThumbnailRenderOptions);
+  const { exportThumbnailRenderOptions, setExportThumbnailRenderOptions } = useExportThumbnailRenderOptions();
   const previousSceneModeRef = React.useRef<typeof scene.mode>(scene.mode);
   const preservedNonPrintingLayerIndexRef = React.useRef<number | null>(null);
   const triggerSliceExportRef = React.useRef<(() => void) | null>(null);
@@ -1197,14 +1128,6 @@ export default function Home() {
   const [isCrossSectionEnabled, setIsCrossSectionEnabled] = React.useState(true);
   const handleToggleCrossSection = React.useCallback(() => setIsCrossSectionEnabled((prev) => !prev), []);
   const [arrangeSpacingMm, setArrangeSpacingMm] = React.useState(0.5);
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(
-      EXPORT_THUMBNAIL_RENDER_OPTIONS_STORAGE_KEY,
-      JSON.stringify(exportThumbnailRenderOptions),
-    );
-  }, [exportThumbnailRenderOptions]);
 
   React.useEffect(() => {
     if (!scene.sceneImportPlacementPrompt) return;
@@ -1280,8 +1203,6 @@ export default function Home() {
   const modifierApplyProcessingLabel = applyAllHolePunchProgress
     ? formatApplyingToModelLabel(_, Math.min(applyAllHolePunchProgress.done + 1, applyAllHolePunchProgress.total), applyAllHolePunchProgress.total)
     : _(msg`Processing 1 model`);
-  const [modifierApplyOverlayElapsedSec, setModifierApplyOverlayElapsedSec] = React.useState(0);
-
   const modifierApplyOverlayContent = React.useMemo(() => {
     if (isApplyingHollowing && pendingHolePunchAutoApplyModelId) {
       return {
@@ -1334,36 +1255,10 @@ export default function Home() {
     };
   }, [_, finalizingOverlayContent, isApplyingBlockersHollowing, isApplyingHolePunch, isApplyingHollowing, pendingHolePunchAutoApplyModelId]);
 
-  React.useEffect(() => {
-    if (!showModifierApplyBlockingOverlay) {
-      setModifierApplyOverlayElapsedSec(0);
-      return;
-    }
-
-    const startedAt = Date.now();
-    const id = window.setInterval(() => {
-      setModifierApplyOverlayElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
-    }, 250);
-
-    return () => window.clearInterval(id);
-  }, [showModifierApplyBlockingOverlay]);
-
-  const modifierApplyOverlayElapsedLabel = React.useMemo(() => {
-    const total = Math.max(0, modifierApplyOverlayElapsedSec);
-    const minutes = Math.floor(total / 60);
-    const seconds = total % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  }, [modifierApplyOverlayElapsedSec]);
+  const modifierApplyOverlayElapsedLabel = useModifierApplyOverlayElapsedLabel(showModifierApplyBlockingOverlay);
 
   const [supportRenderRefreshNonce, setSupportRenderRefreshNonce] = React.useState(0);
   const [gizmoResetNonce, setGizmoResetNonce] = React.useState(0);
-  const [pendingDestructiveTransform, setPendingDestructiveTransform] = React.useState<{
-    modelIds: string[];
-    modelName: string;
-    supportCount: number;
-    operationLabel: string;
-  } | null>(null);
-  const pendingDestructiveTransformContinueRef = React.useRef<(() => void) | null>(null);
   const desktopWindowRevealRequestedRef = React.useRef(false);
 
   const suppressTransformPersistenceCycles = React.useCallback((cycles = 1) => {
@@ -1376,8 +1271,7 @@ export default function Home() {
     }
     suppressNextTransformPersistenceRef.current = true;
   }, []);
-  const modelStatsCardContainerRef = React.useRef<HTMLDivElement | null>(null);
-  const [modelStatsBottomClearancePx, setModelStatsBottomClearancePx] = React.useState(220);
+  const { modelStatsCardContainerRef, modelStatsBottomClearancePx } = useModelStatsClearance({ scene });
   const trackSupportCollectionsInHome = scene.mode !== 'support';
   
   // Stable snapshot functions for useSyncExternalStore
@@ -1777,79 +1671,14 @@ export default function Home() {
     };
   }, [bracePlacementSnapshot, supportShaftHoverDebug.point, supportShaftHoverDebug.segmentId, transformDebugTick]);
 
-  // Reads the live stores directly: Home's subscribed snapshot is an empty
-  // stub in support mode (trackSupportCollectionsInHome), so counting from it
-  // would silently report zero exactly where orient needs the truth. In
-  // prepare mode the stub mirrors the store, so existing callers are unaffected.
-  // Summed over every modelId-bearing collection, so a model carrying only one
-  // type still reports its supports.
-  const getSupportPrimitiveCountForModel = React.useCallback((modelId: string | null | undefined) => {
-    if (!modelId) return 0;
-
-    const supportIds = getSupportsForModel(getSupportSnapshot(), modelId);
-    return MODEL_ID_COLLECTION_KEYS.reduce((total, key) => total + supportIds[key].length, 0);
-  }, []);
-
-  /**
-   * Asks before a transform that would invalidate supports. `modelIds` defaults to the active
-   * model; a selection edit passes the whole selection, so the prompt counts, and the
-   * confirmation deletes, the supports of every model it is about to change.
-   */
-  const requestDestructiveTransformSupportDeletion = React.useCallback((
-    operationLabel: string,
-    modelIds?: readonly string[],
-  ) => {
-    if (scene.mode !== 'prepare') return true;
-    const targetIds = modelIds ?? (scene.activeModelId ? [scene.activeModelId] : []);
-    if (targetIds.length === 0) return true;
-    if (pendingDestructiveTransform) return false;
-
-    const supportedIds = targetIds.filter((modelId) => getSupportPrimitiveCountForModel(modelId) > 0);
-    if (supportedIds.length === 0) return true;
-    const supportCount = supportedIds.reduce((total, modelId) => total + getSupportPrimitiveCountForModel(modelId), 0);
-
-    const firstModel = scene.models.find((model) => model.id === supportedIds[0]);
-    setPendingDestructiveTransform({
-      modelIds: supportedIds,
-      modelName: supportedIds.length === 1
-        ? (firstModel?.name ?? supportedIds[0]).trim()
-        : formatSelectedModelCount(_, supportedIds.length),
-      supportCount,
-      operationLabel,
-    });
-    return false;
-  }, [_, getSupportPrimitiveCountForModel, pendingDestructiveTransform, scene.activeModelId, scene.mode, scene.models]);
-
-  const requestDestructiveTransformSupportDeletionWithContinuation = React.useCallback((
-    operationLabel: string,
-    onContinue: () => void,
-  ) => {
-    const proceedImmediately = requestDestructiveTransformSupportDeletion(operationLabel);
-    if (proceedImmediately) {
-      pendingDestructiveTransformContinueRef.current = null;
-      return true;
-    }
-
-    pendingDestructiveTransformContinueRef.current = onContinue;
-    return false;
-  }, [requestDestructiveTransformSupportDeletion]);
-
-  const requestOrientSupportDeletionWithContinuation = React.useCallback((onContinue: () => void) => {
-    // Unlike the prepare-mode destructive transforms, orient always forces the
-    // dialog when placed supports would be invalidated by the rotation.
-    if (!scene.activeModelId) return true;
-    if (pendingDestructiveTransform) return false;
-    const supportCount = getSupportPrimitiveCountForModel(scene.activeModelId);
-    if (supportCount <= 0) return true;
-    setPendingDestructiveTransform({
-      modelIds: [scene.activeModelId],
-      modelName: (scene.activeModel?.name ?? scene.activeModelId).trim(),
-      supportCount,
-      operationLabel: 'Auto Orient',
-    });
-    pendingDestructiveTransformContinueRef.current = onContinue;
-    return false;
-  }, [getSupportPrimitiveCountForModel, pendingDestructiveTransform, scene]);
+  const {
+    pendingDestructiveTransform,
+    requestDestructiveTransformSupportDeletion,
+    requestDestructiveTransformSupportDeletionWithContinuation,
+    requestOrientSupportDeletionWithContinuation,
+    handleConfirmDestructiveTransform,
+    handleCancelDestructiveTransform,
+  } = useDestructiveTransformGuard({ scene, setSupportRenderRefreshNonce, setGizmoResetNonce });
 
   const handleApplyOrientation = React.useCallback((
     modelId: string,
@@ -2055,56 +1884,6 @@ export default function Home() {
     })(); });
   }, [handleApplyOrientation, scene.activeModel, scene.activeModelId, showOrientationToast, transformMgr.autoLift]);
 
-  const handleConfirmDestructiveTransform = React.useCallback(() => {
-    const pending = pendingDestructiveTransform;
-    if (!pending) return;
-
-    scene.deleteSupportsForModels(
-      pending.modelIds,
-      pending.modelIds.length === 1
-        ? deleteSupportsForModelLabel(pending.modelName)
-        : deleteSupportsForModelsLabel(pending.modelIds.length),
-    );
-
-    setSupportRenderRefreshNonce((value) => value + 1);
-    setGizmoResetNonce((value) => value + 1);
-    setPendingDestructiveTransform(null);
-    const continueAfterDeletion = pendingDestructiveTransformContinueRef.current;
-    pendingDestructiveTransformContinueRef.current = null;
-    continueAfterDeletion?.();
-  }, [pendingDestructiveTransform, scene]);
-
-  const handleCancelDestructiveTransform = React.useCallback(() => {
-    pendingDestructiveTransformContinueRef.current = null;
-    setPendingDestructiveTransform(null);
-  }, []);
-
-  React.useLayoutEffect(() => {
-    const element = modelStatsCardContainerRef.current;
-    if (!element) {
-      setModelStatsBottomClearancePx(220);
-      return;
-    }
-
-    const updateClearance = () => {
-      const rect = element.getBoundingClientRect();
-      const bottomMarginPx = 12; // bottom-3 (aligned with floating panel margin)
-      const safetyGapPx = 14;
-      const measured = Math.ceil(rect.height + bottomMarginPx + safetyGapPx);
-      setModelStatsBottomClearancePx(Math.max(220, measured));
-    };
-
-    updateClearance();
-    const observer = new ResizeObserver(() => {
-      updateClearance();
-    });
-
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [scene.models.length]);
-  const rightClickGestureRef = React.useRef<{ x: number; y: number; moved: boolean } | null>(null);
-  const suppressEditorContextMenuUntilRef = React.useRef(0);
-  const cameraResumeTimeoutRef = React.useRef<number | null>(null);
   // Kept for its subscription: Home re-renders when the hotkey config changes.
   useHotkeyConfig();
 
@@ -3842,26 +3621,6 @@ export default function Home() {
   }, [invalidatePendingTransformHistory]);
 
 
-  const handleNewDeviceDetected = React.useCallback((deviceId: string) => {
-    setNewDeviceToast(deviceId);
-    setIsNewDeviceToastVisible(true);
-    if (newDeviceToastTimeoutRef.current !== null) {
-      window.clearTimeout(newDeviceToastTimeoutRef.current);
-    }
-    newDeviceToastTimeoutRef.current = window.setTimeout(() => {
-      setIsNewDeviceToastVisible(false);
-      newDeviceToastTimeoutRef.current = null;
-    }, 9000);
-  }, []);
-
-  React.useEffect(() => {
-    return () => {
-      if (newDeviceToastTimeoutRef.current !== null) {
-        window.clearTimeout(newDeviceToastTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const cancelPendingHistoryTransformResyncFrames = React.useCallback(() => {
     if (historyTransformResyncRafRef.current !== null) {
       window.cancelAnimationFrame(historyTransformResyncRafRef.current);
@@ -3941,75 +3700,17 @@ export default function Home() {
     };
   }, [cancelPendingHistoryTransformResyncFrames]);
 
-  // The Cut tool's own right-click menu, reached through a ref because the
-  // handler below is declared long before the cut session exists.
-  const organicCutContextMenuRef = React.useRef<
-    ((event: { clientX: number; clientY: number }) => boolean) | null
-  >(null);
-
-  const handleEditorPointerDownCapture = React.useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 2) return;
-    rightClickGestureRef.current = { x: e.clientX, y: e.clientY, moved: false };
-  }, []);
-
-  const handleEditorPointerMoveCapture = React.useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const gesture = rightClickGestureRef.current;
-    if (!gesture) return;
-    const dx = e.clientX - gesture.x;
-    const dy = e.clientY - gesture.y;
-    if ((dx * dx + dy * dy) > 36) {
-      gesture.moved = true;
-    }
-  }, []);
-
-  const handleEditorPointerUpCapture = React.useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 2) return;
-
-    const gesture = rightClickGestureRef.current;
-    const moved = Boolean(gesture?.moved);
-    const shouldSuppress = performance.now() < suppressEditorContextMenuUntilRef.current;
-    // No editor menu on the empty-scene welcome screen — there is nothing to act
-    // on (unless the clipboard holds a cut/copied model that could be pasted).
-    if (!moved && !shouldSuppress && (scene.models.length > 0 || scene.canPasteModel)) {
-      // Cut tool: a hovered waypoint or seam opens the cut's own menu instead of
-      // the model/support one. The session decides; we only stand down.
-      if (organicCutContextMenuRef.current?.(e)) {
-        window.setTimeout(() => { rightClickGestureRef.current = null; }, 0);
-        return;
-      }
-      if (scene.mode === 'support' && supportShaftHoverDebug.segmentId && supportShaftHoverDebug.point) {
-        setEditorContextMenuSupportTarget({
-          segmentId: supportShaftHoverDebug.segmentId,
-          point: supportShaftHoverDebug.point,
-        });
-      } else {
-        setEditorContextMenuSupportTarget(null);
-      }
-      setEditorContextMenuPos({ x: e.clientX, y: e.clientY });
-    }
-
-    // keep gesture state until contextmenu fires, clear shortly after
-    window.setTimeout(() => {
-      rightClickGestureRef.current = null;
-    }, 0);
-  }, [scene.mode, scene.models.length, scene.canPasteModel, supportShaftHoverDebug.point, supportShaftHoverDebug.segmentId]);
-
-  React.useEffect(() => {
-    const markSuppressed = (durationMs: number) => {
-      suppressEditorContextMenuUntilRef.current = Math.max(
-        suppressEditorContextMenuUntilRef.current,
-        performance.now() + durationMs,
-      );
-    };
-
-    const onOrbitChange = () => markSuppressed(300);
-
-    window.addEventListener('picking-orbit-change', onOrbitChange as EventListener);
-
-    return () => {
-      window.removeEventListener('picking-orbit-change', onOrbitChange as EventListener);
-    };
-  }, []);
+  const {
+    organicCutContextMenuRef,
+    handleEditorPointerDownCapture,
+    handleEditorPointerMoveCapture,
+    handleEditorPointerUpCapture,
+  } = useEditorRightClickGesture({
+    scene,
+    supportShaftHoverDebug,
+    setEditorContextMenuSupportTarget,
+    setEditorContextMenuPos,
+  });
 
   const {
     handleEditorMenuAction,
@@ -4953,40 +4654,6 @@ export default function Home() {
     openProfileSettingsModal('printer', { openPrinterLibrary: true });
   }, []);
 
-  const handleUseWithoutPrinter = React.useCallback(() => {
-    setAllowPrepareWithoutPrinter(true);
-  }, []);
-
-  // Mark the client as hydrated so the onboarding wizard (and top-bar chrome
-  // gating) only render after mount, avoiding SSR/client mismatches.
-  React.useEffect(() => {
-    setOnboardingMounted(true);
-  }, []);
-
-  // Reopen the wizard whenever there are no printer profiles. Once active it
-  // stays latched until onExit, so the finalization step can play after adding.
-  React.useEffect(() => {
-    if (onboardingMounted && !hasPrinterProfiles) {
-      setWizardActive(true);
-    }
-  }, [onboardingMounted, hasPrinterProfiles]);
-
-  // DEBUG: Ctrl+Shift+O re-runs the onboarding wizard. Lifts the session latch
-  // and drops this session's "use without printer" state so the wizard reappears
-  // even when a printer profile already exists.
-  React.useEffect(() => {
-    let wasActive = false;
-    const unsubscribe = hotkeyStore.subscribe(() => {
-      const isActive = isActionActiveSync('DEBUG', 'RE_RUN_ONBOARDING');
-      if (isActive && !wasActive) {
-        setWizardActive(true);
-        setAllowPrepareWithoutPrinter(false);
-      }
-      wasActive = isActive;
-    });
-    return unsubscribe;
-  }, []);
-
   // Temporary: LYS Ghost Viewer State
   const [ghostData] = React.useState<any>(null);
   const LysGhostOverlay = React.useMemo(
@@ -5758,12 +5425,6 @@ export default function Home() {
     ) return;
     scene.selectModel(scene.activeModelId, 'single');
   }, [scene.mode, transformMgr.transformMode, scene.activeModelId, scene.selectedModelIds, scene.selectModel]);
-
-  React.useEffect(() => {
-    if (!hasActivePrinterProfile) return;
-    if (!allowPrepareWithoutPrinter) return;
-    setAllowPrepareWithoutPrinter(false);
-  }, [allowPrepareWithoutPrinter, hasActivePrinterProfile]);
 
   React.useEffect(() => {
     // Skip camera changes during automatic re-slice flow to prevent flickering
@@ -6873,33 +6534,7 @@ export default function Home() {
     commitPendingTransformHistory();
   };
 
-  const handleCameraChange = React.useCallback(() => {
-    if (cameraResumeTimeoutRef.current !== null) {
-      window.clearTimeout(cameraResumeTimeoutRef.current);
-      cameraResumeTimeoutRef.current = null;
-    }
-    scene.setBackgroundGeometryWorkPaused(true);
-  }, [scene]);
-
-  const handleCameraEnd = React.useCallback(() => {
-    if (cameraResumeTimeoutRef.current !== null) {
-      window.clearTimeout(cameraResumeTimeoutRef.current);
-    }
-
-    cameraResumeTimeoutRef.current = window.setTimeout(() => {
-      scene.setBackgroundGeometryWorkPaused(false);
-      cameraResumeTimeoutRef.current = null;
-    }, 140);
-  }, [scene]);
-
-  React.useEffect(() => {
-    return () => {
-      if (cameraResumeTimeoutRef.current !== null) {
-        window.clearTimeout(cameraResumeTimeoutRef.current);
-      }
-      scene.setBackgroundGeometryWorkPaused(false);
-    };
-  }, [scene]);
+  const { handleCameraChange, handleCameraEnd } = useCameraBackgroundWorkPause({ scene });
 
   React.useEffect(() => {
     const unregister = registerDeleteHandler(
@@ -7838,7 +7473,7 @@ export default function Home() {
   // lends it the right-click gesture the editor menu shares.
   React.useEffect(() => {
     organicCutContextMenuRef.current = organicCut.tryOpenContextMenu;
-  }, [organicCut.tryOpenContextMenu]);
+  }, [organicCut.tryOpenContextMenu, organicCutContextMenuRef]);
 
   // Mirror session state: while the user is in Mirror mode we don't bake the
   // geometry per-click (a 2.4M-vert bake is slow on big meshes). Instead, each

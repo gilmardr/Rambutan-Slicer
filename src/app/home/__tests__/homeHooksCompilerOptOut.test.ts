@@ -21,6 +21,17 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['usePluginImportWarning.ts', 'usePluginImportWarning'],
   ['useSceneSaveChoicePrompt.ts', 'useSceneSaveChoicePrompt'],
   ['useUnsavedSceneChanges.ts', 'useUnsavedSceneChanges'],
+  ['useNewDeviceToast.ts', 'useNewDeviceToast'],
+  ['useSceneSaveError.ts', 'useSceneSaveError'],
+  ['useManifoldWarning.ts', 'useManifoldWarning'],
+  ['useToolRailLayout.ts', 'useToolRailLayout'],
+  ['useExportThumbnailRenderOptions.ts', 'useExportThumbnailRenderOptions'],
+  ['useOnboardingWizard.ts', 'useOnboardingWizard'],
+  ['useModelStatsClearance.ts', 'useModelStatsClearance'],
+  ['useDestructiveTransformGuard.ts', 'useDestructiveTransformGuard'],
+  ['useEditorRightClickGesture.ts', 'useEditorRightClickGesture'],
+  ['useModifierApplyOverlayElapsedLabel.ts', 'useModifierApplyOverlayElapsedLabel'],
+  ['useCameraBackgroundWorkPause.ts', 'useCameraBackgroundWorkPause'],
 ];
 
 for (const [file, hook] of HOOKS) {
