@@ -29,6 +29,7 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['useOnboardingWizard.ts', 'useOnboardingWizard'],
   ['useModelStatsClearance.ts', 'useModelStatsClearance'],
   ['useDestructiveTransformGuard.ts', 'useDestructiveTransformGuard'],
+  ['useEditorRightClickGesture.ts', 'useEditorRightClickGesture'],
 ];
 
 for (const [file, hook] of HOOKS) {
