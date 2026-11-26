@@ -51,7 +51,7 @@ import { SnapAngleReadout } from '@/components/gizmo/rotate/SnapAngleReadout';
 import { RotationHintTooltip } from '@/components/gizmo/rotate/RotationHintTooltip';
 import {
 } from '@/components/controls/ArrangePanel';
-import { contactEndpointsFor, countSupportCollections, SUPPORT_COLLECTION_KEYS, SUPPORT_TYPES, type SupportCollectionKey } from '@/supports/supportTypeRegistry';
+import { countSupportCollections, SUPPORT_COLLECTION_KEYS } from '@/supports/supportTypeRegistry';
 import { SupportProximityPanel } from '@/components/controls/SupportProximityPanel';
 import { SuctionCupDetectorPanel } from '@/components/organisms/panels/SuctionCupDetectorPanel';
 import { SupportSidebar } from '@/supports/Settings/SupportSidebar';
@@ -259,6 +259,8 @@ import { useDestructiveTransformGuard } from './home/useDestructiveTransformGuar
 import { useEditorRightClickGesture } from './home/useEditorRightClickGesture';
 import { useModifierApplyOverlayElapsedLabel } from './home/useModifierApplyOverlayElapsedLabel';
 import { useCameraBackgroundWorkPause } from './home/useCameraBackgroundWorkPause';
+import { useRemoteOfflineLayerHeightSnapshot } from './home/useRemoteOfflineLayerHeightSnapshot';
+import { useActiveModelSupportTips } from './home/useActiveModelSupportTips';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -389,24 +391,10 @@ if (typeof window !== 'undefined') {
   installReactDevtoolsSemverGuard();
 }
 
-const REMOTE_OFFLINE_LAYER_HEIGHT_GLOBAL_STORAGE_KEY = 'dragonfruit.slicing.remoteOfflineLayerHeightMm';
-const REMOTE_OFFLINE_LAYER_HEIGHT_CHANGED_EVENT = 'dragonfruit:slicing-remote-offline-layer-height-changed';
 const SUPPORT_DRAG_HOLD_FALLBACK_MS = 320;
 const DEFAULT_RELAY_AUTORETRY_LIMIT = 2;
 const DEFAULT_RELAY_AUTORETRY_DELAY_MS = 1200;
 
-
-function readRemoteOfflineLayerHeightSnapshotMm(): number | null {
-  if (typeof window === 'undefined') return null;
-
-  const raw = window.localStorage.getItem(REMOTE_OFFLINE_LAYER_HEIGHT_GLOBAL_STORAGE_KEY)
-    ?? window.sessionStorage.getItem(REMOTE_OFFLINE_LAYER_HEIGHT_GLOBAL_STORAGE_KEY);
-  if (raw == null || raw.trim().length === 0) return null;
-
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.max(0.01, Math.min(1, parsed));
-}
 
 type TransformStoreCommitResult = {
   updated: boolean;
@@ -2299,28 +2287,7 @@ export default function Home() {
       activePrinterProfile?.networkConnection?.connected !== true
       || selectedSliceDeviceReachability === false
     );
-  const [remoteOfflineLayerHeightSnapshotMm, setRemoteOfflineLayerHeightSnapshotMm] = React.useState<number | null>(() => (
-    readRemoteOfflineLayerHeightSnapshotMm()
-  ));
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const updateSnapshot = () => {
-      const next = readRemoteOfflineLayerHeightSnapshotMm();
-      setRemoteOfflineLayerHeightSnapshotMm((previous) => (Object.is(previous, next) ? previous : next));
-    };
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === REMOTE_OFFLINE_LAYER_HEIGHT_GLOBAL_STORAGE_KEY) updateSnapshot();
-    };
-
-    window.addEventListener('storage', handleStorage);
-    window.addEventListener(REMOTE_OFFLINE_LAYER_HEIGHT_CHANGED_EVENT, updateSnapshot);
-    return () => {
-      window.removeEventListener('storage', handleStorage);
-      window.removeEventListener(REMOTE_OFFLINE_LAYER_HEIGHT_CHANGED_EVENT, updateSnapshot);
-    };
-  }, []);
+  const remoteOfflineLayerHeightSnapshotMm = useRemoteOfflineLayerHeightSnapshot();
 
   const remoteOfflineSlicedLayerHeightMm = React.useMemo(() => {
     if (!shouldUseRemoteOfflineLayerHeight) return null;
@@ -4537,51 +4504,7 @@ export default function Home() {
   // Support tab; relocatable to Analysis with a one-line move. supportTips is
   // injected (no src/supports coupling in the Islands module).
   const modelRaycastRef = React.useRef<((start: THREE.Vector3, end: THREE.Vector3) => boolean) | null>(null);
-  const [supportTips, setSupportTips] = React.useState<THREE.Vector3[]>([]);
-
-  React.useEffect(() => {
-    const updateSupportTips = () => {
-      const snap = getSupportSnapshot();
-      const tips: THREE.Vector3[] = [];
-      const activeModelId = scene.activeModel?.id;
-      if (!activeModelId) {
-        setSupportTips([]);
-        return;
-      }
-
-      const addPos = (pos?: { x: number; y: number; z: number }, modelId?: string) => {
-        if (pos && modelId === activeModelId) {
-          tips.push(new THREE.Vector3(pos.x, pos.y, pos.z));
-        }
-      };
-
-      // Every declared contact, in registry order.
-      for (const descriptor of SUPPORT_TYPES) {
-        const contacts = contactEndpointsFor(descriptor.id);
-        if (contacts.length === 0) continue;
-
-        const collection = snap[descriptor.location.key as SupportCollectionKey] as unknown as
-          Record<string, { modelId?: string }>;
-        for (const entity of Object.values(collection ?? {})) {
-          for (const { field } of contacts) {
-            const contact = (entity as unknown as Record<string, { pos?: { x: number; y: number; z: number } }>)[field];
-            if (contact?.pos) addPos(contact.pos, entity.modelId);
-          }
-        }
-      }
-
-      setSupportTips(prevTips => {
-        if (prevTips.length !== tips.length) return tips;
-        for (let i = 0; i < tips.length; i++) {
-          if (!prevTips[i].equals(tips[i])) return tips;
-        }
-        return prevTips;
-      });
-    };
-
-    updateSupportTips();
-    return subscribeSupportState(updateSupportTips);
-  }, [scene.activeModel?.id]);
+  const supportTips = useActiveModelSupportTips({ scene });
 
   // useSyncExternalStore, not a one-shot effect: the module-level busy flag
   // lives in AutoSupportPanel, and a hot reload swaps the module's listener
