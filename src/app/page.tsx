@@ -253,6 +253,7 @@ import { useSceneSaveError } from './home/useSceneSaveError';
 import { useManifoldWarning } from './home/useManifoldWarning';
 import { useToolRailLayout } from './home/useToolRailLayout';
 import { useExportThumbnailRenderOptions } from './home/useExportThumbnailRenderOptions';
+import { useOnboardingWizard } from './home/useOnboardingWizard';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -894,15 +895,13 @@ export default function Home() {
 
   const [interiorView, setInteriorView] = React.useState(false);
   const isSupportSpotlightHoldActive = useActionActive('SUPPORTS', 'TEMP_SPOTLIGHT_HOLD');
-  const [allowPrepareWithoutPrinter, setAllowPrepareWithoutPrinter] = React.useState(false);
-  // First-run onboarding. `mounted` avoids SSR/client mismatches: the wizard is
-  // only rendered after hydration. `wizardActive` latches the wizard open for
-  // the session once it starts, so it can play its finalization step after a
-  // printer is added instead of unmounting the moment a profile exists. It is
-  // (re)opened whenever there are no printer profiles, and by the debug
-  // Ctrl+Shift+O replay even when a printer already exists.
-  const [onboardingMounted, setOnboardingMounted] = React.useState(false);
-  const [wizardActive, setWizardActive] = React.useState(false);
+  const {
+    allowPrepareWithoutPrinter,
+    onboardingMounted,
+    wizardActive,
+    setWizardActive,
+    handleUseWithoutPrinter,
+  } = useOnboardingWizard({ hasPrinterProfiles, hasActivePrinterProfile });
   const [selectedHolePunchPlacementIds, setSelectedHolePunchPlacementIds] = React.useState<string[]>([]);
   const [hoveredHolePunchPlacementId, setHoveredHolePunchPlacementId] = React.useState<string | null>(null);
   const [holePunchHoverPlacement, setHolePunchHoverPlacement] = React.useState<HolePunchPlacementState | null>(null);
@@ -4855,40 +4854,6 @@ export default function Home() {
     openProfileSettingsModal('printer', { openPrinterLibrary: true });
   }, []);
 
-  const handleUseWithoutPrinter = React.useCallback(() => {
-    setAllowPrepareWithoutPrinter(true);
-  }, []);
-
-  // Mark the client as hydrated so the onboarding wizard (and top-bar chrome
-  // gating) only render after mount, avoiding SSR/client mismatches.
-  React.useEffect(() => {
-    setOnboardingMounted(true);
-  }, []);
-
-  // Reopen the wizard whenever there are no printer profiles. Once active it
-  // stays latched until onExit, so the finalization step can play after adding.
-  React.useEffect(() => {
-    if (onboardingMounted && !hasPrinterProfiles) {
-      setWizardActive(true);
-    }
-  }, [onboardingMounted, hasPrinterProfiles]);
-
-  // DEBUG: Ctrl+Shift+O re-runs the onboarding wizard. Lifts the session latch
-  // and drops this session's "use without printer" state so the wizard reappears
-  // even when a printer profile already exists.
-  React.useEffect(() => {
-    let wasActive = false;
-    const unsubscribe = hotkeyStore.subscribe(() => {
-      const isActive = isActionActiveSync('DEBUG', 'RE_RUN_ONBOARDING');
-      if (isActive && !wasActive) {
-        setWizardActive(true);
-        setAllowPrepareWithoutPrinter(false);
-      }
-      wasActive = isActive;
-    });
-    return unsubscribe;
-  }, []);
-
   // Temporary: LYS Ghost Viewer State
   const [ghostData] = React.useState<any>(null);
   const LysGhostOverlay = React.useMemo(
@@ -5660,12 +5625,6 @@ export default function Home() {
     ) return;
     scene.selectModel(scene.activeModelId, 'single');
   }, [scene.mode, transformMgr.transformMode, scene.activeModelId, scene.selectedModelIds, scene.selectModel]);
-
-  React.useEffect(() => {
-    if (!hasActivePrinterProfile) return;
-    if (!allowPrepareWithoutPrinter) return;
-    setAllowPrepareWithoutPrinter(false);
-  }, [allowPrepareWithoutPrinter, hasActivePrinterProfile]);
 
   React.useEffect(() => {
     // Skip camera changes during automatic re-slice flow to prevent flickering

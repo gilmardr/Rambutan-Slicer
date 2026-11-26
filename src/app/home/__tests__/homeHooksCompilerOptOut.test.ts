@@ -26,6 +26,7 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['useManifoldWarning.ts', 'useManifoldWarning'],
   ['useToolRailLayout.ts', 'useToolRailLayout'],
   ['useExportThumbnailRenderOptions.ts', 'useExportThumbnailRenderOptions'],
+  ['useOnboardingWizard.ts', 'useOnboardingWizard'],
 ];
 
 for (const [file, hook] of HOOKS) {
