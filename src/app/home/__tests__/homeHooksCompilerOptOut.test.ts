@@ -45,6 +45,9 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['useSceneImportPromptEscape.ts', 'useSceneImportPromptEscape'],
   ['useHolePunchSelectionEscape.ts', 'useHolePunchSelectionEscape'],
   ['useSupportDragSyncTransaction.ts', 'useSupportDragSyncTransaction'],
+  ['useWorkspaceCameraProjectionSync.ts', 'useWorkspaceCameraProjectionSync'],
+  ['usePrintingLockWithoutModels.ts', 'usePrintingLockWithoutModels'],
+  ['useEmptySceneReturnsToPrepare.ts', 'useEmptySceneReturnsToPrepare'],
 ];
 
 for (const [file, hook] of HOOKS) {
