@@ -972,6 +972,25 @@ const DEFAULT_PRINTER_PROFILES: PrinterProfile[] = BUILTIN_PRINTER_PRESETS.map((
     network: sanitizePrinterNetworkSettings((preset as any).network),
 }));
 
+/**
+ * Output formats an official preset used to write and its printer's firmware
+ * rejects. A saved profile still on one of them moves to the preset's current
+ * format when the store loads, so the exported file matches the printer even
+ * if the user never applied the profile update.
+ */
+const RETIRED_PRESET_OUTPUT_FORMATS: Readonly<Record<string, readonly string[]>> = {
+    // The HALOT-MAGE firmware reports a CTB file as unknown; it reads CXDLPv4.
+    'creality-halot-mage-ctb-v4': ['.ctb'],
+};
+
+function isRetiredPresetOutputFormat(presetId: string | undefined, outputFormat: unknown): boolean {
+    if (!presetId) return false;
+    const retired = RETIRED_PRESET_OUTPUT_FORMATS[presetId];
+    if (!retired) return false;
+    const normalized = normalizeOutputFormat(outputFormat);
+    return normalized != null && retired.includes(normalized);
+}
+
 function resolveOfficialPresetId(profile: Partial<PrinterProfile>): string | undefined {
     if (typeof (profile as any).officialPresetId === 'string') {
         return ((profile as any).officialPresetId as string).trim() || undefined;
@@ -1158,7 +1177,17 @@ function sanitizeState(input: Partial<ProfileStoreState> | null | undefined): Pr
                     : undefined;
 
                 const rawBuildVolume = (profile as any).buildVolumeMm;
-                const rawDisplay = (profile as any).display;
+                const storedDisplay = (profile as any).display;
+                const rawDisplay = matchedPreset
+                    && isOfficialProfileByHeuristic(profile)
+                    && isRetiredPresetOutputFormat(matchedPreset.presetId, storedDisplay?.outputFormat)
+                    ? {
+                        ...storedDisplay,
+                        outputFormat: matchedPreset.display.outputFormat,
+                        formatVersion: matchedPreset.display.formatVersion,
+                        settingsMode: matchedPreset.display.settingsMode,
+                    }
+                    : storedDisplay;
 
                 const fallbackBuildVolume = matchedPreset?.buildVolumeMm;
                 const fallbackDisplay = matchedPreset?.display;
