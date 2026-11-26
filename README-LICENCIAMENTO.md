@@ -55,6 +55,8 @@ Os plugins CTB, Anycubic e Elegoo apontam para forks em
 [gilmardr](https://github.com/gilmardr) (branch `rambutan`). O código deles é
 compilado no aplicativo, então esses repositórios precisam ficar públicos junto
 com este: eles fazem parte do código-fonte correspondente exigido pela AGPL.
+Cada fork mantém o `LICENSE` MIT e o copyright da Open Resin Alliance, e o
+README avisa que é um fork modificado e não uma release oficial da ORA.
 
 Revisão de 2026-11-26: as dependências npm (`package-lock.json`) e Rust
 (`cargo metadata` de `src-tauri`) usam licenças permissivas (MIT, Apache-2.0,
@@ -66,11 +68,13 @@ ou GPL-2.0-only.
 ### Avisos de terceiros nas builds
 
 As licenças MIT, BSD e Apache-2.0 pedem que o aviso de copyright e o texto da
-licença acompanhem também as cópias compiladas. O código-fonte já traz esses
-avisos nos pacotes, mas o instalador ainda não inclui um arquivo de avisos de
-terceiros. Antes de distribuir binários, gere esse arquivo (por exemplo com
-`cargo about` para as crates Rust e um coletor de licenças npm para o frontend)
-e inclua-o no instalador ou na tela Sobre.
+licença acompanhem também as cópias compiladas. O script
+`scripts/generate-third-party-notices.mjs` roda no `prebuild:tauri` e grava
+`public/THIRD-PARTY-NOTICES.txt` com o texto das licenças dos pacotes npm de
+produção e de todas as crates Rust de `src-tauri` (via `cargo metadata`). O
+arquivo vai para o app junto com o resto de `public/`, então todo instalador o
+inclui. Na build do Tauri o script roda com `--strict` e falha se não conseguir
+listar as crates. O arquivo é gerado, não versionado.
 
 ### Importação STEP (OCCT, LGPL-2.1)
 
