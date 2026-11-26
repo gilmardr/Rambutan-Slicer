@@ -39,7 +39,7 @@
     "macos:thumbnails": "node scripts/macos-thumbnails.mjs",
     "postversion": "npm run sync:version && npm run sync:contributors && npm run sync:sponsors",
     "prebuild": "node scripts/copy-manifold-wasm.mjs && node scripts/copy-occt-import-assets.mjs && npm run generate:plugin-registry && npm run generate:builtin-simple-plugins && npm run generate:support-registrations && npm run generate:support-renderers",
-    "prebuild:tauri": "node scripts/copy-manifold-wasm.mjs && node scripts/copy-occt-import-assets.mjs && npm run generate:plugin-registry && npm run generate:builtin-simple-plugins && npm run generate:support-registrations && npm run generate:support-renderers",
+    "prebuild:tauri": "node scripts/copy-manifold-wasm.mjs && node scripts/copy-occt-import-assets.mjs && node scripts/generate-third-party-notices.mjs --strict && npm run generate:plugin-registry && npm run generate:builtin-simple-plugins && npm run generate:support-registrations && npm run generate:support-renderers",
     "prebuild:thumbnail-providers": "npm run generate:plugin-registry",
     "predev": "node scripts/copy-manifold-wasm.mjs && node scripts/copy-occt-import-assets.mjs && npm run generate:plugin-registry && npm run generate:builtin-simple-plugins && npm run generate:support-registrations && npm run generate:support-renderers",
     "premacos:thumbnails": "npm run generate:plugin-registry",
