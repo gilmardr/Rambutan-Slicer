@@ -9,7 +9,7 @@ import {
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
 import type { MessageDescriptor } from '@lingui/core';
-import { hotkeyStore, useActionActive } from '@/hotkeys/hotkeyStore';
+import { hotkeyStore } from '@/hotkeys/hotkeyStore';
 import dynamic from 'next/dynamic';
 import * as THREE from 'three';
 import { AlertTriangle } from 'lucide-react';
@@ -20,7 +20,6 @@ import { ZUpGizmoViewcube } from './ZUpGizmoViewcube';
 import { ZUpGizmoHelper } from './ZUpGizmoHelper';
 import {
   CrossSectionStencilCap,
-  type CrossSectionCapDebugOverrides,
   type CrossSectionStencilCapEntry,
 } from '@/components/scene/CrossSectionStencilCap';
 import { IslandOverlay } from '@/components/scene/IslandOverlay';
@@ -158,39 +157,9 @@ import { setSupportPlacementGuideZ, useSupportPlacementGuideActive } from './sup
 import { setModelMesh } from '@/supports/autoSupport/meshStore';
 import { setSupportNavigationActive } from '@/supports/interaction/navigationActiveStore';
 import { useIsLinux } from '@/hooks/usePlatform';
-import {
-  DEFAULT_CAMERA_PROJECTION_SETTINGS,
-  getSavedCameraProjectionSettings,
-  subscribeToCameraProjectionSettings,
-  type CameraProjectionMode,
-} from '@/components/settings/cameraProjectionPreferences';
-import {
-  DEFAULT_CAMERA_FOV_SETTINGS,
-  getSavedCameraFovSettings,
-  subscribeToCameraFovSettings,
-} from '@/components/settings/cameraFovPreferences';
-import {
-  DEFAULT_CAMERA_FEEL_SETTINGS,
-  getSavedCameraFeelSettings,
-  subscribeToCameraFeelSettings,
-  type CameraFeelPreset,
-} from '@/components/settings/cameraFeelPreferences';
-import {
-  DEFAULT_CAMERA_TRACKPAD_SETTINGS,
-  getSavedCameraTrackpadSettings,
-  subscribeToCameraTrackpadSettings,
-} from '@/components/settings/cameraTrackpadPreferences';
-import {
-  DIAGNOSTICS_BENCHMARK_PROGRESS_EVENT,
-  DIAGNOSTICS_BENCHMARK_REQUEST_EVENT,
-  type DiagnosticsBenchmarkPhaseName,
-  type DiagnosticsBenchmarkPhaseResult,
-  type DiagnosticsBenchmarkProgressDetail,
-  type DiagnosticsBenchmarkRequestDetail,
-  type DiagnosticsBenchmarkResult,
-  type DiagnosticsBenchmarkStats,
-  type DiagnosticsBenchmarkStressProfile,
-} from '@/components/modals/diagnosticsBenchmarkEvents';
+import type { CameraProjectionMode } from '@/components/settings/cameraProjectionPreferences';
+import type { CameraFeelPreset } from '@/components/settings/cameraFeelPreferences';
+import { DEFAULT_CAMERA_TRACKPAD_SETTINGS } from '@/components/settings/cameraTrackpadPreferences';
 import { DEFAULT_VIEW3D_SETTINGS, type View3DSettings } from '@/components/settings/view3dPreferences';
 import {
   computeApproxModelWorldBounds,
@@ -229,7 +198,10 @@ import {
 import { projectModelMesh, makeSupportPointProjector, resolveTrackpadGestureAction } from './sceneCanvasProjection';
 import { PEARL_MODEL_COLOR, LOGO_RED_MODEL_COLOR, getModelBaseColor, usesLogoRedModelColor } from './modelBaseColor';
 import { GhostPreviewTransform, GhostPreviewInstances } from './GhostPreviewInstances';
-import { CrossSectionCapDebugPanelState, CROSS_SECTION_CAP_DEBUG_STORAGE_KEY, CROSS_SECTION_CAP_DEBUG_HOTKEY_ENABLED, DEFAULT_CROSS_SECTION_CAP_DEBUG_STATE } from './crossSectionCapDebug';
+import { useCrossSectionCapDebugPanel } from './useCrossSectionCapDebugPanel';
+import { CrossSectionCapDebugPanel } from './CrossSectionCapDebugPanel';
+import { useDiagnosticsOrbitBenchmark } from './useDiagnosticsOrbitBenchmark';
+import { useCanvasCameraPreferences, useIsLightTheme, useThemeAccentColors } from './useCanvasPreferences';
 
 const Canvas = dynamic(() => import('@react-three/fiber').then(m => m.Canvas), { ssr: false });
 
@@ -690,30 +662,7 @@ export function SceneCanvas({
   const supportPathfindingDebugLastTapMsRef = React.useRef<number>(0);
   const [showSupportPathfindingTuningSuggestions, setShowSupportPathfindingTuningSuggestions] = React.useState(false);
 
-  const [isLightTheme, setIsLightTheme] = React.useState(() => {
-    if (typeof window === 'undefined') return false;
-    const html = document.documentElement;
-    return (
-      html.classList.contains('dragonfruit-light') ||
-      html.getAttribute('data-theme') === 'light' ||
-      (window.matchMedia('(prefers-color-scheme: light)').matches && !html.classList.contains('dragonfruit-dark'))
-    );
-  });
-  React.useEffect(() => {
-    const check = () => {
-      const html = document.documentElement;
-      setIsLightTheme(
-        html.classList.contains('dragonfruit-light') ||
-        html.getAttribute('data-theme') === 'light' ||
-        (window.matchMedia('(prefers-color-scheme: light)').matches && !html.classList.contains('dragonfruit-dark')),
-      );
-    };
-    const observer = new MutationObserver(check);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
-    const mq = window.matchMedia('(prefers-color-scheme: light)');
-    mq.addEventListener('change', check);
-    return () => { observer.disconnect(); mq.removeEventListener('change', check); };
-  }, []);
+  const isLightTheme = useIsLightTheme();
 
   const engravingPreviewHighlight = React.useSyncExternalStore(
     subscribeEngravingPreviewHighlight,
@@ -721,46 +670,16 @@ export function SceneCanvas({
     () => null,
   );
 
-  const cameraProjectionMode = React.useSyncExternalStore(
-    subscribeToCameraProjectionSettings,
-    () => getSavedCameraProjectionSettings().mode,
-    () => DEFAULT_CAMERA_PROJECTION_SETTINGS.mode,
-  );
-  const perspectiveFov = React.useSyncExternalStore(
-    subscribeToCameraFovSettings,
-    () => getSavedCameraFovSettings().fov,
-    () => DEFAULT_CAMERA_FOV_SETTINGS.fov,
-  );
-  const cameraFeelPreset = React.useSyncExternalStore(
-    subscribeToCameraFeelSettings,
-    () => getSavedCameraFeelSettings().preset,
-    () => DEFAULT_CAMERA_FEEL_SETTINGS.preset,
-  );
-  const cameraTrackpadSettings = React.useSyncExternalStore(
-    subscribeToCameraTrackpadSettings,
-    () => getSavedCameraTrackpadSettings().primaryAction,
-    () => DEFAULT_CAMERA_TRACKPAD_SETTINGS.primaryAction,
-  );
-  const cameraTrackpadModifierKey = React.useSyncExternalStore(
-    subscribeToCameraTrackpadSettings,
-    () => getSavedCameraTrackpadSettings().modifierKey,
-    () => DEFAULT_CAMERA_TRACKPAD_SETTINGS.modifierKey,
-  );
-  const cameraTrackpadPanAcceleration = React.useSyncExternalStore(
-    subscribeToCameraTrackpadSettings,
-    () => getSavedCameraTrackpadSettings().panAcceleration,
-    () => DEFAULT_CAMERA_TRACKPAD_SETTINGS.panAcceleration,
-  );
-  const cameraTrackpadOrbitAcceleration = React.useSyncExternalStore(
-    subscribeToCameraTrackpadSettings,
-    () => getSavedCameraTrackpadSettings().orbitAcceleration,
-    () => DEFAULT_CAMERA_TRACKPAD_SETTINGS.orbitAcceleration,
-  );
-  const cameraTrackpadZoomAcceleration = React.useSyncExternalStore(
-    subscribeToCameraTrackpadSettings,
-    () => getSavedCameraTrackpadSettings().zoomAcceleration,
-    () => DEFAULT_CAMERA_TRACKPAD_SETTINGS.zoomAcceleration,
-  );
+  const {
+    cameraProjectionMode,
+    perspectiveFov,
+    cameraFeelPreset,
+    cameraTrackpadSettings,
+    cameraTrackpadModifierKey,
+    cameraTrackpadPanAcceleration,
+    cameraTrackpadOrbitAcceleration,
+    cameraTrackpadZoomAcceleration,
+  } = useCanvasCameraPreferences();
 
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const { isActive: isJointCreationActive } = useJointCreationState();
@@ -1217,7 +1136,6 @@ export function SceneCanvas({
   // verdict is only stable if it watches the whole stream.
   const wheelDeviceClassifierRef = React.useRef(createWheelDeviceClassifier());
   const navigationResumeDelayRef = React.useRef(0);
-  const benchmarkRunIdRef = React.useRef<string | null>(null);
   const [isOrbitInteracting, setIsOrbitInteracting] = React.useState(false);
   const [isOrbitRotating, setIsOrbitRotating] = React.useState(false);
   const [isWheelZoomInteracting, setIsWheelZoomInteracting] = React.useState(false);
@@ -1518,14 +1436,7 @@ export function SceneCanvas({
 
   const [isCameraBelowBuildPlate, setIsCameraBelowBuildPlate] = React.useState(false);
   const [buildPlateOpacity, setBuildPlateOpacity] = React.useState(1);
-  const [outOfBoundsStripeColor, setOutOfBoundsStripeColor] = React.useState<string>('#b6ff2e');
-  const [gizmoColors, setGizmoColors] = React.useState({
-    face: '#1f2937',
-    text: '#f8fafc',
-    accent: '#ffb45d',
-    chip: '#20242c',
-    chipBorder: '#3a3f4b',
-  });
+  const { outOfBoundsStripeColor, gizmoColors } = useThemeAccentColors();
     // Orientation labels are resolved out here, in the React tree, and handed to
   // the 3D helpers as props — those live inside the r3f reconciler, where the
   // i18n provider is not in scope. "Front" is shared with the build plate's
@@ -2229,77 +2140,6 @@ export function SceneCanvas({
       buildVolumeBoxGeometry?.dispose();
     };
   }, [buildVolumeBoxGeometry, buildVolumeEdgeGeometry]);
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const resolveOutOfBoundsStripeColor = () => {
-      const rootStyles = getComputedStyle(document.documentElement);
-      const accentSecondary = rootStyles.getPropertyValue('--accent-secondary').trim();
-
-      if (!accentSecondary) {
-        setOutOfBoundsStripeColor('#b6ff2e');
-      } else {
-        try {
-          const parsedSecondary = new THREE.Color();
-          parsedSecondary.setStyle(accentSecondary);
-          setOutOfBoundsStripeColor(parsedSecondary.getStyle());
-        } catch {
-          setOutOfBoundsStripeColor('#b6ff2e');
-        }
-      }
-    };
-
-    resolveOutOfBoundsStripeColor();
-
-    const resolveGizmoColors = () => {
-      const rootStyles = getComputedStyle(document.documentElement);
-      const tryColor = (variable: string, fallback: string) => {
-        const raw = rootStyles.getPropertyValue(variable).trim();
-        if (!raw) return fallback;
-        try {
-          const c = new THREE.Color();
-          c.setStyle(raw);
-          return c.getStyle();
-        } catch {
-          return fallback;
-        }
-      };
-
-      const accent = tryColor('--accent-secondary', '#ffb45d');
-      // Derive face/text colors from theme surface/text tokens.
-      // --surface-1 is the panel background; --text-strong is primary text.
-      const face = tryColor('--surface-1', '#1f2937');
-      const text = tryColor('--text-strong', '#f8fafc');
-      // The home chip wears the same surface and hairline as the app's own floating
-      // buttons, so it reads as a control rather than a stray glyph.
-      const chip = tryColor('--surface-0', '#20242c');
-      const chipBorder = tryColor('--border-subtle', '#3a3f4b');
-      setGizmoColors((prev) => {
-        if (
-          prev.face === face
-          && prev.text === text
-          && prev.accent === accent
-          && prev.chip === chip
-          && prev.chipBorder === chipBorder
-        ) return prev;
-        return { face, text, accent, chip, chipBorder };
-      });
-    };
-
-    resolveGizmoColors();
-
-    const observer = new MutationObserver(() => {
-      resolveOutOfBoundsStripeColor();
-      resolveGizmoColors();
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class', 'style', 'data-theme'],
-    });
-
-    return () => observer.disconnect();
-  }, []);
 
   const updateCameraBelowBuildPlate = React.useCallback(() => {
     const cameraZ = cameraRef.current?.position?.z;
@@ -4928,293 +4768,12 @@ export function SceneCanvas({
     };
   }, []);
 
-  React.useEffect(() => {
-    const dispatchProgress = (detail: DiagnosticsBenchmarkProgressDetail) => {
-      window.dispatchEvent(new CustomEvent(DIAGNOSTICS_BENCHMARK_PROGRESS_EVENT, { detail }));
-    };
-
-    const computeStats = (samplesMs: number[], durationMs: number): DiagnosticsBenchmarkStats => {
-      const cleaned = samplesMs.filter((v) => Number.isFinite(v) && v > 0);
-      if (cleaned.length === 0) {
-        return {
-          sampleCount: 0,
-          durationMs,
-          fpsAvg: 0,
-          fpsMin: 0,
-          fpsMax: 0,
-          frameTimeAvgMs: 0,
-          frameTimeP95Ms: 0,
-          frameTimeMaxMs: 0,
-        };
-      }
-
-      const sorted = [...cleaned].sort((a, b) => a - b);
-      const sum = cleaned.reduce((acc, v) => acc + v, 0);
-      const avg = sum / cleaned.length;
-      const max = sorted[sorted.length - 1] ?? 0;
-      const p95Index = Math.max(0, Math.ceil(sorted.length * 0.95) - 1);
-      const p95 = sorted[p95Index] ?? max;
-      const minFrame = sorted[0] ?? avg;
-      const avgFps = avg > 0 ? 1000 / avg : 0;
-      const minFps = max > 0 ? 1000 / max : 0;
-      const maxFps = minFrame > 0 ? 1000 / minFrame : 0;
-
-      return {
-        sampleCount: cleaned.length,
-        durationMs,
-        fpsAvg: avgFps,
-        fpsMin: minFps,
-        fpsMax: maxFps,
-        frameTimeAvgMs: avg,
-        frameTimeP95Ms: p95,
-        frameTimeMaxMs: max,
-      };
-    };
-
-    const runBenchmark = async (requestId: string, stressProfile: DiagnosticsBenchmarkStressProfile) => {
-      const controls = orbitControlsRef.current;
-      const camera = cameraRef.current;
-
-      if (!controls || !camera) {
-        dispatchProgress({
-          requestId,
-          status: 'error',
-          message: 'Scene controls are not ready yet. Try again in a moment.',
-        });
-        return;
-      }
-
-      if (benchmarkRunIdRef.current) {
-        dispatchProgress({
-          requestId,
-          status: 'error',
-          message: 'A benchmark run is already in progress.',
-        });
-        return;
-      }
-
-      if (models.length === 0) {
-        dispatchProgress({
-          requestId,
-          status: 'error',
-          message: 'Benchmark requires at least one loaded model.',
-        });
-        return;
-      }
-
-      benchmarkRunIdRef.current = requestId;
-      dispatchProgress({ requestId, status: 'started', message: `Preparing ${stressProfile} 3D orbit sweeps…` });
-
-      const startedAt = performance.now();
-      const startedAtIso = new Date().toISOString();
-      const controlsSnapshot = {
-        enabled: (controls as any).enabled !== false,
-        position: camera.position.clone(),
-        target: controls.target.clone(),
-        zoom: camera instanceof THREE.OrthographicCamera ? camera.zoom : null,
-      };
-
-      const restoreControls = () => {
-        camera.position.copy(controlsSnapshot.position);
-        controls.target.copy(controlsSnapshot.target);
-        if (camera instanceof THREE.OrthographicCamera && controlsSnapshot.zoom != null) {
-          camera.zoom = controlsSnapshot.zoom;
-          camera.updateProjectionMatrix();
-        }
-        (controls as any).enabled = controlsSnapshot.enabled;
-        controls.update();
-      };
-
-      try {
-        (controls as any).enabled = false;
-        orbitInteractionActiveRef.current = true;
-        orbitInteractionMovedRef.current = true;
-        setIsOrbitInteracting(true);
-        window.dispatchEvent(new Event('picking-orbit-start'));
-
-        const visibleBounds = models
-          .filter((model) => model.visible)
-          .map((model) => modelWorldBounds.get(model.id))
-          .filter((box): box is THREE.Box3 => !!box && !box.isEmpty());
-
-        const center = new THREE.Vector3();
-        if (visibleBounds.length > 0) {
-          const union = visibleBounds[0].clone();
-          for (let i = 1; i < visibleBounds.length; i += 1) {
-            union.union(visibleBounds[i]);
-          }
-          union.getCenter(center);
-        } else {
-          center.copy(controls.target);
-        }
-
-        const initialOffset = camera.position.clone().sub(controls.target);
-        if (initialOffset.lengthSq() < 1e-6) {
-          initialOffset.set(0, -120, 80);
-        }
-
-        const baseRadius3d = Math.max(18, initialOffset.length());
-        const initialAzimuth = Math.atan2(initialOffset.y, initialOffset.x);
-        const horizontalRadius = Math.max(1e-6, Math.hypot(initialOffset.x, initialOffset.y));
-        const initialElevation = Math.atan2(initialOffset.z, horizontalRadius);
-
-        const phaseProfilesByStress: Record<DiagnosticsBenchmarkStressProfile, Array<{
-          phase: DiagnosticsBenchmarkPhaseName;
-          durationMs: number;
-          azimuthTurns: number;
-          elevationCycles: number;
-          elevationAmplitudeDeg: number;
-          radialPulseCycles: number;
-          radialAmplitude: number;
-        }>> = {
-          quick: [
-            { phase: 'slow', durationMs: 3500, azimuthTurns: 0.8, elevationCycles: 0.8, elevationAmplitudeDeg: 18, radialPulseCycles: 0.6, radialAmplitude: 0.04 },
-            { phase: 'medium', durationMs: 2600, azimuthTurns: 1.1, elevationCycles: 1.1, elevationAmplitudeDeg: 24, radialPulseCycles: 0.85, radialAmplitude: 0.055 },
-            { phase: 'fast', durationMs: 2000, azimuthTurns: 1.45, elevationCycles: 1.35, elevationAmplitudeDeg: 30, radialPulseCycles: 1.2, radialAmplitude: 0.07 },
-          ],
-          standard: [
-            { phase: 'slow', durationMs: 9000, azimuthTurns: 1.1, elevationCycles: 1.0, elevationAmplitudeDeg: 22, radialPulseCycles: 0.8, radialAmplitude: 0.05 },
-            { phase: 'medium', durationMs: 6000, azimuthTurns: 1.5, elevationCycles: 1.4, elevationAmplitudeDeg: 28, radialPulseCycles: 1.15, radialAmplitude: 0.07 },
-            { phase: 'fast', durationMs: 4200, azimuthTurns: 2.1, elevationCycles: 1.9, elevationAmplitudeDeg: 34, radialPulseCycles: 1.6, radialAmplitude: 0.09 },
-          ],
-          torture: [
-            { phase: 'slow', durationMs: 14000, azimuthTurns: 1.6, elevationCycles: 1.35, elevationAmplitudeDeg: 26, radialPulseCycles: 1.1, radialAmplitude: 0.07 },
-            { phase: 'medium', durationMs: 10500, azimuthTurns: 2.4, elevationCycles: 2.0, elevationAmplitudeDeg: 34, radialPulseCycles: 1.8, radialAmplitude: 0.1 },
-            { phase: 'fast', durationMs: 8200, azimuthTurns: 3.35, elevationCycles: 2.7, elevationAmplitudeDeg: 40, radialPulseCycles: 2.4, radialAmplitude: 0.13 },
-          ],
-        };
-
-        const phases = phaseProfilesByStress[stressProfile] ?? phaseProfilesByStress.standard;
-
-        const phaseResults: DiagnosticsBenchmarkPhaseResult[] = [];
-        const allSamplesMs: number[] = [];
-
-        let phaseStartAzimuth = initialAzimuth;
-        for (const phaseConfig of phases) {
-          if (benchmarkRunIdRef.current !== requestId) {
-            throw new Error('Benchmark interrupted.');
-          }
-
-          const phaseSamples: number[] = [];
-          const phaseStartTime = performance.now();
-          let lastFrameTs: number | null = null;
-
-          await new Promise<void>((resolve) => {
-            const tick = (now: number) => {
-              if (benchmarkRunIdRef.current !== requestId) {
-                resolve();
-                return;
-              }
-
-              const elapsed = now - phaseStartTime;
-              const t = Math.min(1, elapsed / phaseConfig.durationMs);
-
-              if (lastFrameTs != null) {
-                const dt = Math.max(0, now - lastFrameTs);
-                if (dt > 0) {
-                  phaseSamples.push(dt);
-                  allSamplesMs.push(dt);
-                }
-              }
-              lastFrameTs = now;
-
-              const azimuth = phaseStartAzimuth + (t * phaseConfig.azimuthTurns * Math.PI * 2);
-              const elevationSwing = Math.sin((t * phaseConfig.elevationCycles * Math.PI * 2) + (phaseConfig.azimuthTurns * 0.5));
-              const elevationAmp = THREE.MathUtils.degToRad(phaseConfig.elevationAmplitudeDeg);
-              const elevation = THREE.MathUtils.clamp(
-                initialElevation + (elevationSwing * elevationAmp),
-                THREE.MathUtils.degToRad(-72),
-                THREE.MathUtils.degToRad(72),
-              );
-              const radialPulse = 1 + (Math.sin((t * phaseConfig.radialPulseCycles * Math.PI * 2) + (phaseConfig.elevationCycles * 0.7)) * phaseConfig.radialAmplitude);
-              const radius = baseRadius3d * radialPulse;
-
-              const cosElevation = Math.cos(elevation);
-              const x = Math.cos(azimuth) * cosElevation * radius;
-              const y = Math.sin(azimuth) * cosElevation * radius;
-              const z = Math.sin(elevation) * radius;
-
-              camera.position.set(center.x + x, center.y + y, center.z + z);
-              controls.target.copy(center);
-              controls.update();
-              updateOrbitControlSpeeds();
-              updateCameraBelowBuildPlate();
-              onCameraChange?.();
-              window.dispatchEvent(new Event('picking-orbit-change'));
-
-              if (t < 1) {
-                requestAnimationFrame(tick);
-              } else {
-                resolve();
-              }
-            };
-
-            requestAnimationFrame(tick);
-          });
-
-          const phaseDuration = Math.max(0, performance.now() - phaseStartTime);
-          const phaseStats = computeStats(phaseSamples, phaseDuration);
-          phaseResults.push({ phase: phaseConfig.phase, stats: phaseStats });
-          dispatchProgress({
-            requestId,
-            status: 'phase-complete',
-            phase: phaseConfig.phase,
-            message: `${phaseConfig.phase} sweep complete`,
-          });
-
-          phaseStartAzimuth += phaseConfig.azimuthTurns * Math.PI * 2;
-        }
-
-        const totalDurationMs = Math.max(0, performance.now() - startedAt);
-        const finishedAtIso = new Date().toISOString();
-
-        const result: DiagnosticsBenchmarkResult = {
-          requestId,
-          stressProfile,
-          startedAtIso,
-          finishedAtIso,
-          totalDurationMs,
-          projectionMode: cameraProjectionMode,
-          cameraFeelPreset,
-          phases: phaseResults,
-          overall: computeStats(allSamplesMs, totalDurationMs),
-        };
-
-        dispatchProgress({ requestId, status: 'completed', result, message: 'Benchmark complete.' });
-      } catch (error) {
-        dispatchProgress({
-          requestId,
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Benchmark failed.',
-        });
-      } finally {
-        restoreControls();
-        orbitInteractionActiveRef.current = false;
-        orbitInteractionMovedRef.current = false;
-        setIsOrbitInteracting(false);
-        updateCameraBelowBuildPlate();
-        onCameraEnd?.();
-        window.dispatchEvent(new CustomEvent('picking-orbit-end', {
-          detail: { resumeAfterMs: navigationResumeDelayMs },
-        }));
-        benchmarkRunIdRef.current = null;
-      }
-    };
-
-    const onBenchmarkRequest = (event: Event) => {
-      const customEvent = event as CustomEvent<DiagnosticsBenchmarkRequestDetail>;
-      const requestId = customEvent.detail?.requestId;
-      const stressProfile = customEvent.detail?.stressProfile ?? 'standard';
-      if (!requestId) return;
-      void runBenchmark(requestId, stressProfile);
-    };
-
-    window.addEventListener(DIAGNOSTICS_BENCHMARK_REQUEST_EVENT, onBenchmarkRequest as EventListener);
-    return () => {
-      window.removeEventListener(DIAGNOSTICS_BENCHMARK_REQUEST_EVENT, onBenchmarkRequest as EventListener);
-      benchmarkRunIdRef.current = null;
-    };
-  }, [
+  useDiagnosticsOrbitBenchmark({
+    cameraRef,
+    orbitControlsRef,
+    orbitInteractionActiveRef,
+    orbitInteractionMovedRef,
+    setIsOrbitInteracting,
     cameraFeelPreset,
     navigationResumeDelayMs,
     cameraProjectionMode,
@@ -5224,7 +4783,7 @@ export function SceneCanvas({
     onCameraEnd,
     updateCameraBelowBuildPlate,
     updateOrbitControlSpeeds,
-  ]);
+  });
 
   const handleOrbitChange = React.useCallback(() => {
     if (orbitInteractionActiveRef.current) {
@@ -6150,53 +5709,14 @@ export function SceneCanvas({
     clearSelectDragCandidate();
   }, [clearSelectDragCandidate, interactionResetNonce, mode, transformMode]);
 
-  const [showCrossSectionCapDebugPanel, setShowCrossSectionCapDebugPanel] = React.useState(false);
-  const [crossSectionCapDebugState, setCrossSectionCapDebugState] = React.useState<CrossSectionCapDebugPanelState>(
-    DEFAULT_CROSS_SECTION_CAP_DEBUG_STATE,
-  );
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(CROSS_SECTION_CAP_DEBUG_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Partial<CrossSectionCapDebugPanelState>;
-      setCrossSectionCapDebugState((prev) => ({
-        enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : prev.enabled,
-        top: { ...prev.top, ...(parsed.top ?? {}) },
-        bottom: { ...prev.bottom, ...(parsed.bottom ?? {}) },
-      }));
-    } catch {
-      // Ignore malformed debug state.
-    }
-  }, []);
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(CROSS_SECTION_CAP_DEBUG_STORAGE_KEY, JSON.stringify(crossSectionCapDebugState));
-    } catch {
-      // Ignore storage write failures in temporary debug tooling.
-    }
-  }, [crossSectionCapDebugState]);
-
-  const isCapsDebugActive = useActionActive('DEBUG', 'TOGGLE_CAPS');
-  const wasCapsDebugActive = React.useRef(false);
-
-  React.useEffect(() => {
-    if (!CROSS_SECTION_CAP_DEBUG_HOTKEY_ENABLED) return;
-    if (isCapsDebugActive && !wasCapsDebugActive.current) {
-      setShowCrossSectionCapDebugPanel((prev) => !prev);
-    }
-    wasCapsDebugActive.current = isCapsDebugActive;
-  }, [isCapsDebugActive]);
-
-  const topCapDebugOverrides = crossSectionCapDebugState.enabled
-    ? crossSectionCapDebugState.top
-    : undefined;
-  const bottomCapDebugOverrides = crossSectionCapDebugState.enabled
-    ? crossSectionCapDebugState.bottom
-    : undefined;
+  const {
+    showCrossSectionCapDebugPanel,
+    setShowCrossSectionCapDebugPanel,
+    crossSectionCapDebugState,
+    setCrossSectionCapDebugState,
+    topCapDebugOverrides,
+    bottomCapDebugOverrides,
+  } = useCrossSectionCapDebugPanel();
 
   const handleContainerPointerDownCapture = React.useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (handlePrepareLassoPointerDownCapture(e)) return;
@@ -7949,159 +7469,11 @@ export function SceneCanvas({
       {gpuPickingTest && <PickingDebugOverlay position="top-right" />}
 
       {showCrossSectionCapDebugPanel && (
-        <div
-          className="absolute right-3 top-3 z-[70] w-[360px] rounded-lg border p-3 shadow-xl"
-          style={{
-            pointerEvents: 'auto',
-            borderColor: 'color-mix(in srgb, var(--accent), var(--border-subtle) 45%)',
-            background: 'color-mix(in srgb, var(--surface-0), black 6%)',
-            color: 'var(--text-strong)',
-          }}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-xs font-semibold">Cross-Section Cap Debug (temporary)</div>
-            <button
-              type="button"
-              className="rounded border px-2 py-1 text-[10px]"
-              style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}
-              onClick={() => setShowCrossSectionCapDebugPanel(false)}
-            >
-              Close
-            </button>
-          </div>
-
-          <div className="mt-2 flex items-center justify-between gap-2 rounded border p-2" style={{ borderColor: 'var(--border-subtle)' }}>
-            <label className="flex items-center gap-2 text-[11px]">
-              <input
-                type="checkbox"
-                checked={crossSectionCapDebugState.enabled}
-                onChange={(e) => {
-                  const enabled = e.target.checked;
-                  setCrossSectionCapDebugState((prev) => ({ ...prev, enabled }));
-                }}
-              />
-              Enable overrides
-            </label>
-            <button
-              type="button"
-              className="rounded border px-2 py-1 text-[10px]"
-              style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}
-              onClick={() => setCrossSectionCapDebugState(DEFAULT_CROSS_SECTION_CAP_DEBUG_STATE)}
-            >
-              Reset defaults
-            </button>
-          </div>
-
-          {(['top', 'bottom'] as const).map((which) => {
-            const settings = crossSectionCapDebugState[which];
-            const setSettings = (partial: Partial<CrossSectionCapDebugOverrides>) => {
-              setCrossSectionCapDebugState((prev) => ({
-                ...prev,
-                [which]: { ...prev[which], ...partial },
-              }));
-            };
-
-            return (
-              <div key={which} className="mt-2 rounded border p-2" style={{ borderColor: 'var(--border-subtle)' }}>
-                <div className="mb-1 text-[11px] font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>
-                  {which} cap
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <label className="flex flex-col gap-1">
-                    <span>Side</span>
-                    <select
-                      value={settings.side ?? 'front'}
-                      onChange={(e) => setSettings({ side: e.target.value as 'front' | 'back' | 'double' })}
-                      className="rounded border px-1.5 py-1"
-                      style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}
-                    >
-                      <option value="front">front</option>
-                      <option value="back">back</option>
-                      <option value="double">double</option>
-                    </select>
-                  </label>
-
-                  <label className="flex flex-col gap-1">
-                    <span>Depth test</span>
-                    <select
-                      value={settings.depthTest ? 'on' : 'off'}
-                      onChange={(e) => setSettings({ depthTest: e.target.value === 'on' })}
-                      className="rounded border px-1.5 py-1"
-                      style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}
-                    >
-                      <option value="on">on</option>
-                      <option value="off">off</option>
-                    </select>
-                  </label>
-
-                  <label className="flex flex-col gap-1">
-                    <span>Clip mode</span>
-                    <select
-                      value={settings.clipMode ?? (which === 'bottom' ? 'lower' : 'upper')}
-                      onChange={(e) => setSettings({ clipMode: e.target.value as 'upper' | 'lower' })}
-                      disabled={which === 'bottom'}
-                      className="rounded border px-1.5 py-1"
-                      style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}
-                    >
-                      <option value="upper">upper (z ≤ y)</option>
-                      <option value="lower">lower (z ≥ y)</option>
-                    </select>
-                  </label>
-
-                  <label className="flex flex-col gap-1">
-                    <span>Stencil mode</span>
-                    <select
-                      value={settings.stencilMode ?? 'standard'}
-                      onChange={(e) => setSettings({ stencilMode: e.target.value as 'standard' | 'mirrored' })}
-                      disabled={which === 'bottom'}
-                      className="rounded border px-1.5 py-1"
-                      style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}
-                    >
-                      <option value="standard">standard</option>
-                      <option value="mirrored">mirrored</option>
-                    </select>
-                  </label>
-
-                  <label className="flex flex-col gap-1">
-                    <span>Offset (mm)</span>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      value={settings.offsetMm ?? (which === 'bottom' ? -0.0001 : 0.0001)}
-                      onChange={(e) => setSettings({ offsetMm: Number(e.target.value) })}
-                      className="rounded border px-1.5 py-1"
-                      style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}
-                    />
-                  </label>
-
-                  <label className="flex flex-col gap-1">
-                    <span>Rotation X (deg)</span>
-                    <input
-                      type="number"
-                      step="1"
-                      value={settings.rotationXDeg ?? 0}
-                      onChange={(e) => setSettings({ rotationXDeg: Number(e.target.value) })}
-                      disabled={which === 'bottom'}
-                      className="rounded border px-1.5 py-1"
-                      style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}
-                    />
-                  </label>
-                </div>
-
-                {which === 'bottom' && (
-                  <div className="mt-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                    Bottom cap uses CPU slice loops right now (side/offset/depth-test apply; clip/stencil/rotation ignored).
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          <div className="mt-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            Toggle panel: Ctrl+Shift+K · Settings persist locally.
-          </div>
-        </div>
+        <CrossSectionCapDebugPanel
+          crossSectionCapDebugState={crossSectionCapDebugState}
+          setCrossSectionCapDebugState={setCrossSectionCapDebugState}
+          onClose={() => setShowCrossSectionCapDebugPanel(false)}
+        />
       )}
 
       {marqueeSelection && (
