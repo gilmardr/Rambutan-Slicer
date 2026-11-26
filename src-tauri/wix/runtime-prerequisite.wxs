@@ -2,7 +2,7 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <?include $(sys.SOURCEFILEDIR)..\windows-resources\runtime-version.wxi ?>
   <?if $(sys.BUILDARCH) != "x64" ?>
-    <?error The DragonFruit Visual C++ prerequisite supports x64 packages only. ?>
+    <?error The Rambutan Slicer Visual C++ prerequisite supports x64 packages only. ?>
   <?endif ?>
   <Fragment>
     <!-- Tauri references this group to link the entire prerequisite fragment.
@@ -24,7 +24,7 @@
     </Property>
     <!-- A real Type 19 error; the standalone MSI never starts another installer. -->
     <CustomAction Id="DfRequireVcRuntime"
-                  Error="DragonFruit requires Microsoft Visual C++ v14 Redistributable (x64) $(var.DF_VC_VERSION) or newer. Install it directly from Microsoft at https://aka.ms/vc14/vc_redist.x64.exe, restart Windows if requested, then run this installer again." />
+                  Error="Rambutan Slicer requires Microsoft Visual C++ v14 Redistributable (x64) $(var.DF_VC_VERSION) or newer. Install it directly from Microsoft at https://aka.ms/vc14/vc_redist.x64.exe, restart Windows if requested, then run this installer again." />
     <InstallUISequence>
       <Custom Action="DfRequireVcRuntime" After="AppSearch">NOT (REMOVE~="ALL") AND (NOT DF_VC_RUNTIME_SUFFICIENT OR DF_VC_RUNTIME_INSTALLED &lt;&gt; "#1")</Custom>
     </InstallUISequence>
