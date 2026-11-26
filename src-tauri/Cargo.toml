@@ -2,6 +2,7 @@
 name = "rambutan-slicer"
 version = "0.6.0"
 edition = "2021"
+license = "AGPL-3.0-or-later"
 
 [build-dependencies]
 # All tauri crates come from the feat/cef line, which adds the CEF runtime

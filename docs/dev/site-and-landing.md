@@ -37,7 +37,7 @@ piece lives, how the Markdown becomes pages, and what to run before pushing.
 | `scripts/check-docs-accuracy.mjs` | The docs gate: cited paths and symbols, dead links, nav coverage. |
 | `scripts/materialize-doc-placeholder-assets.mjs` | Creates the not-yet-supplied screenshot placeholders. |
 | `scripts/prepare-docs-versions.mjs` | Exports the configured refs' `docs/` into `website/.docs-versions/`. |
-| `.github/workflows/docs-pages.yml` | Builds the site, injects the updater feeds, deploys. |
+| `.github/workflows/docs-pages.yml` | Builds the site, injects the updater feeds, deploys. Manual only (Actions → *Run workflow*) until `website/` is rebranded from DragonFruit. |
 
 `docs/internal/` is versioned but not published: `docs-nav.json` lists `internal`
 under `exclude`, and both the viewer and the accuracy check skip it.

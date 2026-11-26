@@ -47,6 +47,31 @@ licença no commit exato de cada submódulo e mantenha os avisos exigidos. As
 dependências npm, Rust e outros ativos também podem ter termos próprios; este
 arquivo não substitui a revisão de seus avisos.
 
+O plugin `plugins/creality/` não é um submódulo e não tem `LICENSE` próprio, então
+segue a licença da raiz (AGPL-3.0-or-later). As ilustrações dele são geradas pelo
+projeto, como explica o README do plugin.
+
+Os plugins CTB, Anycubic e Elegoo apontam para forks em
+[gilmardr](https://github.com/gilmardr) (branch `rambutan`). O código deles é
+compilado no aplicativo, então esses repositórios precisam ficar públicos junto
+com este: eles fazem parte do código-fonte correspondente exigido pela AGPL.
+
+Revisão de 2026-11-26: as dependências npm (`package-lock.json`) e Rust
+(`cargo metadata` de `src-tauri`) usam licenças permissivas (MIT, Apache-2.0,
+BSD, ISC, Zlib, MPL-2.0, Unicode-3.0 e similares) ou copyleft compatível com a
+AGPLv3 (LGPL do OCCT, e do libvips do `sharp`, que roda só no Node durante o build e não vai para o app;
+AGPL do TetGen). Nenhuma dependência declara licença proprietária, não comercial
+ou GPL-2.0-only.
+
+### Avisos de terceiros nas builds
+
+As licenças MIT, BSD e Apache-2.0 pedem que o aviso de copyright e o texto da
+licença acompanhem também as cópias compiladas. O código-fonte já traz esses
+avisos nos pacotes, mas o instalador ainda não inclui um arquivo de avisos de
+terceiros. Antes de distribuir binários, gere esse arquivo (por exemplo com
+`cargo about` para as crates Rust e um coletor de licenças npm para o frontend)
+e inclua-o no instalador ou na tela Sobre.
+
 ### Importação STEP (OCCT, LGPL-2.1)
 
 A importação STEP usa o Open CASCADE Technology compilado para WebAssembly pelo

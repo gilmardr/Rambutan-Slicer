@@ -491,12 +491,12 @@ export function SponsorsCarousel() {
     <div
       className="shrink-0 rounded-lg border px-3 py-2"
       style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}
-      aria-label={_(msg`Sponsors`)}
+      aria-label={_(msg`DragonFruit sponsors`)}
     >
       <div className="flex items-center justify-between gap-2">
         <h5 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
           <Heart className="h-3 w-3" style={{ color: 'var(--accent-secondary)' }} aria-hidden="true" />
-          <Trans>Sponsors</Trans>
+          <Trans>DragonFruit sponsors</Trans>
           <span className="normal-case tracking-normal font-normal" style={{ color: 'var(--text-muted)', opacity: 0.85 }}>
             <Trans>via Open Collective</Trans>
           </span>
@@ -507,7 +507,7 @@ export function SponsorsCarousel() {
           className="inline-flex items-center gap-1 text-[10px] font-medium hover:underline"
           style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
         >
-          <Trans>Sponsor Us</Trans>
+          <Trans>Support DragonFruit</Trans>
           <Heart className="h-3 w-3" aria-hidden="true" />
         </button>
       </div>

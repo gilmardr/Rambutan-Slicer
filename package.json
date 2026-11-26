@@ -1,6 +1,7 @@
 {
   "name": "rambutan-slicer",
   "version": "0.6.0",
+  "license": "AGPL-3.0-or-later",
   "buildChannel": "release",
   "private": true,
   "engines": {
