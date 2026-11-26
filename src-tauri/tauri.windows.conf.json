@@ -15,6 +15,7 @@
       },
       "nsis": {
         "installerHooks": "nsis/thumbnail-hooks.nsh",
+        "languages": ["English", "PortugueseBR"],
         "headerImage": "nsis/assets/header.bmp",
         "sidebarImage": "nsis/assets/sidebar.bmp"
       }

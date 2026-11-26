@@ -340,7 +340,11 @@ any reinstall/uninstall pages. InetC downloads the latest official installer;
 `scripts/verify-windows-runtime.ps1` requires a valid Microsoft corporate signature
 and a VC14 version at least as new as the build requires, then setup runs
 **`/q /norestart`** and rechecks the runtime. Failure or cancellation stops setup;
-exit `3010` requests a manual restart and rerun, never an automatic reboot/launch.
+exit `3010` continues when the recheck already finds the new runtime on disk;
+otherwise (a file in use is only queued for replacement) it requests a manual
+restart and rerun, never an automatic reboot/launch. The page and messages are in
+English and Brazilian Portuguese (`runtime-prerequisite-lang.nsh`, numeric
+language ids), so `bundle.windows.nsis.languages` must keep both languages.
 Silent `/S` and passive `/P` installations must have the prerequisite provisioned
 first. `src-tauri/wix/runtime-prerequisite.wxs` blocks an inadequate runtime with
 a Microsoft download link; it never nests an installer and allows uninstall.

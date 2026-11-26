@@ -235,6 +235,9 @@ const SLICE_PLATE_SCOPE_OPTIONS: ReadonlyArray<{ value: SlicePlateScope; label: 
   { value: 'current_plate', label: msg`Current Plate` },
 ];
 
+/** Upper bound of the slice-action dropdown's height (four rows), used to decide whether it opens up or down. */
+const SLICE_INTENT_MENU_MAX_HEIGHT_PX = 180;
+
 /** The plate scope control, dressed as the anti-aliasing Auto/Expert pair above it. */
 const activeSliceScopeStyle: React.CSSProperties = {
   borderColor: 'color-mix(in srgb, var(--accent), var(--border-subtle) 42%)',
@@ -2434,7 +2437,9 @@ export function SlicingPanel({
   }
 
     return (
-    <Card className="w-72">
+    // Expanded, the panel is capped at the viewport height: the details scroll and the
+    // slice action stays pinned at the bottom, so it can always be reached.
+    <Card className={isExpanded ? 'w-72 max-h-[calc(100dvh-var(--topbar-height)-24px)] overflow-hidden flex flex-col' : 'w-72'}>
       <CardHeader
         left={(
           <>
@@ -2445,7 +2450,8 @@ export function SlicingPanel({
       />
 
       {isExpanded && (
-        <div className="px-3 pt-2 pb-3 space-y-2.5">
+        <>
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 pt-2 pb-3 space-y-2.5">
           <div className="space-y-1.5">
             <div className="grid grid-cols-2 gap-1.5">
               <button
@@ -2858,6 +2864,9 @@ export function SlicingPanel({
             </div>
           )}
 
+        </div>
+
+        <div className="shrink-0 border-t px-3 pt-2.5 pb-3 space-y-2" style={{ borderColor: 'var(--border-subtle)' }}>
           {/* Which plates the slice covers: one file for the bed being worked on, or a zip
               with one file per bed. Only worth offering when more than one bed holds
               something — an empty bed is not a choice. */}
@@ -2944,7 +2953,11 @@ export function SlicingPanel({
                     className="rounded-md border overflow-hidden"
                     style={{
                       position: 'fixed',
-                      top: `${sliceIntentMenuRect.bottom + 6}px`,
+                      // The button sits at the bottom of the panel, which can reach the bottom
+                      // of the window: open the menu upward when there is no room below it.
+                      ...(sliceIntentMenuRect.bottom + SLICE_INTENT_MENU_MAX_HEIGHT_PX > window.innerHeight
+                        ? { bottom: `${window.innerHeight - sliceIntentMenuRect.top + 6}px` }
+                        : { top: `${sliceIntentMenuRect.bottom + 6}px` }),
                       left: sliceIntentMenuRect.left,
                       width: sliceIntentMenuRect.width,
                       zIndex: 9999,
@@ -2983,6 +2996,7 @@ export function SlicingPanel({
             );
           })()}
         </div>
+        </>
       )}
 
       {isMaterialAaEditorOpen && materialAaEditorDraft && activeMaterialProfile && typeof document !== 'undefined' && createPortal(

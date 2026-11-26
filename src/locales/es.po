@@ -4638,7 +4638,7 @@ msgstr "No se han podido aplicar los agujeros: {message}"
 
 #: src/features/hollowing/hollowingMessages.ts:36
 msgid "Hole punching needs the desktop app."
-msgstr "Los agujeros solo están disponibles en la versión de escritorio de DragonFruit."
+msgstr "Los agujeros solo están disponibles en la versión de escritorio de Rambutan Slicer."
 
 #: src/components/scene/MeshRepairReportModal.tsx:127
 msgctxt "Mesh repair summary"
@@ -4666,7 +4666,7 @@ msgstr "No se ha podido vaciar: {message}"
 
 #: src/features/hollowing/hollowingMessages.ts:12
 msgid "Hollowing needs the desktop app."
-msgstr "El vaciado solo está disponible en la versión de escritorio de DragonFruit."
+msgstr "El vaciado solo está disponible en la versión de escritorio de Rambutan Slicer."
 
 #: src/features/hollowing/hollowingMessages.ts:24
 msgid "Hollowing preview failed: {message}"
@@ -4674,7 +4674,7 @@ msgstr "No se ha podido generar la vista previa del vaciado: {message}"
 
 #: src/features/hollowing/hollowingMessages.ts:16
 msgid "Hollowing preview needs the desktop app."
-msgstr "La vista previa del vaciado solo está disponible en la versión de escritorio de DragonFruit."
+msgstr "La vista previa del vaciado solo está disponible en la versión de escritorio de Rambutan Slicer."
 
 #: src/features/scene/sceneHistoryLabels.ts:25
 msgctxt "Undo history entry"
