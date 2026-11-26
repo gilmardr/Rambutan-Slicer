@@ -45,6 +45,7 @@ import { ModelsPanel } from '@/components/organisms/panels/ModelsPanel';
 import { ModelStatsCard } from '@/components/controls/ModelStatsCard';
 import { FinalPrintReview } from '@/features/slicing/components/FinalPrintReview';
 import { ToolRail, TOOL_RAIL_WIDTH_PX } from '@/components/controls/ToolRail';
+import { WORKFLOW_RAIL_RESERVED_WIDTH_PX } from '@/components/layout/WorkflowNavigationRail';
 import { buildPrepareToolRailEntries, buildSupportToolRailEntries, type SupportRailMode } from '@/components/controls/toolRailEntries';
 import { SnapAngleReadout } from '@/components/gizmo/rotate/SnapAngleReadout';
 import { RotationHintTooltip } from '@/components/gizmo/rotate/RotationHintTooltip';
@@ -7048,6 +7049,13 @@ export default function Home() {
     finalizeMirrorSessionRef.current = mirror.flushPendingBake;
   }, [mirror.flushPendingBake]);
 
+  const hideWorkflowControls = onboardingMounted && wizardActive;
+  const workflowRailInsetPx = hideWorkflowControls ? 0 : WORKFLOW_RAIL_RESERVED_WIDTH_PX;
+  const hasVerticalToolRail = scene.models.length > 0
+    && (scene.mode === 'prepare' || scene.mode === 'support')
+    && toolLayout === 'vertical';
+  const editorLeftInsetPx = workflowRailInsetPx + (hasVerticalToolRail ? TOOL_RAIL_WIDTH_PX : 0);
+
   return (
     <EditorLayout>
       <TopBar
@@ -7127,7 +7135,7 @@ export default function Home() {
         onOverhangViewChange={toggleOverhangView}
         millimeterRulerVisible={millimeterRulerVisible}
         onMillimeterRulerVisibleChange={setMillimeterRulerVisible}
-        hideWorkflowControls={onboardingMounted && wizardActive}
+        hideWorkflowControls={hideWorkflowControls}
         heatmapColors={scene.heatmapColors}
         onHeatmapColorChange={scene.onHeatmapColorChange}
         isSlicingBusy={isSlicingBusy}
@@ -7138,6 +7146,8 @@ export default function Home() {
         onSaveSceneAs={() => { handleTopBarSaveSceneAs(); }}
         onOpenScene={handleTopBarOpenScene}
         onOpenPreparedModel={handleOpenPreparedModel}
+        recentOpenedFiles={recentOpenedFiles}
+        onReopenRecentFile={handleReopenRecentFile}
         onCloseProgram={handleRequestProgramClose}
         showMonitorButton={showTopbarMonitorButton}
         monitorButtonActive={selectedPrinterHasActivePrint}
@@ -7151,7 +7161,7 @@ export default function Home() {
       <GlobalUpdateIndicator />
 
       <FloatingPanelStack
-        leftInsetPx={scene.models.length > 0 && (scene.mode === 'prepare' || scene.mode === 'support') && toolLayout === 'vertical' ? TOOL_RAIL_WIDTH_PX : 0}
+        leftInsetPx={editorLeftInsetPx}
         railIsColumn={toolLayout === 'vertical'}
       >
         {scene.mode === 'prepare' ? (
@@ -7854,7 +7864,8 @@ export default function Home() {
           {scene.models.length > 0 && (
             <div
               ref={modelStatsCardContainerRef}
-              className="absolute bottom-1 left-1 z-30 pointer-events-auto"
+              className="absolute bottom-1 z-30 pointer-events-auto"
+              style={{ left: editorLeftInsetPx + 8 }}
             >
               <ModelStatsCard
                 model={scene.models.find((m) => m.id === displayActiveModelId) || null}
@@ -7977,6 +7988,7 @@ export default function Home() {
               ...modelsRailToggle,
             })}
           layout={toolLayout}
+          leftOffsetPx={workflowRailInsetPx > 0 ? WORKFLOW_RAIL_RESERVED_WIDTH_PX + 6 : 6}
           onLayoutChange={setToolLayout}
         />
       )}

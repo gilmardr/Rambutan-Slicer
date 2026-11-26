@@ -170,6 +170,11 @@ export const DEFAULT_KEYBINDINGS: HotkeyConfig = {
             key: 's',
             modifier: 'ctrl+shift',
             description: 'Save active scene as…'
+        },
+        COMMAND_PALETTE: {
+            key: 'k',
+            modifier: 'ctrl',
+            description: 'Open or close the command palette'
         }
     },
     DEBUG: {

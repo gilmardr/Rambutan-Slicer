@@ -2,7 +2,8 @@
   "exclude": [
     "internal",
     "brand",
-    "release"
+    "release",
+    "design"
   ],
   "items": [
     {
