@@ -387,10 +387,15 @@ jobs:
       # build-thumbnail-providers.mjs builds the COM DLL with `--target` only
       # when CARGO_BUILD_TARGET is set. Exported for x86 alone (an empty value
       # would reach cargo too), so the x64 build keeps its tested path.
-      - name: Target the COM DLL at 32-bit Windows
+      - name: Target the COM DLL and C++ dependencies at 32-bit Windows
         if: matrix.windows_arch == 'x86'
         shell: bash
-        run: echo "CARGO_BUILD_TARGET=${{ matrix.windows_triple }}" >> "$GITHUB_ENV"
+        run: |
+          echo "CARGO_BUILD_TARGET=${{ matrix.windows_triple }}" >> "$GITHUB_ENV"
+          # manifold-csg-sys calls cmake itself; without this it builds x64 /MD
+          # libraries that the i686 static-CRT link rejects.
+          echo "CMAKE_GENERATOR_PLATFORM=Win32" >> "$GITHUB_ENV"
+          echo "CMAKE_TOOLCHAIN_FILE=$(cygpath -m "$GITHUB_WORKSPACE")/scripts/cmake/windows-x86-static-crt.cmake" >> "$GITHUB_ENV"
 
       - name: Build Tauri bundle
         if: matrix.build_kind == 'tauri'
