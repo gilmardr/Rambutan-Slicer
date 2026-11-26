@@ -42,9 +42,8 @@ import { getSavedWorkspaceCameraSettings, getWorkspaceCameraSettingsServerSnapsh
 import { DEFAULT_VIEW3D_SETTINGS, getSavedView3DSettings, normalizeView3DSettings, saveView3DSettings, type View3DSettings } from '@/components/settings/view3dPreferences';
 import { followedPlateIdForMove, rectStandsOnAnyBed } from '@/features/scene/plates/plateInteractivity';
 import { getMultiPlateSettingsServerSnapshot, getMultiPlateSettingsSnapshot, plateOrderingFor, subscribeToMultiPlateSettings } from '@/components/settings/multiPlatePreferences';
-import { getActivePrinterProfile, getMaterialProfilesForPrinter, getProfileStoreSnapshot, getProfileStoreServerSnapshot, importPrinterBundle, setActivePrinterProfile, subscribeToProfileStore } from '@/features/profiles/profileStore';
+import { getActivePrinterProfile, getMaterialProfilesForPrinter, getProfileStoreSnapshot, getProfileStoreServerSnapshot, setActivePrinterProfile, subscribeToProfileStore } from '@/features/profiles/profileStore';
 import { buildVolumeIsSmaller, findPrinterProfileForBundle, toVoxlPrinterBundle } from '@/features/profiles/voxlPrinterBundle';
-import type { VoxlPrinterBundle } from '@/features/scene/voxl/types';
 import { base64ToBytes } from '@/utils/base64';
 import { snapshotGeometryPositions } from '@/utils/geometrySnapshot';
 import type { ModelMeshModifiers, ModelMeshModifiersHistoryOptions } from '@/features/mesh-modifiers/types';
@@ -76,6 +75,8 @@ import { sanitizeImportedModelDisplayName, sha256Hex, remapModelIdsInPayload, vo
 import { ScenePlate, LoadedModel } from './loadedModel';
 import { useMeshAppearanceState } from './useMeshAppearanceState';
 import { useRecentOpenedFiles } from './useRecentOpenedFiles';
+import { useSceneImportPrompts, type MeshRepairReportEntry } from './useSceneImportPrompts';
+export type { SceneImportReportTone, SceneImportReport, MeshRepairReportEntry, SceneImportPlacementPrompt, SceneImportHollowingChoice, SceneImportHollowingPrompt, MeshRepairConfirmPrompt, ObsoleteVoxlScenePrompt, PrinterMismatchPrompt } from './useSceneImportPrompts';
 export { DEFAULT_HEATMAP_COLORS, DEFAULT_HOVER_TINT_STRENGTH, DEFAULT_SELECTED_TINT_STRENGTH } from './meshAppearanceSettings';
 export type { RecentOpenedFileKind, RecentOpenedFileEntry } from './recentOpenedFiles';
 export { SCENE_MODELS_SNAPSHOT_APPLY, getSceneSnapshotRegistryBytes } from './sceneSnapshotHistory';
@@ -127,28 +128,14 @@ type ImportProgressState = {
   progress: number | null;
 };
 
-export type SceneImportReportTone = 'success' | 'warning' | 'error';
 
-export type SceneImportReport = {
-  id: number;
-  text: string;
-  tone: SceneImportReportTone;
-  durationMs?: number;
-  clickAction?: 'openMeshRepairReport';
-};
 
-export type MeshRepairReportEntry = {
-  id: string;
-  modelName: string;
-  report: MeshHealthReport;
-};
 
 /** A repair run's progress sink, told also when each model of the run starts. */
 export interface ModelsRepairProgressSink extends MeshRepairProgressSink {
   onModelStart?: (modelId: string, index: number, total: number) => void;
 }
 
-type MeshRepairReportPresentation = 'default' | 'optimistic';
 
 function repairReportNeedsAttention(report: MeshHealthReport): boolean {
   if (!report.fully_repaired) return true;
@@ -162,23 +149,9 @@ function repairReportNeedsAttention(report: MeshHealthReport): boolean {
     || post.inconsistent_edges < pre.inconsistent_edges;
 }
 
-type SceneImportPlacementChoice = 'auto_arrange' | 'load_as_is';
 
-export type SceneImportPlacementPrompt = {
-  source: string;
-  fileName: string;
-  modelCount: number;
-  offPlateModelCount: number;
-};
 
-export type SceneImportHollowingChoice = 'bake' | 'keep_solid';
 
-export type SceneImportHollowingPrompt = {
-  source: string;
-  fileName: string;
-  modelCount: number;
-  hollowedModelCount: number;
-};
 
 /**
  * Joins a pre-baked cavity to its outer shell as one hollow solid.
@@ -256,50 +229,9 @@ function geometryPositionsAsSoup(geometry: THREE.BufferGeometry): Float32Array |
   return soup;
 }
 
-export type MeshRepairConfirmPrompt = {
-  fileName: string;
-  analysis: MeshAnalysisJson;
-  /**
-   * Whether the file can be repaired part by part. A plate imports as one model with many
-   * components, and repairing it whole returns one verdict for all of them; the parts flow returns
-   * a verdict per object instead. Offered only when the import has a file behind it, since the
-   * parts flow reads the source.
-   */
-  canRepairParts: boolean;
-};
 
-/** A scene refused because it was saved by a VOXL generation we no longer read. */
-export type ObsoleteVoxlScenePrompt = {
-  fileName: string;
-  detected: 'v1-json' | 'v1-binary';
-};
 
-/**
- * A scene written for a printer other than the one selected. Raised on import so
- * the user can switch before the scene is dropped into a machine its beds were
- * not laid out for: the plate pitch comes from the build volume, so a scene
- * packed for another printer lands on the wrong ones, and if that printer is the
- * bigger the plates do not fit here at all.
- */
-export type PrinterMismatchPrompt = {
-  /** The printer the scene carries, whole, so switching can add it when it is missing here. */
-  bundle: VoxlPrinterBundle;
-  /** The printer's name as the bundle carries it; absent when it has none. */
-  recordedName?: string;
-  recordedBuildVolumeMm: { width: number; depth: number; height: number };
-  /** The selected profile at the moment of the import. */
-  currentName: string;
-  currentBuildVolumeMm: { width: number; depth: number; height: number };
-  /**
-   * The installed profile the scene's printer resolves to, or null when this
-   * machine has none and switching will add it from the bundle.
-   */
-  installedProfileId: string | null;
-  /** Whether the selected printer is smaller on some axis, so nothing fits as packed. */
-  currentIsSmaller: boolean;
-};
 
-type MeshRepairConfirmChoice = 'repair' | 'repair_parts' | 'load_as_is' | 'cancel_import';
 
 type ModelClipboardEntry = {
   sourceId: string;
@@ -600,23 +532,39 @@ export function useSceneCollectionManager(options?: {
     detail: '',
     progress: null,
   });
-  const [sceneImportReport, setSceneImportReport] = useState<SceneImportReport | null>(null);
-  const [sceneImportPlacementPrompt, setSceneImportPlacementPrompt] = useState<SceneImportPlacementPrompt | null>(null);
-  const [obsoleteVoxlScene, setObsoleteVoxlScene] = useState<ObsoleteVoxlScenePrompt | null>(null);
-  const [printerMismatch, setPrinterMismatch] = useState<PrinterMismatchPrompt | null>(null);
-  const [sceneImportHollowingPrompt, setSceneImportHollowingPrompt] = useState<SceneImportHollowingPrompt | null>(null);
-  const [meshRepairConfirmPrompt, setMeshRepairConfirmPrompt] = useState<MeshRepairConfirmPrompt | null>(null);
-  const [meshRepairReports, setMeshRepairReports] = useState<MeshRepairReportEntry[]>([]);
+  const {
+    sceneImportReport,
+    sceneImportPlacementPrompt,
+    obsoleteVoxlScene,
+    setObsoleteVoxlScene,
+    printerMismatch,
+    setPrinterMismatch,
+    sceneImportHollowingPrompt,
+    meshRepairConfirmPrompt,
+    meshRepairReports,
+    setMeshRepairReports,
+    meshRepairReportPresentation,
+    setMeshRepairReportPresentation,
+    setPendingMeshRepairReports,
+    emitSceneImportReport,
+    clearSceneImportReport,
+    dismissMeshRepairReports,
+    dismissObsoleteVoxlScene,
+    resolvePrinterMismatch,
+    openMeshRepairReportForModel,
+    openPendingMeshRepairReports,
+    resolveSceneImportPlacementPrompt,
+    resolveSceneImportHollowingPrompt,
+    resolveMeshRepairConfirmPrompt,
+    requestMeshRepairConfirmation,
+    requestSceneImportPlacementChoice,
+    requestSceneImportHollowingChoice,
+    sceneImportReportTimeoutRef,
+  } = useSceneImportPrompts(models);
   // Which models the user repaired here, as opposed to the import pass repairing them at load.
   // Every imported model carries a `nativeRepairReport`, so that field alone cannot say whether the
   // repair menu should offer "Auto-Repair Again" and the report.
   const [manuallyRepairedModelIds, setManuallyRepairedModelIds] = useState<string[]>([]);
-  const [meshRepairReportPresentation, setMeshRepairReportPresentation] = useState<MeshRepairReportPresentation>('default');
-  const [pendingMeshRepairReports, setPendingMeshRepairReports] = useState<MeshRepairReportEntry[]>([]);
-  const sceneImportReportTimeoutRef = useRef<number | null>(null);
-  const sceneImportPlacementResolveRef = useRef<((choice: SceneImportPlacementChoice) => void) | null>(null);
-  const sceneImportHollowingResolveRef = useRef<((choice: SceneImportHollowingChoice) => void) | null>(null);
-  const meshRepairConfirmResolveRef = useRef<((choice: MeshRepairConfirmChoice) => void) | null>(null);
 
   const deferredAccelerationQueueRef = useRef<THREE.BufferGeometry[]>([]);
   const deferredAccelerationProcessingRef = useRef(false);
@@ -648,185 +596,6 @@ export function useSceneCollectionManager(options?: {
     } catch {
       // Ignore invalid URLs
     }
-  }, []);
-
-  const emitSceneImportReport = useCallback((
-    text: string,
-    tone: SceneImportReportTone = 'success',
-    options?: { durationMs?: number; clickAction?: SceneImportReport['clickAction'] },
-  ) => {
-    const durationMs = options?.durationMs ?? 4200;
-    setSceneImportReport({
-      id: Date.now(),
-      text,
-      tone,
-      durationMs,
-      clickAction: options?.clickAction,
-    });
-
-    if (typeof window !== 'undefined') {
-      if (sceneImportReportTimeoutRef.current !== null) {
-        window.clearTimeout(sceneImportReportTimeoutRef.current);
-      }
-
-      sceneImportReportTimeoutRef.current = window.setTimeout(() => {
-        setSceneImportReport(null);
-        setPendingMeshRepairReports([]);
-        sceneImportReportTimeoutRef.current = null;
-      }, durationMs);
-    }
-  }, []);
-
-  const clearSceneImportReport = useCallback(() => {
-    setSceneImportReport(null);
-
-    if (typeof window !== 'undefined' && sceneImportReportTimeoutRef.current !== null) {
-      window.clearTimeout(sceneImportReportTimeoutRef.current);
-      sceneImportReportTimeoutRef.current = null;
-    }
-  }, []);
-
-  const dismissMeshRepairReports = useCallback(() => {
-    setMeshRepairReports([]);
-    setMeshRepairReportPresentation('default');
-  }, []);
-
-  const dismissObsoleteVoxlScene = useCallback(() => {
-    setObsoleteVoxlScene(null);
-  }, []);
-
-  /**
-   * Answer the printer-mismatch prompt. Switching selects the scene's printer
-   * when this machine already has it, and otherwise adds it from the bundle the
-   * scene carries, which is the point of shipping it whole.
-   */
-  const resolvePrinterMismatch = useCallback((choice: 'switch' | 'keep') => {
-    if (choice === 'switch' && printerMismatch) {
-      const installedId = printerMismatch.installedProfileId;
-      if (installedId) setActivePrinterProfile(installedId);
-      else setActivePrinterProfile(importPrinterBundle(printerMismatch.bundle));
-    }
-    setPrinterMismatch(null);
-  }, [printerMismatch]);
-
-  /**
-   * Show the report a model already carries, from its recorded repair.
-   *
-   * The record lives on the model (`meshDefects.nativeRepairReport`) and survives everything the
-   * scene does to it, so a model repaired earlier in the session can still say what was done.
-   */
-  const openMeshRepairReportForModel = useCallback((modelId: string) => {
-    const model = models.find((entry) => entry.id === modelId);
-    const report = model?.geometry.meshDefects?.nativeRepairReport;
-    if (!model || !report) return;
-    // The same dialog a repair just showed: the wins, the follow-up notes and the technical details.
-    setMeshRepairReportPresentation('optimistic');
-    setMeshRepairReports([{ id: `model-${modelId}`, modelName: model.name, report }]);
-  }, [models]);
-
-  const openPendingMeshRepairReports = useCallback(() => {
-    if (pendingMeshRepairReports.length === 0) {
-      return;
-    }
-    setMeshRepairReportPresentation('default');
-    setMeshRepairReports(pendingMeshRepairReports);
-    setPendingMeshRepairReports([]);
-    clearSceneImportReport();
-  }, [clearSceneImportReport, pendingMeshRepairReports]);
-
-  const resolveSceneImportPlacementPrompt = useCallback((choice: SceneImportPlacementChoice) => {
-    const resolve = sceneImportPlacementResolveRef.current;
-    sceneImportPlacementResolveRef.current = null;
-    setSceneImportPlacementPrompt(null);
-    resolve?.(choice);
-  }, []);
-
-  const resolveSceneImportHollowingPrompt = useCallback((choice: SceneImportHollowingChoice) => {
-    const resolve = sceneImportHollowingResolveRef.current;
-    sceneImportHollowingResolveRef.current = null;
-    setSceneImportHollowingPrompt(null);
-    resolve?.(choice);
-  }, []);
-
-  const resolveMeshRepairConfirmPrompt = useCallback((choice: MeshRepairConfirmChoice) => {
-    const resolve = meshRepairConfirmResolveRef.current;
-    meshRepairConfirmResolveRef.current = null;
-    setMeshRepairConfirmPrompt(null);
-    resolve?.(choice);
-  }, []);
-
-  const requestMeshRepairConfirmation = useCallback(async (
-    prompt: MeshRepairConfirmPrompt,
-  ): Promise<MeshRepairConfirmChoice> => {
-    if (typeof window === 'undefined') return 'repair';
-
-    if (meshRepairConfirmResolveRef.current) {
-      // Fail-safe: resolve a stale unresolved prompt so imports never deadlock.
-      meshRepairConfirmResolveRef.current('repair');
-      meshRepairConfirmResolveRef.current = null;
-    }
-
-    setMeshRepairConfirmPrompt(prompt);
-
-    return new Promise<MeshRepairConfirmChoice>((resolve) => {
-      meshRepairConfirmResolveRef.current = resolve;
-    });
-  }, []);
-
-  const requestSceneImportPlacementChoice = useCallback(async (
-    prompt: SceneImportPlacementPrompt,
-  ): Promise<SceneImportPlacementChoice> => {
-    if (typeof window === 'undefined') {
-      return 'auto_arrange';
-    }
-
-    if (sceneImportPlacementResolveRef.current) {
-      // Fail-safe: resolve previous unresolved prompt so imports never deadlock.
-      sceneImportPlacementResolveRef.current('load_as_is');
-      sceneImportPlacementResolveRef.current = null;
-    }
-
-    setSceneImportPlacementPrompt(prompt);
-
-    return await new Promise<SceneImportPlacementChoice>((resolve) => {
-      sceneImportPlacementResolveRef.current = resolve;
-    });
-  }, []);
-
-  const requestSceneImportHollowingChoice = useCallback(async (
-    prompt: SceneImportHollowingPrompt,
-  ): Promise<SceneImportHollowingChoice> => {
-    // Headless: take the file at its word and keep the authored hollow.
-    if (typeof window === 'undefined') {
-      return 'bake';
-    }
-
-    if (sceneImportHollowingResolveRef.current) {
-      // Fail-safe: resolve previous unresolved prompt so imports never deadlock.
-      sceneImportHollowingResolveRef.current('bake');
-      sceneImportHollowingResolveRef.current = null;
-    }
-
-    setSceneImportHollowingPrompt(prompt);
-
-    return await new Promise<SceneImportHollowingChoice>((resolve) => {
-      sceneImportHollowingResolveRef.current = resolve;
-    });
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (sceneImportPlacementResolveRef.current) {
-        const resolve = sceneImportPlacementResolveRef.current;
-        sceneImportPlacementResolveRef.current = null;
-        resolve('load_as_is');
-      }
-      if (sceneImportHollowingResolveRef.current) {
-        const resolve = sceneImportHollowingResolveRef.current;
-        sceneImportHollowingResolveRef.current = null;
-        resolve('bake');
-      }
-    };
   }, []);
 
   // Lighting, shader, heatmap and tint settings, persisted in localStorage.
@@ -1909,7 +1678,7 @@ export function useSceneCollectionManager(options?: {
         progress: null,
       });
     }
-  }, [_, defaultImportCenterXY.x, defaultImportCenterXY.y, emitSceneImportReport, findFreeSpotCentersForModels, getMeshExtension, requestMeshRepairConfirmation, trackRecentOpenedFiles, waitForUiYield]);
+  }, [_, defaultImportCenterXY.x, defaultImportCenterXY.y, emitSceneImportReport, findFreeSpotCentersForModels, getMeshExtension, requestMeshRepairConfirmation, trackRecentOpenedFiles, waitForUiYield, setPendingMeshRepairReports]);
 
   const onFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -3704,7 +3473,7 @@ export function useSceneCollectionManager(options?: {
     } finally {
       setImportProgress({ active: false, type: null, label: '', detail: '', progress: null });
     }
-  }, [_, clearSceneImportReport, emitSceneImportReport, setImportProgress, waitForUiYield]);
+  }, [_, clearSceneImportReport, emitSceneImportReport, setImportProgress, waitForUiYield, setMeshRepairReportPresentation, setMeshRepairReports, setPendingMeshRepairReports]);
 
   const renameGroup = useCallback((groupId: string, nextName: string) => {
     const trimmed = nextName.trim();
@@ -5866,7 +5635,7 @@ export function useSceneCollectionManager(options?: {
         });
       }
     }
-  }, [_, cloneGeometryWithBounds, emitSceneImportReport, findFreeSpotCentersForModels, isModelFootprintInsidePlate, requestSceneImportPlacementChoice, shouldAutoRepairSceneImports, trackRecentOpenedFiles, waitForUiYield]);
+  }, [_, cloneGeometryWithBounds, emitSceneImportReport, findFreeSpotCentersForModels, isModelFootprintInsidePlate, requestSceneImportPlacementChoice, shouldAutoRepairSceneImports, trackRecentOpenedFiles, waitForUiYield, setObsoleteVoxlScene, setPrinterMismatch]);
 
   const importSceneFile = useCallback(async (file: File, options?: SceneImportRunOptions): Promise<boolean> => {
     const extension = getSceneExtension(file.name);
@@ -6249,7 +6018,7 @@ export function useSceneCollectionManager(options?: {
       emitSceneImportReport(_(msg`Could not restore the model.`), 'error');
       return false;
     }
-  }, [_, emitSceneImportReport, models, shouldAutoRepairSceneImports]);
+  }, [_, emitSceneImportReport, models, shouldAutoRepairSceneImports, setMeshRepairReports, setPendingMeshRepairReports]);
 
   /**
    * Re-runs the full native repair pipeline on each model in turn and swaps every result in as
@@ -6361,7 +6130,7 @@ export function useSceneCollectionManager(options?: {
     }
 
     return allRepaired;
-  }, [_, clearSceneImportReport, emitSceneImportReport, pushSceneSnapshotHistory]);
+  }, [_, clearSceneImportReport, emitSceneImportReport, pushSceneSnapshotHistory, setMeshRepairReportPresentation, setMeshRepairReports, setPendingMeshRepairReports]);
 
   /**
    * Rebuild one model's surface with the native tetrahedral surfacing pass and swap the result in
