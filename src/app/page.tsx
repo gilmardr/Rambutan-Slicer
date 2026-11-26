@@ -51,7 +51,7 @@ import { SnapAngleReadout } from '@/components/gizmo/rotate/SnapAngleReadout';
 import { RotationHintTooltip } from '@/components/gizmo/rotate/RotationHintTooltip';
 import {
 } from '@/components/controls/ArrangePanel';
-import { contactEndpointsFor, countSupportCollections, MODEL_ID_COLLECTION_KEYS, SUPPORT_COLLECTION_KEYS, SUPPORT_TYPES, type SupportCollectionKey } from '@/supports/supportTypeRegistry';
+import { contactEndpointsFor, countSupportCollections, SUPPORT_COLLECTION_KEYS, SUPPORT_TYPES, type SupportCollectionKey } from '@/supports/supportTypeRegistry';
 import { SupportProximityPanel } from '@/components/controls/SupportProximityPanel';
 import { SuctionCupDetectorPanel } from '@/components/organisms/panels/SuctionCupDetectorPanel';
 import { SupportSidebar } from '@/supports/Settings/SupportSidebar';
@@ -239,7 +239,7 @@ import {
 } from '@/components/settings/uvToolsPreferences';
 import { subscribe as subscribeSupportState, getSnapshot as getSupportSnapshot, getModelIdForSupportEntityId } from '@/supports/state';
 import { bracePlacementStore } from '@/supports/SupportTypes/Brace/bracePlacementState';
-import { formatSelectedModelCount, formatArrangeOverflowMessage, formatProcessingElapsedLabel, formatApplyingToModelLabel, formatElapsedLabel, formatUploadToLabel, formatEstimatedPrintTimeLabel, formatPlateLockedNotice } from './home/homeFormatters';
+import { formatArrangeOverflowMessage, formatProcessingElapsedLabel, formatApplyingToModelLabel, formatElapsedLabel, formatUploadToLabel, formatEstimatedPrintTimeLabel, formatPlateLockedNotice } from './home/homeFormatters';
 import { countRecordEntries, getDefaultHolePunchDepthMm, createModelTransformKey, PREPARE_TOOL_MODES, isAppMode, isTransformMode } from './home/homeUtils';
 import { getLongPartPlateYaw, computeArrangeSupportBounds } from './home/homeArrangeGeometry';
 import { useResinEstimate } from './home/useResinEstimate';
@@ -254,11 +254,12 @@ import { useManifoldWarning } from './home/useManifoldWarning';
 import { useToolRailLayout } from './home/useToolRailLayout';
 import { useExportThumbnailRenderOptions } from './home/useExportThumbnailRenderOptions';
 import { useOnboardingWizard } from './home/useOnboardingWizard';
+import { useModelStatsClearance } from './home/useModelStatsClearance';
+import { useDestructiveTransformGuard } from './home/useDestructiveTransformGuard';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
 import { getRaftSettings, getRaftSettingsForModel, subscribeToRaftStore } from '@/supports/Rafts/Crenelated/RaftState';
-import { getSupportsForModel } from '@/supports/PlacementLogic/SupportModelLinker';
 import { buildProjectedCrossSectionZRange } from '@/features/slicing/rasterLayerZipExport';
 import { resolveCompositeMaterialLabel } from '@/utils/materialLabel';
 
@@ -284,8 +285,6 @@ import type {
   ModelMeshModifiersHistoryOptions,
 } from '@/features/mesh-modifiers/types';
 import {
-  deleteSupportsForModelLabel,
-  deleteSupportsForModelsLabel,
   HOLLOWING_SETTINGS_LABEL,
   modelTransformLabel,
   ORGANIC_CUT_LABEL,
@@ -1278,13 +1277,6 @@ export default function Home() {
 
   const [supportRenderRefreshNonce, setSupportRenderRefreshNonce] = React.useState(0);
   const [gizmoResetNonce, setGizmoResetNonce] = React.useState(0);
-  const [pendingDestructiveTransform, setPendingDestructiveTransform] = React.useState<{
-    modelIds: string[];
-    modelName: string;
-    supportCount: number;
-    operationLabel: string;
-  } | null>(null);
-  const pendingDestructiveTransformContinueRef = React.useRef<(() => void) | null>(null);
   const desktopWindowRevealRequestedRef = React.useRef(false);
 
   const suppressTransformPersistenceCycles = React.useCallback((cycles = 1) => {
@@ -1297,8 +1289,7 @@ export default function Home() {
     }
     suppressNextTransformPersistenceRef.current = true;
   }, []);
-  const modelStatsCardContainerRef = React.useRef<HTMLDivElement | null>(null);
-  const [modelStatsBottomClearancePx, setModelStatsBottomClearancePx] = React.useState(220);
+  const { modelStatsCardContainerRef, modelStatsBottomClearancePx } = useModelStatsClearance({ scene });
   const trackSupportCollectionsInHome = scene.mode !== 'support';
   
   // Stable snapshot functions for useSyncExternalStore
@@ -1698,79 +1689,14 @@ export default function Home() {
     };
   }, [bracePlacementSnapshot, supportShaftHoverDebug.point, supportShaftHoverDebug.segmentId, transformDebugTick]);
 
-  // Reads the live stores directly: Home's subscribed snapshot is an empty
-  // stub in support mode (trackSupportCollectionsInHome), so counting from it
-  // would silently report zero exactly where orient needs the truth. In
-  // prepare mode the stub mirrors the store, so existing callers are unaffected.
-  // Summed over every modelId-bearing collection, so a model carrying only one
-  // type still reports its supports.
-  const getSupportPrimitiveCountForModel = React.useCallback((modelId: string | null | undefined) => {
-    if (!modelId) return 0;
-
-    const supportIds = getSupportsForModel(getSupportSnapshot(), modelId);
-    return MODEL_ID_COLLECTION_KEYS.reduce((total, key) => total + supportIds[key].length, 0);
-  }, []);
-
-  /**
-   * Asks before a transform that would invalidate supports. `modelIds` defaults to the active
-   * model; a selection edit passes the whole selection, so the prompt counts, and the
-   * confirmation deletes, the supports of every model it is about to change.
-   */
-  const requestDestructiveTransformSupportDeletion = React.useCallback((
-    operationLabel: string,
-    modelIds?: readonly string[],
-  ) => {
-    if (scene.mode !== 'prepare') return true;
-    const targetIds = modelIds ?? (scene.activeModelId ? [scene.activeModelId] : []);
-    if (targetIds.length === 0) return true;
-    if (pendingDestructiveTransform) return false;
-
-    const supportedIds = targetIds.filter((modelId) => getSupportPrimitiveCountForModel(modelId) > 0);
-    if (supportedIds.length === 0) return true;
-    const supportCount = supportedIds.reduce((total, modelId) => total + getSupportPrimitiveCountForModel(modelId), 0);
-
-    const firstModel = scene.models.find((model) => model.id === supportedIds[0]);
-    setPendingDestructiveTransform({
-      modelIds: supportedIds,
-      modelName: supportedIds.length === 1
-        ? (firstModel?.name ?? supportedIds[0]).trim()
-        : formatSelectedModelCount(_, supportedIds.length),
-      supportCount,
-      operationLabel,
-    });
-    return false;
-  }, [_, getSupportPrimitiveCountForModel, pendingDestructiveTransform, scene.activeModelId, scene.mode, scene.models]);
-
-  const requestDestructiveTransformSupportDeletionWithContinuation = React.useCallback((
-    operationLabel: string,
-    onContinue: () => void,
-  ) => {
-    const proceedImmediately = requestDestructiveTransformSupportDeletion(operationLabel);
-    if (proceedImmediately) {
-      pendingDestructiveTransformContinueRef.current = null;
-      return true;
-    }
-
-    pendingDestructiveTransformContinueRef.current = onContinue;
-    return false;
-  }, [requestDestructiveTransformSupportDeletion]);
-
-  const requestOrientSupportDeletionWithContinuation = React.useCallback((onContinue: () => void) => {
-    // Unlike the prepare-mode destructive transforms, orient always forces the
-    // dialog when placed supports would be invalidated by the rotation.
-    if (!scene.activeModelId) return true;
-    if (pendingDestructiveTransform) return false;
-    const supportCount = getSupportPrimitiveCountForModel(scene.activeModelId);
-    if (supportCount <= 0) return true;
-    setPendingDestructiveTransform({
-      modelIds: [scene.activeModelId],
-      modelName: (scene.activeModel?.name ?? scene.activeModelId).trim(),
-      supportCount,
-      operationLabel: 'Auto Orient',
-    });
-    pendingDestructiveTransformContinueRef.current = onContinue;
-    return false;
-  }, [getSupportPrimitiveCountForModel, pendingDestructiveTransform, scene]);
+  const {
+    pendingDestructiveTransform,
+    requestDestructiveTransformSupportDeletion,
+    requestDestructiveTransformSupportDeletionWithContinuation,
+    requestOrientSupportDeletionWithContinuation,
+    handleConfirmDestructiveTransform,
+    handleCancelDestructiveTransform,
+  } = useDestructiveTransformGuard({ scene, setSupportRenderRefreshNonce, setGizmoResetNonce });
 
   const handleApplyOrientation = React.useCallback((
     modelId: string,
@@ -1976,53 +1902,6 @@ export default function Home() {
     })(); });
   }, [handleApplyOrientation, scene.activeModel, scene.activeModelId, showOrientationToast, transformMgr.autoLift]);
 
-  const handleConfirmDestructiveTransform = React.useCallback(() => {
-    const pending = pendingDestructiveTransform;
-    if (!pending) return;
-
-    scene.deleteSupportsForModels(
-      pending.modelIds,
-      pending.modelIds.length === 1
-        ? deleteSupportsForModelLabel(pending.modelName)
-        : deleteSupportsForModelsLabel(pending.modelIds.length),
-    );
-
-    setSupportRenderRefreshNonce((value) => value + 1);
-    setGizmoResetNonce((value) => value + 1);
-    setPendingDestructiveTransform(null);
-    const continueAfterDeletion = pendingDestructiveTransformContinueRef.current;
-    pendingDestructiveTransformContinueRef.current = null;
-    continueAfterDeletion?.();
-  }, [pendingDestructiveTransform, scene]);
-
-  const handleCancelDestructiveTransform = React.useCallback(() => {
-    pendingDestructiveTransformContinueRef.current = null;
-    setPendingDestructiveTransform(null);
-  }, []);
-
-  React.useLayoutEffect(() => {
-    const element = modelStatsCardContainerRef.current;
-    if (!element) {
-      setModelStatsBottomClearancePx(220);
-      return;
-    }
-
-    const updateClearance = () => {
-      const rect = element.getBoundingClientRect();
-      const bottomMarginPx = 12; // bottom-3 (aligned with floating panel margin)
-      const safetyGapPx = 14;
-      const measured = Math.ceil(rect.height + bottomMarginPx + safetyGapPx);
-      setModelStatsBottomClearancePx(Math.max(220, measured));
-    };
-
-    updateClearance();
-    const observer = new ResizeObserver(() => {
-      updateClearance();
-    });
-
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [scene.models.length]);
   const rightClickGestureRef = React.useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const suppressEditorContextMenuUntilRef = React.useRef(0);
   const cameraResumeTimeoutRef = React.useRef<number | null>(null);

@@ -27,6 +27,8 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['useToolRailLayout.ts', 'useToolRailLayout'],
   ['useExportThumbnailRenderOptions.ts', 'useExportThumbnailRenderOptions'],
   ['useOnboardingWizard.ts', 'useOnboardingWizard'],
+  ['useModelStatsClearance.ts', 'useModelStatsClearance'],
+  ['useDestructiveTransformGuard.ts', 'useDestructiveTransformGuard'],
 ];
 
 for (const [file, hook] of HOOKS) {
