@@ -69,12 +69,13 @@ import { readNativeFileSize } from '@/utils/pluginNetworkBridge';
 import { clonePlainData } from '@/utils/plainDataClone';
 import { DEFAULT_LIFT_DISTANCE_MM } from '@/features/transform/liftDefaults';
 import { DEFAULT_MESH_COLOR, clampHexColor, readMeshAppearanceFromLocalStorage } from './meshAppearanceSettings';
-import { RECENT_OPENED_FILES_LIMIT, RecentOpenedFileKind, RecentOpenedFileEntry, putRecentOpenedFileBlob, deleteRecentOpenedFileBlobs, readRecentOpenedFileBlob, readRecentOpenedFilesFromLocalStorage, writeRecentOpenedFilesToLocalStorage } from './recentOpenedFiles';
+import { readRecentOpenedFileBlob } from './recentOpenedFiles';
 import { SCENE_MODELS_SNAPSHOT_APPLY, MODIFIER_HISTORY_MERGE_WINDOW_MS, SceneSnapshotPayload, sceneHistory, SceneSnapshot, TransformHistorySupportSnapshotOptions, sceneSnapshotRegistry, captureSceneSnapshot, storeSceneSnapshotPair } from './sceneSnapshotHistory';
 import { cloneTransform, transformsEqual, cloneLoadedModel, cloneMeshModifiersShallow, cloneMeshModifiersForHistory, schedulePostPaint, paintModelBaseColor, hasSupportsForModel, shiftSupportsWithModels, supportStateFor } from './sceneModelHelpers';
 import { sanitizeImportedModelDisplayName, sha256Hex, remapModelIdsInPayload, voxlSupportsContainData, countSupportEntries, applyImportDefaultsToRaftState, PluginSceneImportPayload, asDragonfruitImportFormat, normalizePluginSceneImportPayload } from './sceneImportHelpers';
 import { ScenePlate, LoadedModel } from './loadedModel';
 import { useMeshAppearanceState } from './useMeshAppearanceState';
+import { useRecentOpenedFiles } from './useRecentOpenedFiles';
 export { DEFAULT_HEATMAP_COLORS, DEFAULT_HOVER_TINT_STRENGTH, DEFAULT_SELECTED_TINT_STRENGTH } from './meshAppearanceSettings';
 export type { RecentOpenedFileKind, RecentOpenedFileEntry } from './recentOpenedFiles';
 export { SCENE_MODELS_SNAPSHOT_APPLY, getSceneSnapshotRegistryBytes } from './sceneSnapshotHistory';
@@ -591,7 +592,7 @@ export function useSceneCollectionManager(options?: {
     scheduleChunkStoreSweep(() => modelsRef.current);
   }, [models]);
   const [modelClipboard, setModelClipboard] = useState<ModelClipboardEntry[]>([]);
-  const [recentOpenedFiles, setRecentOpenedFiles] = useState<RecentOpenedFileEntry[]>([]);
+  const { recentOpenedFiles, trackRecentOpenedFiles, clearRecentOpenedFiles } = useRecentOpenedFiles();
   const [importProgress, setImportProgress] = useState<ImportProgressState>({
     active: false,
     type: null,
@@ -921,7 +922,6 @@ export function useSceneCollectionManager(options?: {
   );
 
   useEffect(() => {
-    setRecentOpenedFiles(readRecentOpenedFilesFromLocalStorage());
     setView3dSettingsState(getSavedView3DSettings());
   }, []);
 
@@ -1480,92 +1480,6 @@ export function useSceneCollectionManager(options?: {
     processDeferredDisposalQueue();
   }, [processDeferredDisposalQueue]);
 
-  const trackRecentOpenedFiles = useCallback((
-    files: File[],
-    kind: RecentOpenedFileKind,
-    options?: { sourcePaths?: Array<string | null | undefined>; fileSizes?: Array<number | undefined> },
-  ) => {
-    if (files.length === 0) return;
-
-    setRecentOpenedFiles((prev) => {
-      const next = [...prev];
-      const removedBlobIds: string[] = [];
-      const now = Date.now();
-
-      files.forEach((file, index) => {
-        const name = file.name?.trim();
-        if (!name) return;
-
-        const sourcePath = (typeof options?.sourcePaths?.[index] === 'string' && options.sourcePaths[index]!.trim().length > 0
-          ? options.sourcePaths[index]!.trim()
-          : undefined);
-
-        // Use the resolved on-disk file size (for path-backed files whose
-        // File.size is 0) when available, falling back to the File API size.
-        const sizeBytes = options?.fileSizes?.[index] ?? (Number.isFinite(file.size) && file.size > 0 ? file.size : undefined);
-
-        // When a concrete sourcePath is known, use it as the primary dedup key,
-        // ignoring sizeBytes. This prevents duplicates when Ctrl+S re-saves the
-        // file with an updated thumbnail (changing its size), and ensures mesh
-        // files backed by a disk path can be re-opened via the Rust sideload.
-        const matchBySourcePath = sourcePath != null;
-
-        const isMatchingEntry = (entry: RecentOpenedFileEntry): boolean => {
-          if (entry.kind !== kind || entry.name !== name) return false;
-          if (matchBySourcePath) {
-            return (entry.sourcePath ?? null) === sourcePath;
-          }
-          return entry.sizeBytes === sizeBytes
-            && (kind !== 'scene' || (entry.sourcePath ?? null) === (sourcePath ?? null));
-        };
-
-        const matches = next.filter(isMatchingEntry);
-
-        const existingId = matches.length > 0 ? matches[matches.length - 1].id : uuidv4();
-        const duplicateIds = matches.slice(0, -1).map((entry) => entry.id);
-
-        if (matches.length > 0) {
-          for (let i = next.length - 1; i >= 0; i -= 1) {
-            if (isMatchingEntry(next[i])) {
-              next.splice(i, 1);
-            }
-          }
-        }
-
-        if (duplicateIds.length > 0) {
-          removedBlobIds.push(...duplicateIds);
-        }
-
-        const entry: RecentOpenedFileEntry = {
-          id: existingId,
-          name,
-          kind,
-          sourcePath,
-          sizeBytes,
-          openedAt: now + index,
-        };
-
-        next.push(entry);
-        void putRecentOpenedFileBlob(entry, file);
-      });
-
-      const overflowCount = Math.max(0, next.length - RECENT_OPENED_FILES_LIMIT);
-      const overflow = overflowCount > 0
-        ? next.slice(0, overflowCount).map((entry) => entry.id)
-        : [];
-      const trimmed = overflowCount > 0
-        ? next.slice(overflowCount)
-        : next;
-
-      writeRecentOpenedFilesToLocalStorage(trimmed);
-
-      if (overflow.length > 0 || removedBlobIds.length > 0) {
-        void deleteRecentOpenedFileBlobs([...removedBlobIds, ...overflow]);
-      }
-
-      return trimmed;
-    });
-  }, []);
 
   // Active model derived state — meshModifiers are hydrated from the
   // external store so model objects never carry the heavy base64 payloads.
@@ -6121,15 +6035,6 @@ export function useSceneCollectionManager(options?: {
     return true;
   }, [importSceneFile, loadFiles, recentOpenedFiles]);
 
-  // Clears the recent-files list: localStorage entries + cached blobs in IndexedDB.
-  const clearRecentOpenedFiles = useCallback(() => {
-    const ids = recentOpenedFiles.map((entry) => entry.id);
-    setRecentOpenedFiles([]);
-    writeRecentOpenedFilesToLocalStorage([]);
-    if (ids.length > 0) {
-      void deleteRecentOpenedFileBlobs(ids);
-    }
-  }, [recentOpenedFiles]);
 
   // Legacy support JSON loader wrapper
   const handleLoadSupportJson = async () => {
