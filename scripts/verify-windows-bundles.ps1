@@ -7,7 +7,7 @@ Extracts NSIS/MSI payloads without installing them, rejects CRT/redistributable
 payloads, and checks the NSIS verifier, download plugin, and license notice.
 With -StaticRuntime (the x86 build, which links the C runtime statically and
 has no prerequisite step) it checks instead that the executable imports no
-Visual C++ runtime DLL.
+Visual C++ Redistributable DLL (the Universal CRT ships with Windows).
 #>
 [CmdletBinding()]
 param(
@@ -35,9 +35,12 @@ function Assert-NoDynamicCrt([string]$Path) {
     if (-not $dumpbin) { throw 'dumpbin.exe not found; install the Visual Studio C++ build tools.' }
     $imports = & $dumpbin /nologo /dependents $Path
     if ($LASTEXITCODE -ne 0) { throw "dumpbin failed on $Path" }
-    $crt = @($imports | Where-Object { $_ -match '^\s*(vcruntime\d+.*|msvcp\d+.*|api-ms-win-crt-.*|ucrtbase)\.dll\s*$' })
+    # Tauri links the Visual C++ runtime statically and the Universal CRT
+    # (api-ms-win-crt-*, ucrtbase) dynamically when crt-static is on. The UCRT
+    # is part of Windows 10 and 11, so only the redistributable DLLs count.
+    $crt = @($imports | Where-Object { $_ -match '^\s*(vcruntime\d+.*|msvcp\d+.*|concrt\d+.*|vcomp\d+.*)\.dll\s*$' })
     if ($crt.Count -gt 0) {
-        throw "$Path imports the dynamic C runtime ($($crt.Trim() -join ', ')); the static-runtime build must not."
+        throw "$Path imports the Visual C++ Redistributable ($($crt.Trim() -join ', ')); the static-runtime build must not."
     }
 }
 
