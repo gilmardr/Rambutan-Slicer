@@ -23,6 +23,8 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['useUnsavedSceneChanges.ts', 'useUnsavedSceneChanges'],
   ['useNewDeviceToast.ts', 'useNewDeviceToast'],
   ['useSceneSaveError.ts', 'useSceneSaveError'],
+  ['useManifoldWarning.ts', 'useManifoldWarning'],
+  ['useToolRailLayout.ts', 'useToolRailLayout'],
 ];
 
 for (const [file, hook] of HOOKS) {

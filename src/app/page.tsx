@@ -99,12 +99,8 @@ import { EditorContextMenu } from '@/components/ui/EditorContextMenu';
 import { StructuredDialogModal } from '@/components/ui/StructuredDialogModal';
 import { eulerFromGlobalEuler, quaternionFromGlobalEuler } from '@/utils/rotation';
 import {
-  getToolLayout,
-  isModelsPanelVisibleEnabled,
   setModelsPanelVisibleEnabled,
   setToolLayout,
-  TOOL_LAYOUT_EVENT,
-  type ToolLayout,
 } from '@/components/layout/floatingLayoutPreferences';
 
 import { initializeBVH } from '@/utils/bvh';
@@ -259,6 +255,8 @@ import { useSceneSaveChoicePrompt } from './home/useSceneSaveChoicePrompt';
 import { useUnsavedSceneChanges } from './home/useUnsavedSceneChanges';
 import { useNewDeviceToast } from './home/useNewDeviceToast';
 import { useSceneSaveError } from './home/useSceneSaveError';
+import { useManifoldWarning } from './home/useManifoldWarning';
+import { useToolRailLayout } from './home/useToolRailLayout';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -486,15 +484,11 @@ export default function Home() {
     [scene.activePlateId, scene.models, scene.resolveModelPlateId],
   );
 
-  // Warn when an imported mesh fails the manifold_csg validity check — the same
-  // models shown with the red striped overlay in the viewport. Only a single
-  // warning is shown per import job: as soon as any newly-imported model is
-  // flagged, every currently-flagged model is marked as warned so the rest of
-  // the batch does not pop additional modals.
-  const warnedManifoldModelIdsRef = React.useRef<Set<string>>(new Set());
-  const [showManifoldWarning, setShowManifoldWarning] = React.useState(false);
-  // The model the warning's Repair Now button repairs: the first flagged one.
-  const [manifoldWarningModelId, setManifoldWarningModelId] = React.useState<string | null>(null);
+  const {
+    showManifoldWarning,
+    setShowManifoldWarning,
+    manifoldWarningModelId,
+  } = useManifoldWarning({ scene });
   // Restarting the timer on every refusal means holding the lock and clicking about
   // keeps one toast on screen rather than stacking them.
   notifyPlateLockedRef.current = (plateId) => {
@@ -515,16 +509,6 @@ export default function Home() {
     const plate = index >= 0 ? scene.plates[index] : undefined;
     return plate?.name.trim() || plateNumberPlaceholder((index >= 0 ? index : 0) + 1, _);
   }, [_, plateLockedNoticePlateId, scene.activePlateId, scene.plates]);
-  React.useEffect(() => {
-    const flagged = scene.models.filter(
-      (model) => model.geometry?.meshDefects?.nativeRepairReport?.model_is_manifold === false,
-    );
-    const hasUnwarned = flagged.some((model) => !warnedManifoldModelIdsRef.current.has(model.id));
-    if (!hasUnwarned) return;
-    for (const model of flagged) warnedManifoldModelIdsRef.current.add(model.id);
-    setManifoldWarningModelId(flagged[0].id);
-    setShowManifoldWarning(true);
-  }, [scene.models]);
 
   const importSceneFile = scene.importSceneFile;
   const importSceneFiles = scene.importSceneFiles;
@@ -948,29 +932,11 @@ export default function Home() {
   });
   const [pendingModifierResetAction, setPendingModifierResetAction] = React.useState<PendingModifierResetAction | null>(null);
   const [pendingBlockerResetState, setPendingBlockerResetState] = React.useState<HollowingPanelState | null>(null);
-  // Tool rail's `Models` entry. Defaults to shown, which is how the list behaved
-  // before the rail existed; the stored value is applied on mount, not at render,
-  // because localStorage does not exist during the server render.
-  const [modelsPanelVisible, setModelsPanelVisible] = React.useState<boolean>(true);
-  React.useEffect(() => {
-    setModelsPanelVisible(isModelsPanelVisibleEnabled());
-  }, []);
-  // Column on the left edge or bar under the app bar; Settings and the rail's own
-  // context menu both write the preference and announce it. The fold animation
-  // itself lives in `ToolRail`, which measures the entries as the layout lands.
-  const [toolLayout, setToolLayoutState] = React.useState<ToolLayout>('horizontal');
-  React.useEffect(() => {
-    setToolLayoutState(getToolLayout());
-
-    const handleToolLayoutChanged = (event: Event) => {
-      setToolLayoutState((event as CustomEvent<{ layout?: ToolLayout }>).detail?.layout ?? getToolLayout());
-    };
-
-    window.addEventListener(TOOL_LAYOUT_EVENT, handleToolLayoutChanged as EventListener);
-    return () => {
-      window.removeEventListener(TOOL_LAYOUT_EVENT, handleToolLayoutChanged as EventListener);
-    };
-  }, []);
+  const {
+    modelsPanelVisible,
+    setModelsPanelVisible,
+    toolLayout,
+  } = useToolRailLayout();
   const [editorContextMenuPos, setEditorContextMenuPos] = React.useState<{ x: number; y: number } | null>(null);
   // Support mode's rail selects a panel or interaction tool, like Prepare's selects a
   // transform mode: the selected tool's panel is the one shown and the others are
