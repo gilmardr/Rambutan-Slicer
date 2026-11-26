@@ -526,6 +526,20 @@ jobs:
         with:
           path: release-assets
 
+      # Each build job uploads its import report as VERIFICACAO-<platform>.md,
+      # and both Windows jobs say win32: two assets with one name make the
+      # upload fail. Name each report after its build instead.
+      - name: Give each import report a unique name
+        shell: bash
+        run: |
+          for f in release-assets/*-import-verification/VERIFICACAO-*.md; do
+            [ -e "$f" ] || continue
+            dir=$(dirname "$f")
+            build=$(basename "$dir"); build=${build%-import-verification}; build=${build#rambutan-}
+            [ "$f" = "$dir/VERIFICACAO-$build.md" ] || mv "$f" "$dir/VERIFICACAO-$build.md"
+          done
+          find release-assets -type f -printf '%f\n' | sort | uniq -d | grep . && { echo "::error::duplicate asset names"; exit 1; } || true
+
       - name: Generate updater JSON
         if: needs.detect-version-bump.outputs.publish_updater_json == 'true'
         uses: actions/github-script@v9
