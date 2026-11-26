@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { MESH_FILE_ACCEPT } from '@/features/scene/meshFileTypes';
 import { useEscapeToClose } from '@/hotkeys/useEscapeToClose';
+import { useActionActive } from '@/hotkeys/hotkeyStore';
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
 import { ViewTypeDropdown } from '@/components/controls/ViewTypeDropdown';
@@ -12,8 +13,10 @@ import type { SupportMode } from '@/supports/types';
 import type { MatcapVariant, MeshShaderType } from '@/features/shaders/mesh';
 import { AlertDiamondIcon, Button } from '@/components/atoms';
 import { StructuredDialogModal } from '@/components/ui/StructuredDialogModal';
-import { ContextMenu, type ContextMenuEntry } from '@/components/ui/ContextMenu';
-import { Activity, AlertTriangle, Anchor, BookOpen, ChevronDown, FilePlus2, FolderInput, FolderOpen, Heart, Lock, Maximize2, Minimize2, Power, Printer, Ruler, Save, SaveAll, Settings, Square, Upload, X } from 'lucide-react';
+import type { ContextMenuEntry } from '@/components/ui/ContextMenu';
+import { AppCommandPalette } from '@/components/layout/AppCommandPalette';
+import { WorkflowNavigationRail, type WorkflowNavigationStep } from '@/components/layout/WorkflowNavigationRail';
+import { Activity, AlertTriangle, Anchor, BookOpen, ChevronDown, FilePlus2, FolderInput, FolderOpen, Heart, Maximize2, Minimize2, Power, Printer, Ruler, Save, SaveAll, Settings, Square, Upload, X } from 'lucide-react';
 import {
   applyThemeCustomColors,
   getSavedThemeCustomColors,
@@ -39,6 +42,7 @@ import {
 import type { View3DSettings } from '@/components/settings/view3dPreferences';
 import type { SlicingThumbnailRenderSettings } from '@/components/settings/PerformanceSettingsTab';
 import type { PreparedModelLibraryEntry } from '@/features/backups/modelLibraryTypes';
+import type { RecentOpenedFileEntry } from '@/features/scene/useSceneCollectionManager';
 import { useSceneFileInputAccept } from '@/features/plugins/pluginFileTypeExtensions';
 import { formatTopbarPrinterAriaLabel, formatTopbarPrinterTitle, formatTopbarProfileTitle } from '@/components/layout/topBarMessages';
 import { ImportDiagnosticsDialog } from '@/components/layout/ImportDiagnosticsDialog';
@@ -98,6 +102,8 @@ interface TopBarProps {
   onSaveSceneAs?: () => void;
   onOpenScene?: () => void;
   onOpenPreparedModel?: (entry: PreparedModelLibraryEntry) => Promise<boolean>;
+  recentOpenedFiles?: RecentOpenedFileEntry[];
+  onReopenRecentFile?: (entryId: string) => Promise<boolean> | boolean;
   onLoadMeshChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onImportSceneChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onCloseProgram?: () => void;
@@ -166,6 +172,8 @@ export function TopBar({
   onSaveSceneAs,
   onOpenScene,
   onOpenPreparedModel,
+  recentOpenedFiles = [],
+  onReopenRecentFile,
   onCloseProgram,
   showMonitorButton = false,
   monitorButtonActive = false,
@@ -203,10 +211,8 @@ export function TopBar({
   const [printerThumbnailFailed, setPrinterThumbnailFailed] = useState(false);
   const topbarActionsDisabled = isSlicingBusy;
   const [isAppMenuOpen, setIsAppMenuOpen] = useState(false);
-  const [appMenuPosition, setAppMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [isPrinterQuickMenuOpen, setIsPrinterQuickMenuOpen] = useState(false);
   const [printerQuickMenuPosition, setPrinterQuickMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  const appMenuButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const printerQuickMenuButtonRef = React.useRef<HTMLButtonElement | null>(null);
 
   React.useEffect(() => {
@@ -314,18 +320,21 @@ export function TopBar({
     await handleDesktopWindowClose();
   }, [handleDesktopWindowClose, onCloseProgram]);
 
-  const openAppMenu = React.useCallback(() => {
-    const button = appMenuButtonRef.current;
-    if (!button) return;
+  const closeAppMenu = React.useCallback(() => setIsAppMenuOpen(false), []);
 
-    const rect = button.getBoundingClientRect();
-    setAppMenuPosition({ x: rect.left, y: rect.bottom + 6 });
-    setIsAppMenuOpen(true);
-  }, []);
+  // Ctrl+K / Cmd+K toggles the command palette, once per press.
+  const commandPaletteHotkeyActive = useActionActive('GLOBAL', 'COMMAND_PALETTE');
+  const wasCommandPaletteHotkeyActive = React.useRef(false);
+  React.useEffect(() => {
+    const wasActive = wasCommandPaletteHotkeyActive.current;
+    wasCommandPaletteHotkeyActive.current = commandPaletteHotkeyActive;
+    if (!commandPaletteHotkeyActive || wasActive || topbarActionsDisabled) return;
+    setIsAppMenuOpen((isOpen) => !isOpen);
+  }, [commandPaletteHotkeyActive, topbarActionsDisabled]);
 
-  const closeAppMenu = React.useCallback(() => {
-    setIsAppMenuOpen(false);
-  }, []);
+  React.useEffect(() => {
+    if (topbarActionsDisabled) setIsAppMenuOpen(false);
+  }, [topbarActionsDisabled]);
 
   const openPrinterQuickMenu = React.useCallback(() => {
     const button = printerQuickMenuButtonRef.current;
@@ -571,8 +580,7 @@ export function TopBar({
     closePrinterQuickMenu();
   }, [activePrinterProfile?.id, closePrinterQuickMenu]);
 
-  const stepsContainerRef = React.useRef<HTMLDivElement>(null);
-  const [hideBadges, setHideBadges] = React.useState(() => {
+  const [hidePrinterThumbnail, setHidePrinterThumbnail] = React.useState(() => {
     if (typeof window === 'undefined') return false;
     return window.innerWidth < 800;
   });
@@ -583,29 +591,16 @@ export function TopBar({
   const [showViewModeLabel, setShowViewModeLabel] = React.useState(false);
 
   React.useEffect(() => {
-    const el = stepsContainerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const gapPx = 4;
-      const perButton = (entry.contentRect.width - 3 * gapPx) / 4;
-      setHideBadges(perButton < 120);
-      setShowViewModeLabel((previous) => (previous ? perButton >= 130 : perButton >= 155));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-    // The steps container is unmounted while the workflow controls are hidden
-    // (onboarding), so re-observe it when they come back to avoid measuring a
-    // detached node (which pinned the icons hidden).
-  }, [hideWorkflowControls]);
+    const updateTopbarDensity = () => {
+      setHidePrinterThumbnail(window.innerWidth < 800);
+      setShowViewModeLabel(window.innerWidth >= 1450);
+    };
+    updateTopbarDensity();
+    window.addEventListener('resize', updateTopbarDensity);
+    return () => window.removeEventListener('resize', updateTopbarDensity);
+  }, []);
 
-  const steps: Array<{
-    mode: SupportMode;
-    label: string;
-    step: number;
-    icon: React.ReactNode;
-    hint: string;
-    locked: boolean;
-  }> = [
+  const steps: WorkflowNavigationStep[] = [
     {
       mode: 'prepare',
       label: _(msg`Prepare`),
@@ -696,6 +691,7 @@ export function TopBar({
   ];
 
   const handleAppMenuSelect = (id: string) => {
+    closeAppMenu();
     switch (id) {
       case 'new-scene':
         onNewScene?.();
@@ -748,8 +744,16 @@ export function TopBar({
         />
       )}
       <div className={`ui-topbar-blur ${hideWorkflowControls ? 'ui-topbar-blur-transparent' : ''}`} aria-hidden="true" />
+      {!hideWorkflowControls && (
+        <WorkflowNavigationRail
+          steps={steps}
+          activeMode={mode}
+          isDisabled={topbarActionsDisabled}
+          onModeChange={onModeChange}
+        />
+      )}
       <div
-        className={`ui-topbar fixed top-0 left-0 right-0 z-50 flex items-center relative ${hideWorkflowControls ? 'justify-between ui-topbar-transparent' : ''}`}
+        className={`ui-topbar fixed top-0 left-0 right-0 z-50 flex items-center justify-between relative ${hideWorkflowControls ? 'ui-topbar-transparent' : ''}`}
         onMouseDownCapture={handleTopBarPointerDown}
       >
       <div
@@ -758,15 +762,10 @@ export function TopBar({
         aria-disabled={topbarActionsDisabled}
       >
         <button
-          ref={appMenuButtonRef}
           type="button"
           disabled={topbarActionsDisabled}
           onClick={() => {
-            if (isAppMenuOpen) {
-              closeAppMenu();
-            } else {
-              openAppMenu();
-            }
+            setIsAppMenuOpen((isOpen) => !isOpen);
           }}
           className="inline-flex h-10 w-10 items-center justify-center rounded-md transition-colors"
           style={{
@@ -776,6 +775,10 @@ export function TopBar({
           }}
           title={_(msg({ message: 'Rambutan Slicer menu', comment: '"Rambutan Slicer" is the product name and should stay untranslated/unchanged; only "menu" needs translating.' }))}
           aria-label={_(msg({ message: 'Open Rambutan Slicer menu', comment: '"Rambutan Slicer" is the product name and should stay untranslated/unchanged.' }))}
+          aria-keyshortcuts="Control+K Meta+K"
+          aria-haspopup="dialog"
+          aria-expanded={isAppMenuOpen}
+          aria-controls={isAppMenuOpen ? 'app-command-palette-dialog' : undefined}
           data-no-window-drag="true"
         >
           <img
@@ -819,7 +822,7 @@ export function TopBar({
           aria-label={topbarPrinterButtonAriaLabel}
           data-no-window-drag="true"
         >
-          <div className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-sm shrink-0" style={{ background: 'color-mix(in srgb, var(--surface-1), transparent 6%)', ...(hideBadges ? { display: 'none' } : {}) }}>
+          <div className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-sm shrink-0" style={{ background: 'color-mix(in srgb, var(--surface-1), transparent 6%)', ...(hidePrinterThumbnail ? { display: 'none' } : {}) }}>
             {activePrinterThumbnailSrc ? (
               <img
                 src={activePrinterThumbnailSrc}
@@ -879,16 +882,13 @@ export function TopBar({
         )}
       </div>
 
-      {isAppMenuOpen && appMenuPosition && (
-        <ContextMenu
-          position={appMenuPosition}
+      {isAppMenuOpen && (
+        <AppCommandPalette
           entries={appMenuEntries}
-          onSelect={handleAppMenuSelect}
+          recentFiles={recentOpenedFiles}
+          onSelectCommand={handleAppMenuSelect}
+          onReopenRecentFile={onReopenRecentFile}
           onClose={closeAppMenu}
-          dismissIgnoreRef={appMenuButtonRef}
-          // i18n-ignore: product name
-          title="Rambutan Slicer"
-          ariaLabel={_(msg({ message: 'Rambutan Slicer app menu', comment: '"Rambutan Slicer" is the product name and should stay untranslated/unchanged.' }))}
         />
       )}
 
@@ -1002,96 +1002,6 @@ export function TopBar({
             </button>
           </div>
         </div>
-      )}
-
-      {!hideWorkflowControls && (
-      <div className="flex min-w-0 flex-1 justify-center px-2">
-        <div
-          className={`relative w-full transition-opacity ${topbarActionsDisabled ? 'opacity-45' : ''}`}
-          aria-disabled={topbarActionsDisabled}
-        >
-          <div ref={stepsContainerRef} className="flex items-center justify-center gap-2">
-            {steps.map((item) => {
-              const active = mode === item.mode;
-              const locked = item.locked;
-              const disabled = locked || topbarActionsDisabled;
-              const nativeDisabled = disabled;
-              const visuallyDimmed = topbarActionsDisabled || locked;
-              const printingLocked = item.mode === 'printing' && locked;
-
-              return (
-                <button
-                  key={item.mode}
-                  type="button"
-                  onClick={() => {
-                    if (disabled) return;
-                    onModeChange(item.mode);
-                  }}
-                  disabled={nativeDisabled}
-                  aria-disabled={disabled}
-                  className={`group relative flex cursor-pointer items-center gap-1.5 rounded-[5.5px] border px-1.5 py-1.5 transition-all duration-200 flex-1 min-w-[90px] max-w-[190px] h-[32px] ${
-                    active
-                      ? 'shadow-[0_6px_16px_rgba(0,0,0,0.25)]'
-                      : 'hover:-translate-y-[1px] hover:shadow-[0_6px_14px_rgba(0,0,0,0.18)]'
-                  } ${visuallyDimmed ? 'opacity-45' : ''} ${disabled ? 'cursor-not-allowed hover:translate-y-0 hover:shadow-none' : ''} ${printingLocked ? 'grayscale saturate-0' : ''}`}
-                  style={active
-                    ? {
-                      borderColor: 'color-mix(in srgb, var(--accent), white 8%)',
-                      background: 'color-mix(in srgb, var(--accent), var(--surface-0) 84%)',
-                    }
-                    : {
-                        borderColor: printingLocked
-                          ? 'color-mix(in srgb, var(--border-subtle), black 30%)'
-                          : 'var(--border-subtle)',
-                        background: printingLocked
-                          ? 'color-mix(in srgb, var(--surface-2), black 12%)'
-                          : 'color-mix(in srgb, var(--surface-1), transparent 4%)',
-                      }
-                  }
-                  title={topbarActionsDisabled
-                    ? _(msg`Slicing in progress. Topbar actions are temporarily disabled.`)
-                    : locked
-                    ? (item.mode === 'printing'
-                      ? _(msg`Run slicing in Export to unlock Printing preview`)
-                      : _(msg`Load a model in Prepare to unlock Support and Export`))
-                    : item.hint}
-                >
-                  <span
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold"
-                    style={{
-                      ...(active
-                        ? {
-                          color: 'var(--accent)',
-                          background: 'transparent',
-                        }
-                        : {
-                          color: 'var(--text-muted)',
-                          background: 'var(--surface-2)',
-                        }),
-                      ...(hideBadges ? { display: 'none' } : {}),
-                    }}
-                  >
-                    {item.icon}
-                  </span>
-
-                  <span
-                    className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-center text-xs font-bold leading-none tracking-[0.01em]"
-                    style={{ color: active ? 'var(--text-strong)' : 'var(--text-strong)' }}
-                  >
-                    {item.label}
-                  </span>
-
-                  {printingLocked && !hideBadges && (
-                    <Lock className="h-3 w-3 ml-auto flex-shrink-0" style={{ color: 'var(--text-muted)' }} />
-                  )}
-
-
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
       )}
 
       <div className="flex flex-1 max-w-[430px] items-center justify-end gap-2 pr-[3px]">

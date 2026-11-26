@@ -122,6 +122,16 @@ jobs:
           echo "updater_json=${updater_json}" >> "$GITHUB_OUTPUT"
           echo "publish_updater_json=${publish_updater_json}" >> "$GITHUB_OUTPUT"
 
+          # The release text is this version's section of CHANGELOG.md
+          # ("## [x.y.z] ..." up to the next "## ["), when there is one.
+          changelog_notes="$(awk -v heading="## [${current_version}]" '
+            index($0, heading) == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md 2>/dev/null || true)"
+          has_changelog_notes=false
+          if [[ -n "${changelog_notes//[[:space:]]/}" ]]; then has_changelog_notes=true; fi
+
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
             echo "version=${current_version}" >> "$GITHUB_OUTPUT"
@@ -129,7 +139,11 @@ jobs:
             echo "release_name=${release_label}" >> "$GITHUB_OUTPUT"
             {
               echo "release_body<<EOF"
-              echo "Manually triggered release for version ${current_version} from the ${branch} branch."
+              if [[ "$has_changelog_notes" == "true" ]]; then
+                printf '%s\n' "$changelog_notes"
+              else
+                echo "Manually triggered release for version ${current_version} from the ${branch} branch."
+              fi
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
             exit 0
@@ -162,7 +176,11 @@ jobs:
           echo "release_name=${release_label}" >> "$GITHUB_OUTPUT"
           {
             echo "release_body<<EOF"
-            echo "Automated release for version ${current_version} from the ${branch} branch."
+            if [[ "$has_changelog_notes" == "true" ]]; then
+              printf '%s\n' "$changelog_notes"
+            else
+              echo "Automated release for version ${current_version} from the ${branch} branch."
+            fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 

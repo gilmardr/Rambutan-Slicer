@@ -58,6 +58,8 @@ interface ToolRailProps {
   entries: ToolRailEntry[];
   /** Column down the left edge, or bar centred under the app bar. */
   layout: ToolLayout;
+  /** Horizontal offset for the column layout when another persistent rail is beside it. */
+  leftOffsetPx?: number;
   /** Fired when the layout is switched from the rail's own context menu. */
   onLayoutChange: (layout: ToolLayout) => void;
 }
@@ -417,7 +419,7 @@ const TILE_BASE = 'flex h-[54px] items-center justify-center rounded-[5.5px] bor
  * toggles a panel that is always mounted, because the window layout resolves
  * against the set of mounted panels.
  */
-export function ToolRail({ entries, layout, onLayoutChange }: ToolRailProps) {
+export function ToolRail({ entries, layout, leftOffsetPx = 6, onLayoutChange }: ToolRailProps) {
   const { _ } = useLingui();
   const [menuPosition, setMenuPosition] = React.useState<{ x: number; y: number } | null>(null);
   const [isFolding, setIsFolding] = React.useState(false);
@@ -506,6 +508,7 @@ export function ToolRail({ entries, layout, onLayoutChange }: ToolRailProps) {
       className={`${layout === 'vertical'
         ? 'fixed left-1.5 top-[var(--topbar-height)] bottom-0 z-40 flex w-[54px] flex-col items-stretch gap-1.5 overflow-y-auto py-1.5 custom-scrollbar pointer-events-auto'
         : 'fixed left-1/2 top-[calc(var(--topbar-height)+4px)] z-40 flex -translate-x-1/2 flex-row items-stretch gap-1.5 overflow-x-auto px-1.5 custom-scrollbar pointer-events-auto'}${isFolding ? ' !overflow-visible' : ''}`}
+      style={layout === 'vertical' ? { left: leftOffsetPx } : undefined}
       data-no-drag="true"
       data-no-window-drag="true"
       role="toolbar"

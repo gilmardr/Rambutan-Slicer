@@ -163,7 +163,7 @@ export function setupHotkeyListeners() {
         
         // Prevent browser default behaviors
         if (
-            (isPrimaryModifier && ['s', 'a', 'c', 'v', 'z', 'y'].includes(key)) ||
+            (isPrimaryModifier && ['s', 'a', 'c', 'v', 'z', 'y', 'k'].includes(key)) ||
             ['delete', 'backspace', 'arrowup', 'arrowdown'].includes(key) ||
             (e.shiftKey && isPrimaryModifier && ['d', 'c', 'x', 'a', 'n', 'm', 'k'].includes(key))
         ) {
