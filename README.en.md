@@ -42,7 +42,7 @@
 Installers are on the [Releases](https://github.com/gilmardr/Rambutan-Slicer/releases) page:
 
 - **Windows:** `Rambutan Slicer_<version>_x64-setup.exe`. Tested by the maintainer on Windows x64.
-- **macOS and Linux:** no official installer yet. Build from source (see [Getting started](#getting-started)).
+- **macOS and Linux:** no official installer yet. Build from source (see [Getting started](#getting-started)). The Linux version has not been tested yet; a test is planned.
 
 > [!WARNING]
 > **The macOS version has never been tested on a Mac.** CI only confirms that the code compiles for macOS; nobody has opened, sliced or printed with it. Without an Apple certificate configured in CI, the `.dmg` is also unsigned and not notarized, so macOS may refuse to open it. Use it at your own risk and, if you try it, [report the result in an issue](https://github.com/gilmardr/Rambutan-Slicer/issues).
