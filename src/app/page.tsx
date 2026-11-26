@@ -264,6 +264,8 @@ import { useHoldEmptyStateDuringSceneImport } from './home/useHoldEmptyStateDuri
 import { useSaveAsHotkey } from './home/useSaveAsHotkey';
 import { useOverhangViewToggle } from './home/useOverhangViewToggle';
 import { useStaleSliceKickFromPrinting } from './home/useStaleSliceKickFromPrinting';
+import { useSupportShaftHover } from './home/useSupportShaftHover';
+import { useLayerStepHotkeys } from './home/useLayerStepHotkeys';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -300,11 +302,6 @@ import {
   selectionEditLabel,
   type SelectionEditKind,
 } from '@/features/scene/sceneHistoryLabels';
-
-interface ShaftHoverDebugDetail {
-  segmentId: string | null;
-  point: { x: number; y: number; z: number } | null;
-}
 
 type PendingModifierResetAction = 'hollowing' | 'hole_punch' | 'clear_hollowing';
 
@@ -983,10 +980,7 @@ export default function Home() {
     historyPreviewBaselineRef,
   } = useEditorDebugPanels();
   const [supportsInfoModelId, setSupportsInfoModelId] = React.useState<string | null>(null);
-  const [supportShaftHoverDebug, setSupportShaftHoverDebug] = React.useState<ShaftHoverDebugDetail>({
-    segmentId: null,
-    point: null,
-  });
+  const supportShaftHoverDebug = useSupportShaftHover();
 
   const activeSliceProfileFingerprint = sliceProfileFingerprint(activePrinterProfile?.id, activeMaterialProfile?.id);
   const slicedPlatesView = useSlicedPlates({
@@ -1434,50 +1428,6 @@ export default function Home() {
       epochMs: Date.now(),
     };
   }, [scene.activeModelId, scene.models]);
-
-  React.useEffect(() => {
-    const handleShaftHover = (evt: Event) => {
-      const detail = (evt as CustomEvent<{ segmentId?: string | null; point?: { x: number; y: number; z: number } | null }>).detail;
-      const nextSegmentId = detail?.segmentId ?? null;
-      const nextPoint = detail?.point ?? null;
-
-      setSupportShaftHoverDebug((prev) => {
-        if (
-          prev.segmentId === nextSegmentId &&
-          prev.point?.x === nextPoint?.x &&
-          prev.point?.y === nextPoint?.y &&
-          prev.point?.z === nextPoint?.z
-        ) {
-          return prev;
-        }
-
-        return {
-          segmentId: nextSegmentId,
-          point: nextPoint,
-        };
-      });
-    };
-
-    const handleShaftLeave = (evt: Event) => {
-      const detail = (evt as CustomEvent<{ segmentId?: string | null }>).detail;
-      setSupportShaftHoverDebug((prev) => {
-        if (!detail?.segmentId || prev.segmentId === detail.segmentId) {
-          if (prev.segmentId === null && prev.point === null) {
-            return prev;
-          }
-          return { segmentId: null, point: null };
-        }
-        return prev;
-      });
-    };
-
-    window.addEventListener('shaft-hover', handleShaftHover as EventListener);
-    window.addEventListener('shaft-leave', handleShaftLeave as EventListener);
-    return () => {
-      window.removeEventListener('shaft-hover', handleShaftHover as EventListener);
-      window.removeEventListener('shaft-leave', handleShaftLeave as EventListener);
-    };
-  }, []);
 
   const transformDebugStats = React.useMemo(() => {
     const activeModel = scene.models.find((m) => m.id === scene.activeModelId) ?? null;
@@ -4323,34 +4273,13 @@ export default function Home() {
     return Math.min(Math.max(height, 0), Math.max(slicing.heightMm, 0));
   }, [crossSectionLayerHeightMm, printingPreviewTotalLayers, printingSelectedLayer, scene.mode, slicing.heightMm]);
 
-  React.useEffect(() => {
-    const handleLayerHotkeys = (event: CustomEvent) => {
-      const { key, altKey, ctrlKey, metaKey } = event.detail;
-      if (altKey || ctrlKey || metaKey) return;
-
-      const isPrinting = scene.mode === 'printing';
-      const isUp = key === 'ArrowUp' || (isPrinting && (key === 'w' || key === 'W'));
-      const isDown = key === 'ArrowDown' || (isPrinting && (key === 's' || key === 'S'));
-      if (!isUp && !isDown) return;
-
-      const delta = isUp ? 1 : -1;
-
-      if (isPrinting) {
-        if (printingPreviewTotalLayers <= 0) return;
-        const nextLayer = printingSelectedLayerRef.current + delta;
-        handlePrintingLayerChange(nextLayer);
-        return;
-      }
-
-      if (slicing.numLayers <= 0) return;
-      slicing.setLayerIndex((previous) => previous + delta);
-    };
-
-    window.addEventListener('app-hotkey-keydown', handleLayerHotkeys as EventListener);
-    return () => {
-      window.removeEventListener('app-hotkey-keydown', handleLayerHotkeys as EventListener);
-    };
-  }, [handlePrintingLayerChange, printingPreviewTotalLayers, scene.mode, slicing.layerIndex, slicing.numLayers, slicing.setLayerIndex]);
+  useLayerStepHotkeys({
+    scene,
+    slicing,
+    printingPreviewTotalLayers,
+    printingSelectedLayerRef,
+    handlePrintingLayerChange,
+  });
 
   // Populate the import/export manager deps now that the slicing manager and the
   // select-all model state exist (breaks the TDZ/dependency cycle, mirrors the

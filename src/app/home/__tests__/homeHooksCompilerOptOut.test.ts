@@ -38,6 +38,8 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['useSaveAsHotkey.ts', 'useSaveAsHotkey'],
   ['useOverhangViewToggle.ts', 'useOverhangViewToggle'],
   ['useStaleSliceKickFromPrinting.ts', 'useStaleSliceKickFromPrinting'],
+  ['useSupportShaftHover.ts', 'useSupportShaftHover'],
+  ['useLayerStepHotkeys.ts', 'useLayerStepHotkeys'],
 ];
 
 for (const [file, hook] of HOOKS) {
