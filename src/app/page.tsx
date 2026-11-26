@@ -139,11 +139,6 @@ import {
   getHomeSupportCollectionsSnapshot,
   getHomeKickstandCollectionsSnapshot,
 } from '@/features/supports/supportSnapshotHelpers';
-import {
-  EXPORT_THUMBNAIL_RENDER_OPTIONS_STORAGE_KEY,
-  resolveInitialExportThumbnailRenderOptions,
-  type ExportThumbnailRenderOptions,
-} from '@/features/export/exportThumbnailOptions';
 import { isDragonfruitTempArtifactPath } from '@/features/import-export/fileHandling';
 import { getPluginSceneOverlayLoader } from '@/features/plugins/pluginRegistry';
 import { isExperimentEnabled, subscribeToExperiments } from '@/features/experiments/experimentsRegistry';
@@ -257,6 +252,7 @@ import { useNewDeviceToast } from './home/useNewDeviceToast';
 import { useSceneSaveError } from './home/useSceneSaveError';
 import { useManifoldWarning } from './home/useManifoldWarning';
 import { useToolRailLayout } from './home/useToolRailLayout';
+import { useExportThumbnailRenderOptions } from './home/useExportThumbnailRenderOptions';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -1065,7 +1061,7 @@ export default function Home() {
     () => getDefaultHolePunchDepthMm(hollowingState.shellThicknessMm),
     [hollowingState.shellThicknessMm],
   );
-  const [exportThumbnailRenderOptions, setExportThumbnailRenderOptions] = React.useState<ExportThumbnailRenderOptions>(resolveInitialExportThumbnailRenderOptions);
+  const { exportThumbnailRenderOptions, setExportThumbnailRenderOptions } = useExportThumbnailRenderOptions();
   const previousSceneModeRef = React.useRef<typeof scene.mode>(scene.mode);
   const preservedNonPrintingLayerIndexRef = React.useRef<number | null>(null);
   const triggerSliceExportRef = React.useRef<(() => void) | null>(null);
@@ -1131,14 +1127,6 @@ export default function Home() {
   const [isCrossSectionEnabled, setIsCrossSectionEnabled] = React.useState(true);
   const handleToggleCrossSection = React.useCallback(() => setIsCrossSectionEnabled((prev) => !prev), []);
   const [arrangeSpacingMm, setArrangeSpacingMm] = React.useState(0.5);
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(
-      EXPORT_THUMBNAIL_RENDER_OPTIONS_STORAGE_KEY,
-      JSON.stringify(exportThumbnailRenderOptions),
-    );
-  }, [exportThumbnailRenderOptions]);
 
   React.useEffect(() => {
     if (!scene.sceneImportPlacementPrompt) return;
