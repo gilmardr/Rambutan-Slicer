@@ -158,28 +158,9 @@ import { setSupportPlacementGuideZ, useSupportPlacementGuideActive } from './sup
 import { setModelMesh } from '@/supports/autoSupport/meshStore';
 import { setSupportNavigationActive } from '@/supports/interaction/navigationActiveStore';
 import { useIsLinux } from '@/hooks/usePlatform';
-import {
-  DEFAULT_CAMERA_PROJECTION_SETTINGS,
-  getSavedCameraProjectionSettings,
-  subscribeToCameraProjectionSettings,
-  type CameraProjectionMode,
-} from '@/components/settings/cameraProjectionPreferences';
-import {
-  DEFAULT_CAMERA_FOV_SETTINGS,
-  getSavedCameraFovSettings,
-  subscribeToCameraFovSettings,
-} from '@/components/settings/cameraFovPreferences';
-import {
-  DEFAULT_CAMERA_FEEL_SETTINGS,
-  getSavedCameraFeelSettings,
-  subscribeToCameraFeelSettings,
-  type CameraFeelPreset,
-} from '@/components/settings/cameraFeelPreferences';
-import {
-  DEFAULT_CAMERA_TRACKPAD_SETTINGS,
-  getSavedCameraTrackpadSettings,
-  subscribeToCameraTrackpadSettings,
-} from '@/components/settings/cameraTrackpadPreferences';
+import type { CameraProjectionMode } from '@/components/settings/cameraProjectionPreferences';
+import type { CameraFeelPreset } from '@/components/settings/cameraFeelPreferences';
+import { DEFAULT_CAMERA_TRACKPAD_SETTINGS } from '@/components/settings/cameraTrackpadPreferences';
 import {
   DIAGNOSTICS_BENCHMARK_PROGRESS_EVENT,
   DIAGNOSTICS_BENCHMARK_REQUEST_EVENT,
@@ -231,6 +212,7 @@ import { PEARL_MODEL_COLOR, LOGO_RED_MODEL_COLOR, getModelBaseColor, usesLogoRed
 import { GhostPreviewTransform, GhostPreviewInstances } from './GhostPreviewInstances';
 import { DEFAULT_CROSS_SECTION_CAP_DEBUG_STATE } from './crossSectionCapDebug';
 import { useCrossSectionCapDebugPanel } from './useCrossSectionCapDebugPanel';
+import { useCanvasCameraPreferences, useIsLightTheme } from './useCanvasPreferences';
 
 const Canvas = dynamic(() => import('@react-three/fiber').then(m => m.Canvas), { ssr: false });
 
@@ -691,30 +673,7 @@ export function SceneCanvas({
   const supportPathfindingDebugLastTapMsRef = React.useRef<number>(0);
   const [showSupportPathfindingTuningSuggestions, setShowSupportPathfindingTuningSuggestions] = React.useState(false);
 
-  const [isLightTheme, setIsLightTheme] = React.useState(() => {
-    if (typeof window === 'undefined') return false;
-    const html = document.documentElement;
-    return (
-      html.classList.contains('dragonfruit-light') ||
-      html.getAttribute('data-theme') === 'light' ||
-      (window.matchMedia('(prefers-color-scheme: light)').matches && !html.classList.contains('dragonfruit-dark'))
-    );
-  });
-  React.useEffect(() => {
-    const check = () => {
-      const html = document.documentElement;
-      setIsLightTheme(
-        html.classList.contains('dragonfruit-light') ||
-        html.getAttribute('data-theme') === 'light' ||
-        (window.matchMedia('(prefers-color-scheme: light)').matches && !html.classList.contains('dragonfruit-dark')),
-      );
-    };
-    const observer = new MutationObserver(check);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
-    const mq = window.matchMedia('(prefers-color-scheme: light)');
-    mq.addEventListener('change', check);
-    return () => { observer.disconnect(); mq.removeEventListener('change', check); };
-  }, []);
+  const isLightTheme = useIsLightTheme();
 
   const engravingPreviewHighlight = React.useSyncExternalStore(
     subscribeEngravingPreviewHighlight,
@@ -722,46 +681,16 @@ export function SceneCanvas({
     () => null,
   );
 
-  const cameraProjectionMode = React.useSyncExternalStore(
-    subscribeToCameraProjectionSettings,
-    () => getSavedCameraProjectionSettings().mode,
-    () => DEFAULT_CAMERA_PROJECTION_SETTINGS.mode,
-  );
-  const perspectiveFov = React.useSyncExternalStore(
-    subscribeToCameraFovSettings,
-    () => getSavedCameraFovSettings().fov,
-    () => DEFAULT_CAMERA_FOV_SETTINGS.fov,
-  );
-  const cameraFeelPreset = React.useSyncExternalStore(
-    subscribeToCameraFeelSettings,
-    () => getSavedCameraFeelSettings().preset,
-    () => DEFAULT_CAMERA_FEEL_SETTINGS.preset,
-  );
-  const cameraTrackpadSettings = React.useSyncExternalStore(
-    subscribeToCameraTrackpadSettings,
-    () => getSavedCameraTrackpadSettings().primaryAction,
-    () => DEFAULT_CAMERA_TRACKPAD_SETTINGS.primaryAction,
-  );
-  const cameraTrackpadModifierKey = React.useSyncExternalStore(
-    subscribeToCameraTrackpadSettings,
-    () => getSavedCameraTrackpadSettings().modifierKey,
-    () => DEFAULT_CAMERA_TRACKPAD_SETTINGS.modifierKey,
-  );
-  const cameraTrackpadPanAcceleration = React.useSyncExternalStore(
-    subscribeToCameraTrackpadSettings,
-    () => getSavedCameraTrackpadSettings().panAcceleration,
-    () => DEFAULT_CAMERA_TRACKPAD_SETTINGS.panAcceleration,
-  );
-  const cameraTrackpadOrbitAcceleration = React.useSyncExternalStore(
-    subscribeToCameraTrackpadSettings,
-    () => getSavedCameraTrackpadSettings().orbitAcceleration,
-    () => DEFAULT_CAMERA_TRACKPAD_SETTINGS.orbitAcceleration,
-  );
-  const cameraTrackpadZoomAcceleration = React.useSyncExternalStore(
-    subscribeToCameraTrackpadSettings,
-    () => getSavedCameraTrackpadSettings().zoomAcceleration,
-    () => DEFAULT_CAMERA_TRACKPAD_SETTINGS.zoomAcceleration,
-  );
+  const {
+    cameraProjectionMode,
+    perspectiveFov,
+    cameraFeelPreset,
+    cameraTrackpadSettings,
+    cameraTrackpadModifierKey,
+    cameraTrackpadPanAcceleration,
+    cameraTrackpadOrbitAcceleration,
+    cameraTrackpadZoomAcceleration,
+  } = useCanvasCameraPreferences();
 
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const { isActive: isJointCreationActive } = useJointCreationState();
