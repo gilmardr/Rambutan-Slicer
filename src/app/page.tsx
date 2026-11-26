@@ -181,14 +181,12 @@ import {
   undo,
 } from '@/history/historyStore';
 import type { HistoryDebugEvent, HistoryOrigin } from '@/history/types';
-import { getSavedCameraProjectionSettings, saveCameraProjectionSettings } from '@/components/settings/cameraProjectionPreferences';
 import {
   getSceneAutosaveSettingsServerSnapshot,
   getSceneAutosaveSettingsSnapshot,
   subscribeToSceneAutosaveSettings,
 } from '@/components/settings/sceneAutosavePreferences';
 import {
-  getSavedWorkspaceCameraSettings,
   getWorkspaceCameraSettingsServerSnapshot,
   getWorkspaceCameraSettingsSnapshot,
   subscribeToWorkspaceCameraSettings,
@@ -268,6 +266,9 @@ import { usePrintingProcessingElapsedTicker } from './home/usePrintingProcessing
 import { useSceneImportPromptEscape } from './home/useSceneImportPromptEscape';
 import { useHolePunchSelectionEscape } from './home/useHolePunchSelectionEscape';
 import { useSupportDragSyncTransaction, type TransformStoreCommitResult } from './home/useSupportDragSyncTransaction';
+import { useWorkspaceCameraProjectionSync } from './home/useWorkspaceCameraProjectionSync';
+import { usePrintingLockWithoutModels } from './home/usePrintingLockWithoutModels';
+import { useEmptySceneReturnsToPrepare } from './home/useEmptySceneReturnsToPrepare';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -4124,14 +4125,7 @@ export default function Home() {
   }, [scene.mode, scene.activeModelId, scene.setSelectedModelIds, slicing.layerIndex, slicing.numLayers, slicing.setLayerIndex]);
 
 
-  // Lock printing workspace when no models exist
-  React.useEffect(() => {
-    if (scene.models.length === 0 && scene.mode === 'printing') {
-      // Reset to prepare mode if we delete the last model while in printing
-      scene.setMode('prepare');
-      slicedPlates.clear();
-    }
-  }, [scene.models.length, scene.mode, scene, slicedPlates]);
+  usePrintingLockWithoutModels({ scene, slicedPlates });
 
   useStaleSliceKickFromPrinting({ scene, isActiveSliceStale, setShowPrintingResliceModal });
 
@@ -4813,11 +4807,7 @@ export default function Home() {
     },
   });
 
-  React.useEffect(() => {
-    if (scene.models.length > 0) return;
-    if (scene.mode === 'prepare') return;
-    scene.setMode('prepare');
-  }, [scene.mode, scene.models.length, scene.setMode]);
+  useEmptySceneReturnsToPrepare({ scene });
 
   // Visible models with unapplied hole punches and/or unapplied hollowing.
   // Hidden models are ignored entirely — they neither open the warning nor get
@@ -5040,21 +5030,11 @@ export default function Home() {
     scene.selectModel(scene.activeModelId, 'single');
   }, [scene.mode, transformMgr.transformMode, scene.activeModelId, scene.selectedModelIds, scene.selectModel]);
 
-  React.useEffect(() => {
-    // Skip camera changes during automatic re-slice flow to prevent flickering
-    if (shouldReturnToPrintingAfterSliceRef.current) return;
-
-    const persistedWorkspaceCameraSettings = getSavedWorkspaceCameraSettings();
-
-    if (persistedWorkspaceCameraSettings.scope !== 'workspace') return;
-
-    const workspaceProjectionMode = persistedWorkspaceCameraSettings.defaults[scene.mode];
-    const currentProjectionMode = getSavedCameraProjectionSettings().mode;
-
-    if (workspaceProjectionMode !== currentProjectionMode) {
-      saveCameraProjectionSettings({ mode: workspaceProjectionMode });
-    }
-  }, [scene.mode, workspaceCameraSettings]);
+  useWorkspaceCameraProjectionSync({
+    sceneMode: scene.mode,
+    workspaceCameraSettings,
+    shouldReturnToPrintingAfterSliceRef,
+  });
 
   // Selection highlight is always Mesh Tint; only the Support-mode spotlight
   // hold and the Printing workspace deviate (spotlight / none).
