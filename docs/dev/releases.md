@@ -25,6 +25,33 @@ until the fork has its own feed. `build-preview.yml` and `pr-check-build.yml`
 still carry the upstream Apple team and identity; they run only by hand or on
 pull requests, and the PR check skips signing when the certificate is absent.
 
+### Windows packages
+
+Each release ships, for Windows x64 and x86 (32-bit):
+
+| File | Made by |
+|---|---|
+| `Rambutan Slicer_X.Y.Z_<arch>-setup.exe` | Tauri's NSIS bundler |
+| `Rambutan-Slicer_X.Y.Z_<arch>.exe` | `scripts/package-windows-portable.ps1`: the app executable alone |
+| `Rambutan-Slicer_X.Y.Z_<arch>_portable.zip` | the same script: executable, `LICENSE.txt`, `THIRD-PARTY-NOTICES.txt`, `LEIA-ME.txt` |
+
+Tauri embeds the frontend in the executable, so the standalone and portable
+files are the installer's own binary, not a second build. Only the x64
+installer has been tested by the maintainer; the release notes say so.
+
+The x86 build (`--target i686-pc-windows-msvc --config
+src-tauri/tauri.windows-x86.conf.json`) differs from x64 in one way: it links
+the Microsoft C runtime statically (`.cargo/config.toml`), so it needs no
+Visual C++ Redistributable. The overlay therefore drops the x64 prerequisite
+step, the InetC download plugin and the MSI fragment, and uses
+`src-tauri/nsis/thumbnail-hooks-x86.nsh`; `verify-windows-bundles.ps1
+-StaticRuntime` checks with `dumpbin` that the executable imports no CRT DLL.
+The x64 standalone/portable files still need the x64 Redistributable.
+
+To try every package from a branch without publishing, run the Release
+workflow by hand on that branch with **dry_run** checked: the builds stay as
+workflow artifacts for 3 days and no tag or release is created.
+
 ## The model
 
 We will be using semantic versioning, i.e. vMAJOR.MINOR.PATCH-prerelease.

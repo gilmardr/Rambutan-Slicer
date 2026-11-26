@@ -193,15 +193,21 @@ if (isUniversal) {
 // Windows — build the COM DLL and copy it to src-tauri/windows-resources/
 // ---------------------------------------------------------------------------
 if (platform === 'windows') {
-      if (triple !== 'x86_64-pc-windows-msvc') {
-            throw new Error(`The Windows runtime prerequisite is x64-only; unsupported target: ${triple}`);
+      // x64 installers check for the Visual C++ Redistributable; the x86 build
+      // links the C runtime statically (.cargo/config.toml) and needs no
+      // prerequisite metadata.
+      const staticCrt = triple === 'i686-pc-windows-msvc';
+      if (triple !== 'x86_64-pc-windows-msvc' && !staticCrt) {
+            throw new Error(`Unsupported Windows target: ${triple} (expected x86_64- or i686-pc-windows-msvc)`);
       }
-      // Prepare prerequisite metadata and the download-plugin notice before
-      // tauri-build resolves resources; no Microsoft runtime is bundled.
-      run('powershell', [
-            '-NoProfile', '-ExecutionPolicy', 'Bypass',
-            '-File', 'scripts/prepare-windows-runtime.ps1',
-      ], projectRoot);
+      if (!staticCrt) {
+            // Prepare prerequisite metadata and the download-plugin notice before
+            // tauri-build resolves resources; no Microsoft runtime is bundled.
+            run('powershell', [
+                  '-NoProfile', '-ExecutionPolicy', 'Bypass',
+                  '-File', 'scripts/prepare-windows-runtime.ps1',
+            ], projectRoot);
+      }
       run('cargo', ['build', '--release', ...targetArgs], comCrateDir);
 
       const dllSrc = path.join(comCrateDir, releaseSuffix, COM_DLL_NAME);
