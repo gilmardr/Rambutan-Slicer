@@ -40,6 +40,10 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['useStaleSliceKickFromPrinting.ts', 'useStaleSliceKickFromPrinting'],
   ['useSupportShaftHover.ts', 'useSupportShaftHover'],
   ['useLayerStepHotkeys.ts', 'useLayerStepHotkeys'],
+  ['usePrintTempArtifactCleanup.ts', 'usePrintTempArtifactCleanup'],
+  ['usePrintingProcessingElapsedTicker.ts', 'usePrintingProcessingElapsedTicker'],
+  ['useSceneImportPromptEscape.ts', 'useSceneImportPromptEscape'],
+  ['useHolePunchSelectionEscape.ts', 'useHolePunchSelectionEscape'],
 ];
 
 for (const [file, hook] of HOOKS) {

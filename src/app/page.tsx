@@ -138,7 +138,6 @@ import {
   getHomeSupportCollectionsSnapshot,
   getHomeKickstandCollectionsSnapshot,
 } from '@/features/supports/supportSnapshotHelpers';
-import { isDragonfruitTempArtifactPath } from '@/features/import-export/fileHandling';
 import { getPluginSceneOverlayLoader } from '@/features/plugins/pluginRegistry';
 import { isExperimentEnabled, subscribeToExperiments } from '@/features/experiments/experimentsRegistry';
 import {
@@ -220,8 +219,6 @@ import { sliceProfileFingerprint } from '@/features/printing/slicedPlates';
 import { useSlicedPlatePreviewLoading, useSlicedPlates } from '@/features/printing/useSlicedPlates';
 import { resolveOutputFileExtension } from '@/features/slicing/formats/registry';
 import {
-  cleanupStalePrintTempArtifacts,
-  deletePrintTempArtifactPath,
   launchExternalProcess,
   pickSavePathWithNativeDialog,
   pickSavePathWithNativeDialogOptions,
@@ -266,6 +263,10 @@ import { useOverhangViewToggle } from './home/useOverhangViewToggle';
 import { useStaleSliceKickFromPrinting } from './home/useStaleSliceKickFromPrinting';
 import { useSupportShaftHover } from './home/useSupportShaftHover';
 import { useLayerStepHotkeys } from './home/useLayerStepHotkeys';
+import { usePrintTempArtifactCleanup } from './home/usePrintTempArtifactCleanup';
+import { usePrintingProcessingElapsedTicker } from './home/usePrintingProcessingElapsedTicker';
+import { useSceneImportPromptEscape } from './home/useSceneImportPromptEscape';
+import { useHolePunchSelectionEscape } from './home/useHolePunchSelectionEscape';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -1107,29 +1108,13 @@ export default function Home() {
   const printingUploadProcessingHandoffTimeoutRef = React.useRef<number | null>(null);
   const [printingDeviceProcessingStartedAtMs, setPrintingDeviceProcessingStartedAtMs] = React.useState<number | null>(null);
   const [printingDeviceProcessingElapsedSec, setPrintingDeviceProcessingElapsedSec] = React.useState(0);
-  const lastOwnedPrintTempPathRef = React.useRef<string | null>(null);
   const [isSelectAllModelsActive, setIsSelectAllModelsActive] = React.useState(false);
   const [isTemporarilyDisablingCrossSectionForThumbnail, setIsTemporarilyDisablingCrossSectionForThumbnail] = React.useState(false);
   const [isCrossSectionEnabled, setIsCrossSectionEnabled] = React.useState(true);
   const handleToggleCrossSection = React.useCallback(() => setIsCrossSectionEnabled((prev) => !prev), []);
   const [arrangeSpacingMm, setArrangeSpacingMm] = React.useState(0.5);
 
-  React.useEffect(() => {
-    if (!scene.sceneImportPlacementPrompt) return;
-
-    let wasEscapePressed = false;
-
-    const unsubscribe = hotkeyStore.subscribe((state) => {
-      const active = state.activeKeys;
-      const isEscapePressed = active.has('escape');
-      if (isEscapePressed && !wasEscapePressed) {
-        scene.resolveSceneImportPlacementPrompt('load_as_is');
-      }
-      wasEscapePressed = isEscapePressed;
-    });
-
-    return unsubscribe;
-  }, [scene.sceneImportPlacementPrompt, scene.resolveSceneImportPlacementPrompt]);
+  useSceneImportPromptEscape({ scene });
 
   // ── Import / drag-drop / scene-handoff + export-thumbnail capture ──────────
   //   Extracted to useImportExportManager. Late/cross-domain deps (isDesktopRuntime,
@@ -2865,43 +2850,7 @@ export default function Home() {
 
 
 
-  // Best-effort background cleanup of stale Rambutan Slicer temp artifacts from prior runs.
-  React.useEffect(() => {
-    void cleanupStalePrintTempArtifacts(3 * 24 * 60 * 60)
-      .then((removed) => {
-        if (removed > 0) {
-          console.info(`[Printing] Cleaned up ${removed} stale temporary slice artifact(s).`);
-        }
-      })
-      .catch((error) => {
-        console.warn('[Printing] Failed to clean stale temp artifacts.', error);
-      });
-  }, []);
-
-  // Delete previously-owned temp artifacts once replaced or cleared.
-  React.useEffect(() => {
-    const currentArtifactPath = printingArtifact?.nativeTempPath?.trim() || null;
-    const currentPath = isDragonfruitTempArtifactPath(currentArtifactPath) ? currentArtifactPath : null;
-    const previousPath = lastOwnedPrintTempPathRef.current;
-
-    if (previousPath && previousPath !== currentPath) {
-      void deletePrintTempArtifactPath(previousPath).catch((error) => {
-        console.warn('[Printing] Failed to delete replaced temp artifact.', error);
-      });
-    }
-
-    lastOwnedPrintTempPathRef.current = currentPath;
-  }, [printingArtifact]);
-
-  // Delete currently-owned temp artifact on page unmount.
-  React.useEffect(() => {
-    return () => {
-      const path = lastOwnedPrintTempPathRef.current;
-      if (path) {
-        void deletePrintTempArtifactPath(path).catch(() => {});
-      }
-    };
-  }, []);
+  usePrintTempArtifactCleanup(printingArtifact);
 
   React.useEffect(() => {
     return () => {
@@ -2962,22 +2911,12 @@ export default function Home() {
     }
   }, [activeNetworkUiAdapter, activePrinterProfile, printableConnectedPrinterFleet, printerReachabilityByDeviceId, printingTargetDeviceId]);
 
-  React.useEffect(() => {
-    if (!printingUploadDialogOpen || printingUploadDialogStage !== 'processing' || printingDeviceProcessingStartedAtMs == null) {
-      setPrintingDeviceProcessingElapsedSec(0);
-      return;
-    }
-
-    const updateElapsed = () => {
-      setPrintingDeviceProcessingElapsedSec(Math.max(0, Math.floor((Date.now() - printingDeviceProcessingStartedAtMs) / 1000)));
-    };
-
-    updateElapsed();
-    const id = window.setInterval(updateElapsed, 1000);
-    return () => {
-      window.clearInterval(id);
-    };
-  }, [printingDeviceProcessingStartedAtMs, printingUploadDialogOpen, printingUploadDialogStage]);
+  usePrintingProcessingElapsedTicker({
+    printingUploadDialogOpen,
+    printingUploadDialogStage,
+    printingDeviceProcessingStartedAtMs,
+    setPrintingDeviceProcessingElapsedSec,
+  });
 
 
 
@@ -3244,29 +3183,14 @@ export default function Home() {
     scene.selectModel(modelId, options?.selectionMode ?? 'single');
   }, [scene, selectedHolePunchPlacementIds.length, transformMgr.transformMode]);
 
-  React.useEffect(() => {
-    if (
-      (scene.mode !== 'prepare' && scene.mode !== 'support')
-      || transformMgr.transformMode !== 'hollowing'
-      || selectedHolePunchPlacementIds.length === 0
-    ) {
-      return;
-    }
-
-    let wasEscapePressed = false;
-    const unsubscribe = hotkeyStore.subscribe((state) => {
-      const active = state.activeKeys;
-      const isEscapePressed = active.has('escape');
-      if (isEscapePressed && !wasEscapePressed) {
-        setSelectedHolePunchPlacementIds([]);
-        setHoveredHolePunchPlacementId(null);
-        setHolePunchHoverPlacement(null);
-      }
-      wasEscapePressed = isEscapePressed;
-    });
-
-    return unsubscribe;
-  }, [scene.mode, selectedHolePunchPlacementIds.length, transformMgr.transformMode]);
+  useHolePunchSelectionEscape({
+    sceneMode: scene.mode,
+    transformMode: transformMgr.transformMode,
+    selectedHolePunchPlacementCount: selectedHolePunchPlacementIds.length,
+    setSelectedHolePunchPlacementIds,
+    setHoveredHolePunchPlacementId,
+    setHolePunchHoverPlacement,
+  });
 
   const handleSceneMarqueeSelection = React.useCallback((ids: string[]) => {
     const deduped = Array.from(new Set(ids));
