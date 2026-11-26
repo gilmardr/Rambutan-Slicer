@@ -144,8 +144,21 @@ and prerelease identifier, so the tag doesn't need to encode it separately.
 Every version gets a section in `CHANGELOG.md` at the repository root, in
 Portuguese, with **Novidades** (what is new) and **Correções** (what was
 fixed) compared with the previous version. The heading is
-`## [x.y.z] - date`. `release.yml` uses that section as the text of the
-GitHub release, followed by the Windows and macOS notices; without a section
+`## [x.y.z] - date`. Inside a version the sections always come in
+priority order: `### Windows`, `### Linux`, `### macOS`, then
+`### Todas as plataformas` for what applies everywhere. A platform with
+nothing of its own says so in one line. The downloads and notices that
+`release.yml` appends follow the same order.
+
+The packages are published in that order too, one platform at a time:
+`release.yml` calls `release-build.yml` once for Windows (x64 and x86), once
+for Linux (Flatpak) and once for macOS, and each platform has its own publish
+job. Windows publishes as soon as its builds are done and creates the
+release; Linux and then macOS add their files to it when they finish. A
+platform whose build fails is left out without holding back the others. The
+updater feed is written with Windows only and rewritten with macOS added when
+the macOS packages arrive. `release.yml` uses that section as the text of the
+GitHub release, followed by the Windows, Linux and macOS downloads and notices; without a section
 it falls back to a one-line note. Fill in the section, and replace "em
 preparação" with the date, in the same commit that bumps the version.
 

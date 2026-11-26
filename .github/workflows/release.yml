@@ -215,417 +215,62 @@ jobs:
               `that is genuinely what you want, re-run from the Actions tab with ` +
               `the "force" input enabled.`);
 
-  build-tauri:
-    name: Build ${{ matrix.artifact_name }}
-    # The shipped profile, stated here as well as in Cargo.toml so that
-    # `swatinem/rust-cache` keys on it (see `env-vars` below): the compile check
-    # links thin and keeps its artifacts under a different key.
-    env:
-      CARGO_PROFILE_RELEASE_LTO: fat
-      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
-      # The matrix already carries these per platform; they are stated at job level
-      # so `swatinem/rust-cache` sees them (see `env-vars`) and a macOS release reads
-      # the same cache the warmer writes.
-      CMAKE_OSX_ARCHITECTURES: ${{ matrix.cmake_archs || '' }}
-      DF_BUILD_TARGET_TRIPLE: ${{ matrix.df_build_triple || '' }}
-      # Signing is optional on this fork: without these secrets the build is
-      # unsigned (ad-hoc on macOS, see tauri.macos.conf.json) and not notarized.
-      HAS_APPLE_SIGNING: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_SIGNING_IDENTITY != '' }}
-      HAS_APPLE_NOTARY: ${{ secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
-      HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+  # Each platform builds and publishes on its own, in priority order:
+  # Windows first, then Linux, then macOS. A platform publishes as soon as
+  # its own build is done, and a failure in one does not hold back the others.
+  build-windows:
+    name: Build Windows
+    # x64, plus 32-bit Windows with the static C runtime (.cargo/config.toml),
+    # NSIS only, without the x64 Visual C++ prerequisite (tauri.windows-x86.conf.json).
     needs:
       - detect-version-bump
     if: needs.detect-version-bump.outputs.should_release == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos-latest
-            build_kind: tauri
-            args: --target universal-apple-darwin --bundles app,dmg
-            artifact_name: rambutan-macos-universal
-            cmake_archs: "arm64;x86_64"
-            df_build_triple: universal-apple-darwin
-          - platform: windows-latest
-            build_kind: tauri
-            args: --target x86_64-pc-windows-msvc --bundles nsis,msi
-            artifact_name: rambutan-windows-x64
-            windows_triple: x86_64-pc-windows-msvc
-            windows_arch: x64
-          # 32-bit Windows: static C runtime (.cargo/config.toml), NSIS only,
-          # without the x64 Visual C++ prerequisite (tauri.windows-x86.conf.json).
-          - platform: windows-latest
-            build_kind: tauri
-            args: --target i686-pc-windows-msvc --bundles nsis --config src-tauri/tauri.windows-x86.conf.json
-            artifact_name: rambutan-windows-x86
-            df_build_triple: i686-pc-windows-msvc
-            windows_triple: i686-pc-windows-msvc
-            windows_arch: x86
-          - platform: ubuntu-22.04
-            build_kind: flatpak
-            artifact_name: rambutan-linux-flatpak-x64
-    runs-on: ${{ matrix.platform }}
     permissions:
       actions: write
       contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          submodules: recursive
+    uses: ./.github/workflows/release-build.yml
+    secrets: inherit
+    with:
+      matrix: >-
+        [{"platform": "windows-latest", "build_kind": "tauri", "args": "--target x86_64-pc-windows-msvc --bundles nsis,msi", "artifact_name": "rambutan-windows-x64", "windows_triple": "x86_64-pc-windows-msvc", "windows_arch": "x64"}, {"platform": "windows-latest", "build_kind": "tauri", "args": "--target i686-pc-windows-msvc --bundles nsis --config src-tauri/tauri.windows-x86.conf.json", "artifact_name": "rambutan-windows-x86", "df_build_triple": "i686-pc-windows-msvc", "windows_triple": "i686-pc-windows-msvc", "windows_arch": "x86"}]
 
-      - name: Install Linux system dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libappindicator3-dev librsvg2-dev patchelf libfuse2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22.23.2"
-          cache: npm
-
-      # Pinned, not `@stable`: the floating channel is what churns the Rust cache
-      # key (see warm-rust-cache.yml).
-      - name: Read the pinned Rust toolchain
-        id: rust_toolchain
-        # bash, not the runner's default shell: Windows would run this as pwsh,
-        # where `$(sed …)` is a module path, and the step died there.
-        shell: bash
-        run: |
-          channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
-          echo "channel=$channel" >> "$GITHUB_OUTPUT"
-
-      - name: Install the pinned Rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust_toolchain.outputs.channel }}
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.windows_triple || '' }}
-
-      - name: Install Apple Certificate
-        if: matrix.platform == 'macos-latest' && env.HAS_APPLE_SIGNING == 'true'
-        uses: apple-actions/import-codesign-certs@v7
-        with:
-          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
-          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASS }}
-
-      # Credentials are exported only when present. An empty variable is still a
-      # set variable, and Tauri would try to sign or notarize with a blank value.
-      - name: Export signing credentials that exist
-        shell: bash
-        env:
-          APPLE_SIGNING_IDENTITY_SECRET: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD_SECRET: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
-          TAURI_KEY_SECRET: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD_SECRET: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          if [[ "$RUNNER_OS" == "macOS" && "$HAS_APPLE_SIGNING" == "true" ]]; then
-            echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY_SECRET" >> "$GITHUB_ENV"
-          fi
-          if [[ "$RUNNER_OS" == "macOS" && "$HAS_APPLE_NOTARY" == "true" ]]; then
-            {
-              echo "APPLE_ID=$APPLE_ID_SECRET"
-              echo "APPLE_PASSWORD=$APPLE_PASSWORD_SECRET"
-              echo "APPLE_TEAM_ID=$APPLE_TEAM_ID_SECRET"
-            } >> "$GITHUB_ENV"
-          fi
-          if [[ "$HAS_UPDATER_KEY" == "true" ]]; then
-            {
-              echo "TAURI_SIGNING_PRIVATE_KEY=$TAURI_KEY_SECRET"
-              echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$TAURI_KEY_PASSWORD_SECRET"
-            } >> "$GITHUB_ENV"
-          fi
-          echo "Apple signing: $HAS_APPLE_SIGNING · notarization: $HAS_APPLE_NOTARY · updater key: $HAS_UPDATER_KEY"
-
-      # `swatinem/rust-cache` hashes every toolchain `rustup` lists, not only the
-      # one the build uses, and the runner image ships its own `stable` (1.98.1
-      # when this was written). Pinning the channel alone left the key to move
-      # whenever the image moved that one; removing the rest leaves the pinned
-      # toolchain as the only Rust input to the key.
-      - name: Drop the runner's other Rust toolchains
-        shell: bash
-        env:
-          PINNED: ${{ steps.rust_toolchain.outputs.channel }}
-        run: |
-          rustup default "$PINNED"
-          rustup toolchain list | awk '{print $1}' | while read -r tc; do
-            case "$tc" in
-              # `system` is a rustc outside rustup, which rustup cannot remove.
-              "$PINNED"-* | system) ;;
-              *) rustup toolchain uninstall "$tc" || echo "::warning::could not uninstall $tc" ;;
-            esac
-          done
-          rustup toolchain list
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            ./src-tauri -> target
-            ./rust/dragonfruit-voxl-thumbnail -> target
-          shared-key: tauri
-          # The profile and the target are part of the artifacts, so they are part
-          # of the key: without this the job restores a cache built the other way,
-          # cannot reuse any of it, and skips saving its own.
-          env-vars: CARGO_PROFILE_RELEASE_LTO CARGO_PROFILE_RELEASE_CODEGEN_UNITS DF_BUILD_TARGET_TRIPLE CMAKE_OSX_ARCHITECTURES
-
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Install Chromium for release import verification
-        if: runner.os == 'Linux'
-        run: npx playwright-core install --with-deps chromium
-
-      - name: Install Chromium for release import verification (macOS)
-        if: runner.os == 'macOS'
-        run: npx playwright-core install chromium
-
-      # Next asks for this on every run ("No build cache found"): its compiler and
-      # fetch caches live in `.next/cache`, and restoring that across runs is worth
-      # a minute or two of each frontend build. Keyed on the lockfile and the
-      # sources, with a prefix restore so a commit that changes sources still
-      # reuses what it can, which is most of it.
-      - name: Cache Next.js build
-        uses: actions/cache@v6
-        with:
-          path: .next/cache
-          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**/*.ts', 'src/**/*.tsx', 'next.config.ts', 'tsconfig.json') }}
-          restore-keys: |
-            next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
-
-      - name: Enable Windows long paths
-        if: runner.os == 'Windows'
-        run: |
-          git config --system core.longpaths true
-          reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
-
-      # build-thumbnail-providers.mjs builds the COM DLL with `--target` only
-      # when CARGO_BUILD_TARGET is set. Exported for x86 alone (an empty value
-      # would reach cargo too), so the x64 build keeps its tested path.
-      - name: Target the COM DLL and C++ dependencies at 32-bit Windows
-        if: matrix.windows_arch == 'x86'
-        shell: bash
-        run: |
-          echo "CARGO_BUILD_TARGET=${{ matrix.windows_triple }}" >> "$GITHUB_ENV"
-          # manifold-csg-sys calls cmake itself; without this it builds x64 /MD
-          # libraries that the i686 static-CRT link rejects.
-          echo "CMAKE_GENERATOR_PLATFORM=Win32" >> "$GITHUB_ENV"
-          echo "CMAKE_TOOLCHAIN_FILE=$(cygpath -m "$GITHUB_WORKSPACE")/scripts/cmake/windows-x86-static-crt.cmake" >> "$GITHUB_ENV"
-
-      - name: Build Tauri bundle
-        if: matrix.build_kind == 'tauri'
-        uses: tauri-apps/tauri-action@v0
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: ${{ matrix.platform == 'ubuntu-22.04' && '1' || '' }}
-          CMAKE_OSX_ARCHITECTURES: ${{ matrix.cmake_archs || '' }}
-          DF_BUILD_TARGET_TRIPLE: ${{ matrix.df_build_triple || '' }}
-          # Signing and notarization credentials come from the export step above.
-        with:
-          tauriScript: npx tauri
-          args: ${{ matrix.args }}
-
-      - name: Verify Windows installer runtime payloads
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          WINDOWS_TRIPLE: ${{ matrix.windows_triple }}
-        run: |
-          $bundle = "src-tauri/target/$env:WINDOWS_TRIPLE/release/bundle"
-          if ($env:WINDOWS_TRIPLE -eq 'i686-pc-windows-msvc') {
-            ./scripts/verify-windows-bundles.ps1 -BundleDirectory $bundle -Formats nsis -StaticRuntime
-          } else {
-            ./scripts/verify-windows-bundles.ps1 -BundleDirectory $bundle
-          }
-
-      # The standalone executable and the portable zip are cut from the same
-      # build as the installer: Tauri embeds the frontend in the .exe, so it runs
-      # from any folder. See scripts/package-windows-portable.ps1.
-      - name: Package Windows executable and portable zip
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          WINDOWS_TRIPLE: ${{ matrix.windows_triple }}
-          WINDOWS_ARCH: ${{ matrix.windows_arch }}
-        run: ./scripts/package-windows-portable.ps1 -Triple $env:WINDOWS_TRIPLE -Arch $env:WINDOWS_ARCH -OutputDirectory release-portable
-
-      - name: Embed QuickLook extension + verify universal bundle
-        if: matrix.platform == 'macos-latest'
-        # Notarizes the DMG when the export step provided Apple credentials;
-        # otherwise the script leaves it signed (ad-hoc) and not notarized.
-        run: |
-          node scripts/macos-embed-appex.mjs --target ${{ matrix.df_build_triple }}
-          node scripts/verify-universal-bundle.mjs
-
-      - name: Install AppStream + desktop-file validators
-        if: matrix.build_kind == 'flatpak'
-        run: sudo apt-get install -y appstream desktop-file-utils
-
-      - name: Install Flatpak build tooling
-        if: matrix.build_kind == 'flatpak'
-        run: sudo apt-get install -y flatpak flatpak-builder
-
-      - name: Prepare XDG runtime directory
-        if: matrix.build_kind == 'flatpak'
-        run: |
-          mkdir -p "$RUNNER_TEMP/xdg-runtime"
-          chmod 700 "$RUNNER_TEMP/xdg-runtime"
-          echo "XDG_RUNTIME_DIR=$RUNNER_TEMP/xdg-runtime" >> "$GITHUB_ENV"
-
-      - name: Configure Flathub remote
-        if: matrix.build_kind == 'flatpak'
-        run: |
-          flatpak remote-add --user --if-not-exists \
-            flathub https://flathub.org/repo/flathub.flatpakrepo
-
-      - name: Install Flatpak runtime dependencies (user)
-        if: matrix.build_kind == 'flatpak'
-        run: |
-          flatpak --user install -y --noninteractive flathub \
-            org.freedesktop.Sdk//24.08 \
-            org.freedesktop.Platform//24.08
-
-      - name: Build Tauri app (CEF variant on Linux)
-        if: matrix.build_kind == 'flatpak'
-        run: node scripts/tauri-build.mjs --target x86_64-unknown-linux-gnu --no-bundle
-
-      - name: Upload macOS installer + updater artifacts
-        if: matrix.build_kind == 'tauri' && matrix.platform == 'macos-latest'
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: |
-            src-tauri/target/*/release/bundle/dmg/*.dmg
-            src-tauri/target/*/release/bundle/macos/*.app.tar.gz
-            src-tauri/target/*/release/bundle/macos/*.app.tar.gz.sig
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Upload Windows installer + updater artifacts
-        if: matrix.build_kind == 'tauri' && matrix.platform == 'windows-latest'
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: |
-            src-tauri/target/*/release/bundle/nsis/*
-            release-portable/*
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Upload flatpak artifact
-        if: matrix.build_kind == 'flatpak'
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: src-tauri/target/release/bundle/flatpak/*.flatpak
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Upload import verification and guide
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.artifact_name }}-import-verification
-          path: release-verification/VERIFICACAO-*.md
-          if-no-files-found: error
-          retention-days: 30
-
-  publish-release:
-    name: Publish release
+  build-linux:
+    name: Build Linux
     needs:
       - detect-version-bump
-      - build-tauri
+    if: needs.detect-version-bump.outputs.should_release == 'true'
+    permissions:
+      actions: write
+      contents: write
+    uses: ./.github/workflows/release-build.yml
+    secrets: inherit
+    with:
+      matrix: >-
+        [{"platform": "ubuntu-22.04", "build_kind": "flatpak", "artifact_name": "rambutan-linux-flatpak-x64"}]
+
+  build-macos:
+    name: Build macOS
+    needs:
+      - detect-version-bump
+    if: needs.detect-version-bump.outputs.should_release == 'true'
+    permissions:
+      actions: write
+      contents: write
+    uses: ./.github/workflows/release-build.yml
+    secrets: inherit
+    with:
+      matrix: >-
+        [{"platform": "macos-latest", "build_kind": "tauri", "args": "--target universal-apple-darwin --bundles app,dmg", "artifact_name": "rambutan-macos-universal", "cmake_archs": "arm64;x86_64", "df_build_triple": "universal-apple-darwin"}]
+
+  release-notes:
+    name: Release notes
+    needs:
+      - detect-version-bump
     if: needs.detect-version-bump.outputs.should_release == 'true' && !inputs.dry_run
     runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.final_notes.outputs.body }}
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: release-assets
-
-      # Each build job uploads its import report as VERIFICACAO-<platform>.md,
-      # and both Windows jobs say win32: two assets with one name make the
-      # upload fail. Name each report after its build instead.
-      - name: Give each import report a unique name
-        shell: bash
-        run: |
-          for f in release-assets/*-import-verification/VERIFICACAO-*.md; do
-            [ -e "$f" ] || continue
-            dir=$(dirname "$f")
-            build=$(basename "$dir"); build=${build%-import-verification}; build=${build#rambutan-}
-            [ "$f" = "$dir/VERIFICACAO-$build.md" ] || mv "$f" "$dir/VERIFICACAO-$build.md"
-          done
-          find release-assets -type f -printf '%f\n' | sort | uniq -d | grep . && { echo "::error::duplicate asset names"; exit 1; } || true
-
-      - name: Generate updater JSON
-        if: needs.detect-version-bump.outputs.publish_updater_json == 'true'
-        uses: actions/github-script@v9
-        env:
-          VERSION: ${{ needs.detect-version-bump.outputs.version }}
-          TAG_NAME: ${{ needs.detect-version-bump.outputs.tag_name }}
-          UPDATER_JSON: ${{ needs.detect-version-bump.outputs.updater_json }}
-        with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-            const { execSync } = require('child_process');
-
-            const version = process.env.VERSION;
-            const tag = process.env.TAG_NAME;
-            const jsonFile = process.env.UPDATER_JSON;
-            const baseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tag}`;
-
-            function findOne(pattern) {
-              const results = execSync(`find release-assets -name "${pattern}"`).toString().trim().split('\n').filter(Boolean);
-              if (results.length === 0) throw new Error(`No file matching ${pattern} in release-assets`);
-              if (results.length > 1) throw new Error(`Multiple files matching ${pattern}: ${results.join(', ')}`);
-              return results[0];
-            }
-
-            const darwinTgz = findOne('*.app.tar.gz');
-            const darwinSig = findOne('*.app.tar.gz.sig');
-            // The x64 NSIS installer feeds the updater; the x86 installer and the
-            // standalone/portable files are download-only.
-            const windowsZip = findOne('*_x64-setup.exe');
-            const windowsSig = findOne('*_x64-setup.exe.sig');
-
-            const json = {
-              version,
-              pub_date: new Date().toISOString(),
-              platforms: {
-                'darwin-universal': {
-                  url: `${baseUrl}/${path.basename(darwinTgz)}`,
-                  signature: fs.readFileSync(darwinSig, 'utf8').trim(),
-                },
-                'windows-x86_64': {
-                  url: `${baseUrl}/${path.basename(windowsZip)}`,
-                  signature: fs.readFileSync(windowsSig, 'utf8').trim(),
-                },
-              },
-            };
-
-            fs.writeFileSync(jsonFile, JSON.stringify(json, null, 2));
-            core.info(`Generated ${jsonFile}:\n${JSON.stringify(json, null, 2)}`);
-
-      - name: Create tag if needed
-        uses: actions/github-script@v9
-        env:
-          TAG_NAME: ${{ needs.detect-version-bump.outputs.tag_name }}
-        with:
-          script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const tag = process.env.TAG_NAME;
-            const ref = `refs/tags/${tag}`;
-
-            try {
-              await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
-            } catch (error) {
-              if (error.status !== 404) throw error;
-              await github.rest.git.createRef({ owner, repo, ref, sha: context.sha });
-            }
-
       - name: Resolve release notes from matching prerelease
         id: release_notes
         if: |
@@ -662,15 +307,16 @@ jobs:
 
             core.setOutput("body", body);
 
-      - name: Add the untested-macOS notice to the release notes
+      - name: Add the per-platform downloads and notices to the release notes
         id: final_notes
         uses: actions/github-script@v9
         env:
           NOTES: ${{ steps.release_notes.outputs.body || needs.detect-version-bump.outputs.release_body }}
         with:
           script: |
-            // Nobody on the project can run the macOS build, so every release says so.
-            // Only the Windows x64 installer has been run by the maintainer.
+            // Downloads and notices in priority order: Windows, then Linux, then macOS.
+            // Only the Windows x64 installer has been run by the maintainer; Linux is
+            // not tested yet and nobody on the project can run the macOS build.
             const notice = [
               "## Downloads para Windows",
               "",
@@ -687,18 +333,323 @@ jobs:
               "",
               "---",
               "",
+              "## Downloads para Linux",
+              "",
+              "| Arquivo | O que é |",
+              "| --- | --- |",
+              "| `rambutan-slicer-<versão>-x86_64.flatpak` | Pacote Flatpak para Linux 64 bits. Ainda não testado. |",
+              "",
+              "⚠️ **Linux: ainda não testado.** O Flatpak é compilado pelo CI, mas ainda não foi executado. Relate o resultado numa issue.",
+              "",
+              "⚠️ **Linux: not tested yet.** The Flatpak is built in CI but has not been run yet. Please report what you find in an issue.",
+              "",
+              "---",
+              "",
+              "## Downloads para macOS",
+              "",
+              "| Arquivo | O que é |",
+              "| --- | --- |",
+              "| `Rambutan.Slicer_<versão>_universal.dmg` | Imagem de disco para macOS (Intel e Apple Silicon). Não testado. |",
+              "| `Rambutan.Slicer.app.tar.gz` | O app compactado, sem imagem de disco. Não testado. |",
+              "",
               "⚠️ **macOS: não testado.** A versão para macOS só é compilada pelo CI e nunca foi executada em um Mac. Use por sua conta e risco e relate o resultado numa issue.",
               "",
               "⚠️ **macOS: untested.** The macOS build only compiles in CI; it has never been run on a Mac. Use it at your own risk and report what you find in an issue.",
             ].join("\n");
             core.setOutput("body", `${(process.env.NOTES || "").trimEnd()}\n\n---\n\n${notice}\n`);
 
-      - name: Publish GitHub release
+
+  publish-windows:
+    name: Publish Windows
+    needs:
+      - detect-version-bump
+      - release-notes
+      - build-windows
+    if: always() && !cancelled() && needs.detect-version-bump.outputs.should_release == 'true' && !inputs.dry_run && needs.release-notes.result == 'success' && needs.build-windows.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      INCLUDE_DARWIN: false
+    steps:
+      - name: Download Windows build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          pattern: rambutan-windows-*
+
+      # Each build job uploads its import report as VERIFICACAO-<platform>.md,
+      # and both Windows jobs say win32: two assets with one name make the
+      # upload fail. Name each report after its build instead.
+      - name: Give each import report a unique name
+        shell: bash
+        run: |
+          for f in release-assets/*-import-verification/VERIFICACAO-*.md; do
+            [ -e "$f" ] || continue
+            dir=$(dirname "$f")
+            build=$(basename "$dir"); build=${build%-import-verification}; build=${build#rambutan-}
+            [ "$f" = "$dir/VERIFICACAO-$build.md" ] || mv "$f" "$dir/VERIFICACAO-$build.md"
+          done
+          find release-assets -type f -printf '%f\n' | sort | uniq -d | grep . && { echo "::error::duplicate asset names"; exit 1; } || true
+
+      - name: Generate updater JSON
+        if: needs.detect-version-bump.outputs.publish_updater_json == 'true'
+        uses: actions/github-script@v9
+        env:
+          VERSION: ${{ needs.detect-version-bump.outputs.version }}
+          TAG_NAME: ${{ needs.detect-version-bump.outputs.tag_name }}
+          UPDATER_JSON: ${{ needs.detect-version-bump.outputs.updater_json }}
+          INCLUDE_DARWIN: ${{ env.INCLUDE_DARWIN }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { execSync } = require('child_process');
+
+            const version = process.env.VERSION;
+            const tag = process.env.TAG_NAME;
+            const jsonFile = process.env.UPDATER_JSON;
+            const baseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tag}`;
+
+            function findOne(pattern) {
+              const results = execSync(`find release-assets updater-inputs -name "${pattern}" 2>/dev/null || true`).toString().trim().split('\n').filter(Boolean);
+              if (results.length === 0) throw new Error(`No file matching ${pattern} in release-assets`);
+              if (results.length > 1) throw new Error(`Multiple files matching ${pattern}: ${results.join(', ')}`);
+              return results[0];
+            }
+
+            // The x64 NSIS installer feeds the updater; the x86 installer and the
+            // standalone/portable files are download-only. The Windows publish
+            // writes the feed with Windows only; the macOS publish rewrites it
+            // with both platforms.
+            const windowsZip = findOne('*_x64-setup.exe');
+            const windowsSig = findOne('*_x64-setup.exe.sig');
+            const platforms = {
+              'windows-x86_64': {
+                url: `${baseUrl}/${path.basename(windowsZip)}`,
+                signature: fs.readFileSync(windowsSig, 'utf8').trim(),
+              },
+            };
+            if (process.env.INCLUDE_DARWIN === 'true') {
+              const darwinTgz = findOne('*.app.tar.gz');
+              const darwinSig = findOne('*.app.tar.gz.sig');
+              platforms['darwin-universal'] = {
+                url: `${baseUrl}/${path.basename(darwinTgz)}`,
+                signature: fs.readFileSync(darwinSig, 'utf8').trim(),
+              };
+            }
+
+            const json = { version, pub_date: new Date().toISOString(), platforms };
+
+            fs.writeFileSync(jsonFile, JSON.stringify(json, null, 2));
+            core.info(`Generated ${jsonFile}:\n${JSON.stringify(json, null, 2)}`);
+
+      - name: Create tag if needed
+        uses: actions/github-script@v9
+        env:
+          TAG_NAME: ${{ needs.detect-version-bump.outputs.tag_name }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const tag = process.env.TAG_NAME;
+            const ref = `refs/tags/${tag}`;
+
+            try {
+              await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.git.createRef({ owner, repo, ref, sha: context.sha });
+            }
+
+      - name: Publish the Windows packages to the GitHub release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.detect-version-bump.outputs.tag_name }}
           name: ${{ needs.detect-version-bump.outputs.release_name }}
-          body: ${{ steps.final_notes.outputs.body }}
+          body: ${{ needs.release-notes.outputs.body }}
+          prerelease: ${{ needs.detect-version-bump.outputs.is_prerelease }}
+          draft: false
+          target_commitish: ${{ github.sha }}
+          files: |
+            release-assets/**/*
+            ${{ needs.detect-version-bump.outputs.publish_updater_json == 'true' && needs.detect-version-bump.outputs.updater_json || '' }}
+
+  publish-linux:
+    name: Publish Linux
+    needs:
+      - detect-version-bump
+      - release-notes
+      - build-linux
+      - publish-windows
+    if: always() && !cancelled() && needs.detect-version-bump.outputs.should_release == 'true' && !inputs.dry_run && needs.release-notes.result == 'success' && needs.build-linux.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Linux build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          pattern: rambutan-linux-*
+
+      # Each build job uploads its import report as VERIFICACAO-<platform>.md,
+      # and both Windows jobs say win32: two assets with one name make the
+      # upload fail. Name each report after its build instead.
+      - name: Give each import report a unique name
+        shell: bash
+        run: |
+          for f in release-assets/*-import-verification/VERIFICACAO-*.md; do
+            [ -e "$f" ] || continue
+            dir=$(dirname "$f")
+            build=$(basename "$dir"); build=${build%-import-verification}; build=${build#rambutan-}
+            [ "$f" = "$dir/VERIFICACAO-$build.md" ] || mv "$f" "$dir/VERIFICACAO-$build.md"
+          done
+          find release-assets -type f -printf '%f\n' | sort | uniq -d | grep . && { echo "::error::duplicate asset names"; exit 1; } || true
+
+      - name: Create tag if needed
+        uses: actions/github-script@v9
+        env:
+          TAG_NAME: ${{ needs.detect-version-bump.outputs.tag_name }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const tag = process.env.TAG_NAME;
+            const ref = `refs/tags/${tag}`;
+
+            try {
+              await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.git.createRef({ owner, repo, ref, sha: context.sha });
+            }
+
+      - name: Publish the Linux packages to the GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.detect-version-bump.outputs.tag_name }}
+          name: ${{ needs.detect-version-bump.outputs.release_name }}
+          body: ${{ needs.release-notes.outputs.body }}
+          prerelease: ${{ needs.detect-version-bump.outputs.is_prerelease }}
+          draft: false
+          target_commitish: ${{ github.sha }}
+          files: |
+            release-assets/**/*
+
+  publish-macos:
+    name: Publish macOS
+    needs:
+      - detect-version-bump
+      - release-notes
+      - build-macos
+      - publish-linux
+      - build-windows
+    if: always() && !cancelled() && needs.detect-version-bump.outputs.should_release == 'true' && !inputs.dry_run && needs.release-notes.result == 'success' && needs.build-macos.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      INCLUDE_DARWIN: true
+    steps:
+      - name: Download macOS build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          pattern: rambutan-macos-*
+
+      - name: Download the Windows x64 updater files
+        if: needs.detect-version-bump.outputs.publish_updater_json == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          path: updater-inputs
+          name: rambutan-windows-x64
+
+      # Each build job uploads its import report as VERIFICACAO-<platform>.md,
+      # and both Windows jobs say win32: two assets with one name make the
+      # upload fail. Name each report after its build instead.
+      - name: Give each import report a unique name
+        shell: bash
+        run: |
+          for f in release-assets/*-import-verification/VERIFICACAO-*.md; do
+            [ -e "$f" ] || continue
+            dir=$(dirname "$f")
+            build=$(basename "$dir"); build=${build%-import-verification}; build=${build#rambutan-}
+            [ "$f" = "$dir/VERIFICACAO-$build.md" ] || mv "$f" "$dir/VERIFICACAO-$build.md"
+          done
+          find release-assets -type f -printf '%f\n' | sort | uniq -d | grep . && { echo "::error::duplicate asset names"; exit 1; } || true
+
+      - name: Generate updater JSON
+        # Needs the Windows x64 build too, for its half of the feed.
+        if: needs.detect-version-bump.outputs.publish_updater_json == 'true' && needs.build-windows.result == 'success'
+        uses: actions/github-script@v9
+        env:
+          VERSION: ${{ needs.detect-version-bump.outputs.version }}
+          TAG_NAME: ${{ needs.detect-version-bump.outputs.tag_name }}
+          UPDATER_JSON: ${{ needs.detect-version-bump.outputs.updater_json }}
+          INCLUDE_DARWIN: ${{ env.INCLUDE_DARWIN }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { execSync } = require('child_process');
+
+            const version = process.env.VERSION;
+            const tag = process.env.TAG_NAME;
+            const jsonFile = process.env.UPDATER_JSON;
+            const baseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tag}`;
+
+            function findOne(pattern) {
+              const results = execSync(`find release-assets updater-inputs -name "${pattern}" 2>/dev/null || true`).toString().trim().split('\n').filter(Boolean);
+              if (results.length === 0) throw new Error(`No file matching ${pattern} in release-assets`);
+              if (results.length > 1) throw new Error(`Multiple files matching ${pattern}: ${results.join(', ')}`);
+              return results[0];
+            }
+
+            // The x64 NSIS installer feeds the updater; the x86 installer and the
+            // standalone/portable files are download-only. The Windows publish
+            // writes the feed with Windows only; the macOS publish rewrites it
+            // with both platforms.
+            const windowsZip = findOne('*_x64-setup.exe');
+            const windowsSig = findOne('*_x64-setup.exe.sig');
+            const platforms = {
+              'windows-x86_64': {
+                url: `${baseUrl}/${path.basename(windowsZip)}`,
+                signature: fs.readFileSync(windowsSig, 'utf8').trim(),
+              },
+            };
+            if (process.env.INCLUDE_DARWIN === 'true') {
+              const darwinTgz = findOne('*.app.tar.gz');
+              const darwinSig = findOne('*.app.tar.gz.sig');
+              platforms['darwin-universal'] = {
+                url: `${baseUrl}/${path.basename(darwinTgz)}`,
+                signature: fs.readFileSync(darwinSig, 'utf8').trim(),
+              };
+            }
+
+            const json = { version, pub_date: new Date().toISOString(), platforms };
+
+            fs.writeFileSync(jsonFile, JSON.stringify(json, null, 2));
+            core.info(`Generated ${jsonFile}:\n${JSON.stringify(json, null, 2)}`);
+
+      - name: Create tag if needed
+        uses: actions/github-script@v9
+        env:
+          TAG_NAME: ${{ needs.detect-version-bump.outputs.tag_name }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const tag = process.env.TAG_NAME;
+            const ref = `refs/tags/${tag}`;
+
+            try {
+              await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.git.createRef({ owner, repo, ref, sha: context.sha });
+            }
+
+      - name: Publish the macOS packages to the GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.detect-version-bump.outputs.tag_name }}
+          name: ${{ needs.detect-version-bump.outputs.release_name }}
+          body: ${{ needs.release-notes.outputs.body }}
           prerelease: ${{ needs.detect-version-bump.outputs.is_prerelease }}
           draft: false
           target_commitish: ${{ github.sha }}
@@ -710,7 +661,7 @@ jobs:
     name: Label issues fixed in dev
     needs:
       - detect-version-bump
-      - publish-release
+      - publish-windows
     # A final (no -suffix) version on dev is the "train" passing a station:
     # every issue closed by a commit since the last final dev release gets
     # labeled instead of closed, since dev isn't the default branch and
