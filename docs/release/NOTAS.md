@@ -2,7 +2,7 @@
 
 ### Instalação
 
-- **Windows x64** — execute o instalador `setup.exe`. Se recebeu a pasta portátil, mantenha o executável e as DLLs juntos e abra `rambutan-slicer.exe`.
+- **Windows x64 (testado)** — execute o instalador `setup.exe`. Se recebeu a pasta portátil, mantenha o executável e as DLLs juntos e abra `rambutan-slicer.exe`.
 - **macOS (não testado)** — abra o DMG e arraste Rambutan Slicer para Aplicativos. Esta versão só foi compilada; ninguém a testou em um Mac. Sem certificado da Apple no CI, o DMG sai sem assinatura nem notarização.
 - **Linux** — instale o arquivo Flatpak e abra Rambutan Slicer pelo menu de aplicativos.
 

@@ -41,7 +41,7 @@
 
 Installers are on the [Releases](https://github.com/gilmardr/Rambutan-Slicer/releases) page:
 
-- **Windows:** `Rambutan Slicer_<version>_x64-setup.exe`.
+- **Windows:** `Rambutan Slicer_<version>_x64-setup.exe`. Tested by the maintainer on Windows x64.
 - **macOS and Linux:** no official installer yet. Build from source (see [Getting started](#getting-started)).
 
 > [!WARNING]
