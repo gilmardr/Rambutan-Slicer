@@ -9,7 +9,7 @@ import {
 import { useLingui } from '@lingui/react';
 import { msg } from '@lingui/core/macro';
 import type { MessageDescriptor } from '@lingui/core';
-import { hotkeyStore, useActionActive } from '@/hotkeys/hotkeyStore';
+import { hotkeyStore } from '@/hotkeys/hotkeyStore';
 import dynamic from 'next/dynamic';
 import * as THREE from 'three';
 import { AlertTriangle } from 'lucide-react';
@@ -229,7 +229,8 @@ import {
 import { projectModelMesh, makeSupportPointProjector, resolveTrackpadGestureAction } from './sceneCanvasProjection';
 import { PEARL_MODEL_COLOR, LOGO_RED_MODEL_COLOR, getModelBaseColor, usesLogoRedModelColor } from './modelBaseColor';
 import { GhostPreviewTransform, GhostPreviewInstances } from './GhostPreviewInstances';
-import { CrossSectionCapDebugPanelState, CROSS_SECTION_CAP_DEBUG_STORAGE_KEY, CROSS_SECTION_CAP_DEBUG_HOTKEY_ENABLED, DEFAULT_CROSS_SECTION_CAP_DEBUG_STATE } from './crossSectionCapDebug';
+import { DEFAULT_CROSS_SECTION_CAP_DEBUG_STATE } from './crossSectionCapDebug';
+import { useCrossSectionCapDebugPanel } from './useCrossSectionCapDebugPanel';
 
 const Canvas = dynamic(() => import('@react-three/fiber').then(m => m.Canvas), { ssr: false });
 
@@ -6150,53 +6151,14 @@ export function SceneCanvas({
     clearSelectDragCandidate();
   }, [clearSelectDragCandidate, interactionResetNonce, mode, transformMode]);
 
-  const [showCrossSectionCapDebugPanel, setShowCrossSectionCapDebugPanel] = React.useState(false);
-  const [crossSectionCapDebugState, setCrossSectionCapDebugState] = React.useState<CrossSectionCapDebugPanelState>(
-    DEFAULT_CROSS_SECTION_CAP_DEBUG_STATE,
-  );
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(CROSS_SECTION_CAP_DEBUG_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Partial<CrossSectionCapDebugPanelState>;
-      setCrossSectionCapDebugState((prev) => ({
-        enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : prev.enabled,
-        top: { ...prev.top, ...(parsed.top ?? {}) },
-        bottom: { ...prev.bottom, ...(parsed.bottom ?? {}) },
-      }));
-    } catch {
-      // Ignore malformed debug state.
-    }
-  }, []);
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(CROSS_SECTION_CAP_DEBUG_STORAGE_KEY, JSON.stringify(crossSectionCapDebugState));
-    } catch {
-      // Ignore storage write failures in temporary debug tooling.
-    }
-  }, [crossSectionCapDebugState]);
-
-  const isCapsDebugActive = useActionActive('DEBUG', 'TOGGLE_CAPS');
-  const wasCapsDebugActive = React.useRef(false);
-
-  React.useEffect(() => {
-    if (!CROSS_SECTION_CAP_DEBUG_HOTKEY_ENABLED) return;
-    if (isCapsDebugActive && !wasCapsDebugActive.current) {
-      setShowCrossSectionCapDebugPanel((prev) => !prev);
-    }
-    wasCapsDebugActive.current = isCapsDebugActive;
-  }, [isCapsDebugActive]);
-
-  const topCapDebugOverrides = crossSectionCapDebugState.enabled
-    ? crossSectionCapDebugState.top
-    : undefined;
-  const bottomCapDebugOverrides = crossSectionCapDebugState.enabled
-    ? crossSectionCapDebugState.bottom
-    : undefined;
+  const {
+    showCrossSectionCapDebugPanel,
+    setShowCrossSectionCapDebugPanel,
+    crossSectionCapDebugState,
+    setCrossSectionCapDebugState,
+    topCapDebugOverrides,
+    bottomCapDebugOverrides,
+  } = useCrossSectionCapDebugPanel();
 
   const handleContainerPointerDownCapture = React.useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (handlePrepareLassoPointerDownCapture(e)) return;
