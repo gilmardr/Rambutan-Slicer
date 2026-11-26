@@ -30,6 +30,8 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['useModelStatsClearance.ts', 'useModelStatsClearance'],
   ['useDestructiveTransformGuard.ts', 'useDestructiveTransformGuard'],
   ['useEditorRightClickGesture.ts', 'useEditorRightClickGesture'],
+  ['useModifierApplyOverlayElapsedLabel.ts', 'useModifierApplyOverlayElapsedLabel'],
+  ['useCameraBackgroundWorkPause.ts', 'useCameraBackgroundWorkPause'],
 ];
 
 for (const [file, hook] of HOOKS) {

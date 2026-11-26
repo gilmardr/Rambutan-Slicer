@@ -257,6 +257,8 @@ import { useOnboardingWizard } from './home/useOnboardingWizard';
 import { useModelStatsClearance } from './home/useModelStatsClearance';
 import { useDestructiveTransformGuard } from './home/useDestructiveTransformGuard';
 import { useEditorRightClickGesture } from './home/useEditorRightClickGesture';
+import { useModifierApplyOverlayElapsedLabel } from './home/useModifierApplyOverlayElapsedLabel';
+import { useCameraBackgroundWorkPause } from './home/useCameraBackgroundWorkPause';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -1201,8 +1203,6 @@ export default function Home() {
   const modifierApplyProcessingLabel = applyAllHolePunchProgress
     ? formatApplyingToModelLabel(_, Math.min(applyAllHolePunchProgress.done + 1, applyAllHolePunchProgress.total), applyAllHolePunchProgress.total)
     : _(msg`Processing 1 model`);
-  const [modifierApplyOverlayElapsedSec, setModifierApplyOverlayElapsedSec] = React.useState(0);
-
   const modifierApplyOverlayContent = React.useMemo(() => {
     if (isApplyingHollowing && pendingHolePunchAutoApplyModelId) {
       return {
@@ -1255,26 +1255,7 @@ export default function Home() {
     };
   }, [_, finalizingOverlayContent, isApplyingBlockersHollowing, isApplyingHolePunch, isApplyingHollowing, pendingHolePunchAutoApplyModelId]);
 
-  React.useEffect(() => {
-    if (!showModifierApplyBlockingOverlay) {
-      setModifierApplyOverlayElapsedSec(0);
-      return;
-    }
-
-    const startedAt = Date.now();
-    const id = window.setInterval(() => {
-      setModifierApplyOverlayElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
-    }, 250);
-
-    return () => window.clearInterval(id);
-  }, [showModifierApplyBlockingOverlay]);
-
-  const modifierApplyOverlayElapsedLabel = React.useMemo(() => {
-    const total = Math.max(0, modifierApplyOverlayElapsedSec);
-    const minutes = Math.floor(total / 60);
-    const seconds = total % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  }, [modifierApplyOverlayElapsedSec]);
+  const modifierApplyOverlayElapsedLabel = useModifierApplyOverlayElapsedLabel(showModifierApplyBlockingOverlay);
 
   const [supportRenderRefreshNonce, setSupportRenderRefreshNonce] = React.useState(0);
   const [gizmoResetNonce, setGizmoResetNonce] = React.useState(0);
@@ -1903,7 +1884,6 @@ export default function Home() {
     })(); });
   }, [handleApplyOrientation, scene.activeModel, scene.activeModelId, showOrientationToast, transformMgr.autoLift]);
 
-  const cameraResumeTimeoutRef = React.useRef<number | null>(null);
   // Kept for its subscription: Home re-renders when the hotkey config changes.
   useHotkeyConfig();
 
@@ -6554,33 +6534,7 @@ export default function Home() {
     commitPendingTransformHistory();
   };
 
-  const handleCameraChange = React.useCallback(() => {
-    if (cameraResumeTimeoutRef.current !== null) {
-      window.clearTimeout(cameraResumeTimeoutRef.current);
-      cameraResumeTimeoutRef.current = null;
-    }
-    scene.setBackgroundGeometryWorkPaused(true);
-  }, [scene]);
-
-  const handleCameraEnd = React.useCallback(() => {
-    if (cameraResumeTimeoutRef.current !== null) {
-      window.clearTimeout(cameraResumeTimeoutRef.current);
-    }
-
-    cameraResumeTimeoutRef.current = window.setTimeout(() => {
-      scene.setBackgroundGeometryWorkPaused(false);
-      cameraResumeTimeoutRef.current = null;
-    }, 140);
-  }, [scene]);
-
-  React.useEffect(() => {
-    return () => {
-      if (cameraResumeTimeoutRef.current !== null) {
-        window.clearTimeout(cameraResumeTimeoutRef.current);
-      }
-      scene.setBackgroundGeometryWorkPaused(false);
-    };
-  }, [scene]);
+  const { handleCameraChange, handleCameraEnd } = useCameraBackgroundWorkPause({ scene });
 
   React.useEffect(() => {
     const unregister = registerDeleteHandler(
