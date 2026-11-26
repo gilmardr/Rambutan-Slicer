@@ -9,6 +9,12 @@ on:
           Overwrites its notes and assets. Leave off unless you mean it.
         type: boolean
         default: false
+      dry_run:
+        description: >-
+          Build every package and keep them as workflow artifacts, but create
+          no tag and publish no release. Use it to try the builds from a branch.
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -161,7 +167,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Refuse to overwrite an existing release
-        if: steps.version.outputs.should_release == 'true' && !inputs.force
+        if: steps.version.outputs.should_release == 'true' && !inputs.force && !inputs.dry_run
         uses: actions/github-script@v9
         env:
           TAG_NAME: ${{ steps.version.outputs.tag_name }}
@@ -226,6 +232,17 @@ jobs:
             build_kind: tauri
             args: --target x86_64-pc-windows-msvc --bundles nsis,msi
             artifact_name: rambutan-windows-x64
+            windows_triple: x86_64-pc-windows-msvc
+            windows_arch: x64
+          # 32-bit Windows: static C runtime (.cargo/config.toml), NSIS only,
+          # without the x64 Visual C++ prerequisite (tauri.windows-x86.conf.json).
+          - platform: windows-latest
+            build_kind: tauri
+            args: --target i686-pc-windows-msvc --bundles nsis --config src-tauri/tauri.windows-x86.conf.json
+            artifact_name: rambutan-windows-x86
+            df_build_triple: i686-pc-windows-msvc
+            windows_triple: i686-pc-windows-msvc
+            windows_arch: x86
           - platform: ubuntu-22.04
             build_kind: flatpak
             artifact_name: rambutan-linux-flatpak-x64
@@ -266,7 +283,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.rust_toolchain.outputs.channel }}
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.windows_triple || '' }}
 
       - name: Install Apple Certificate
         if: matrix.platform == 'macos-latest' && env.HAS_APPLE_SIGNING == 'true'
@@ -367,6 +384,14 @@ jobs:
           git config --system core.longpaths true
           reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
 
+      # build-thumbnail-providers.mjs builds the COM DLL with `--target` only
+      # when CARGO_BUILD_TARGET is set. Exported for x86 alone (an empty value
+      # would reach cargo too), so the x64 build keeps its tested path.
+      - name: Target the COM DLL at 32-bit Windows
+        if: matrix.windows_arch == 'x86'
+        shell: bash
+        run: echo "CARGO_BUILD_TARGET=${{ matrix.windows_triple }}" >> "$GITHUB_ENV"
+
       - name: Build Tauri bundle
         if: matrix.build_kind == 'tauri'
         uses: tauri-apps/tauri-action@v0
@@ -382,7 +407,26 @@ jobs:
       - name: Verify Windows installer runtime payloads
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./scripts/verify-windows-bundles.ps1
+        env:
+          WINDOWS_TRIPLE: ${{ matrix.windows_triple }}
+        run: |
+          $bundle = "src-tauri/target/$env:WINDOWS_TRIPLE/release/bundle"
+          if ($env:WINDOWS_TRIPLE -eq 'i686-pc-windows-msvc') {
+            ./scripts/verify-windows-bundles.ps1 -BundleDirectory $bundle -Formats nsis -StaticRuntime
+          } else {
+            ./scripts/verify-windows-bundles.ps1 -BundleDirectory $bundle
+          }
+
+      # The standalone executable and the portable zip are cut from the same
+      # build as the installer: Tauri embeds the frontend in the .exe, so it runs
+      # from any folder. See scripts/package-windows-portable.ps1.
+      - name: Package Windows executable and portable zip
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_TRIPLE: ${{ matrix.windows_triple }}
+          WINDOWS_ARCH: ${{ matrix.windows_arch }}
+        run: ./scripts/package-windows-portable.ps1 -Triple $env:WINDOWS_TRIPLE -Arch $env:WINDOWS_ARCH -OutputDirectory release-portable
 
       - name: Embed QuickLook extension + verify universal bundle
         if: matrix.platform == 'macos-latest'
@@ -441,7 +485,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact_name }}
-          path: src-tauri/target/*/release/bundle/nsis/*
+          path: |
+            src-tauri/target/*/release/bundle/nsis/*
+            release-portable/*
           if-no-files-found: error
           retention-days: 3
 
@@ -467,7 +513,7 @@ jobs:
     needs:
       - detect-version-bump
       - build-tauri
-    if: needs.detect-version-bump.outputs.should_release == 'true'
+    if: needs.detect-version-bump.outputs.should_release == 'true' && !inputs.dry_run
     runs-on: ubuntu-latest
     steps:
       - name: Download build artifacts
@@ -502,8 +548,10 @@ jobs:
 
             const darwinTgz = findOne('*.app.tar.gz');
             const darwinSig = findOne('*.app.tar.gz.sig');
-            const windowsZip = findOne('*.exe');
-            const windowsSig = findOne('*.exe.sig');
+            // The x64 NSIS installer feeds the updater; the x86 installer and the
+            // standalone/portable files are download-only.
+            const windowsZip = findOne('*_x64-setup.exe');
+            const windowsSig = findOne('*_x64-setup.exe.sig');
 
             const json = {
               version,
@@ -585,7 +633,23 @@ jobs:
         with:
           script: |
             // Nobody on the project can run the macOS build, so every release says so.
+            // Only the Windows x64 installer has been run by the maintainer.
             const notice = [
+              "## Downloads para Windows",
+              "",
+              "| Arquivo | O que é |",
+              "| --- | --- |",
+              "| `Rambutan Slicer_<versão>_x64-setup.exe` | Instalador para Windows 64 bits. **É o único testado.** |",
+              "| `Rambutan Slicer_<versão>_x86-setup.exe` | Instalador para Windows 32 bits. Não testado. |",
+              "| `Rambutan-Slicer_<versão>_x64.exe` / `_x86.exe` | Só o executável, sem instalar. Não testado. |",
+              "| `Rambutan-Slicer_<versão>_x64_portable.zip` / `_x86_portable.zip` | Versão portable: extraia e rode. Inclui licença e avisos de terceiros. Não testado. |",
+              "",
+              "⚠️ **Windows x86 (32 bits) e versões portable/executável: não testados.** Foram só compilados pelo CI. O executável e o portable x64 precisam do Microsoft Visual C++ Redistributable x64 (o instalador x64 instala para você); os de 32 bits já trazem o runtime embutido. Todos precisam do WebView2, que já vem no Windows 10 e 11. Em 32 bits o programa tem no máximo 2 a 4 GB de memória, então modelos muito grandes podem falhar.",
+              "",
+              "⚠️ **Windows x86 (32-bit) and the portable/standalone builds: untested.** They only compile in CI. The x64 standalone and portable builds need the Microsoft Visual C++ Redistributable x64 (the x64 installer sets it up for you); the 32-bit ones carry the runtime inside. All of them need WebView2, which ships with Windows 10 and 11. A 32-bit process is limited to 2–4 GB of memory, so very large models may fail.",
+              "",
+              "---",
+              "",
               "⚠️ **macOS: não testado.** A versão para macOS só é compilada pelo CI e nunca foi executada em um Mac. Use por sua conta e risco e relate o resultado numa issue.",
               "",
               "⚠️ **macOS: untested.** The macOS build only compiles in CI; it has never been run on a Mac. Use it at your own risk and report what you find in an issue.",

@@ -42,3 +42,12 @@ rustflags = ["-C", "target-cpu=x86-64-v2"]
 
 [target.x86_64-unknown-linux-gnu]
 rustflags = ["-C", "target-cpu=x86-64-v2"]
+
+# Windows x86 (32-bit) links the Microsoft C runtime statically. The x64
+# installers check for (and offer to download) the x64 Visual C++
+# Redistributable instead; the x86 build has no such prerequisite machinery, so
+# its executable carries the runtime itself and runs on a clean Windows with
+# only WebView2. C/C++ build scripts (cc, cmake) read this target feature and
+# compile their objects with /MT to match.
+[target.i686-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

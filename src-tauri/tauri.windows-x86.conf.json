@@ -1,0 +1,16 @@
+{
+  "build": {
+    "beforeBundleCommand": null
+  },
+  "bundle": {
+    "resources": {
+      "windows-resources/nsis-plugins/InetC.txt": null
+    },
+    "windows": {
+      "wix": null,
+      "nsis": {
+        "installerHooks": "nsis/thumbnail-hooks-x86.nsh"
+      }
+    }
+  }
+}

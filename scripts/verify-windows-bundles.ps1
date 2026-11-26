@@ -5,11 +5,15 @@ Verify Windows installers do not redistribute the Microsoft runtime.
 .DESCRIPTION
 Extracts NSIS/MSI payloads without installing them, rejects CRT/redistributable
 payloads, and checks the NSIS verifier, download plugin, and license notice.
+With -StaticRuntime (the x86 build, which links the C runtime statically and
+has no prerequisite step) it checks instead that the executable imports no
+Visual C++ runtime DLL.
 #>
 [CmdletBinding()]
 param(
     [string]$BundleDirectory,
-    [ValidateSet('nsis', 'msi')][string[]]$Formats = @('nsis', 'msi')
+    [ValidateSet('nsis', 'msi')][string[]]$Formats = @('nsis', 'msi'),
+    [switch]$StaticRuntime
 )
 
 Set-StrictMode -Version Latest
@@ -24,6 +28,18 @@ $manifest = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../src-tauri/Carg
 $packageName = [regex]::Match($manifest, '(?m)^name\s*=\s*"([^"]+)"').Groups[1].Value
 if (-not $packageName) { throw 'Could not read the Tauri executable name from Cargo.toml.' }
 $executableName = "$packageName.exe"
+
+function Assert-NoDynamicCrt([string]$Path) {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+    $dumpbin = @(& $vswhere -latest -products '*' -find 'VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe') | Select-Object -First 1
+    if (-not $dumpbin) { throw 'dumpbin.exe not found; install the Visual Studio C++ build tools.' }
+    $imports = & $dumpbin /nologo /dependents $Path
+    if ($LASTEXITCODE -ne 0) { throw "dumpbin failed on $Path" }
+    $crt = @($imports | Where-Object { $_ -match '^\s*(vcruntime\d+.*|msvcp\d+.*|api-ms-win-crt-.*|ucrtbase)\.dll\s*$' })
+    if ($crt.Count -gt 0) {
+        throw "$Path imports the dynamic C runtime ($($crt.Trim() -join ', ')); the static-runtime build must not."
+    }
+}
 
 $work = Join-Path ([IO.Path]::GetTempPath()) ('dragonfruit-bundle-check-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
@@ -57,6 +73,11 @@ try {
             }
             $executables = @($files | Where-Object Name -eq $executableName)
             if ($executables.Count -ne 1) { throw "Expected one $executableName in $($installer.Name)." }
+            if ($StaticRuntime) {
+                Assert-NoDynamicCrt $executables[0].FullName
+                Write-Host "[windows-runtime] $($installer.Name): static C runtime verified; no Microsoft CRT or redistributable bundled."
+                continue
+            }
             if ($format -eq 'nsis') {
                 foreach ($name in @('INetC.dll', 'verify-windows-runtime.ps1')) {
                     $matches = @($files | Where-Object Name -ieq $name)
