@@ -33,6 +33,7 @@
 - [Project structure](#project-structure)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
+- [Support Rambutan](#support-rambutan)
 - [Credits](#credits)
 - [Trademarks](#trademarks)
 - [License](#license)
@@ -192,6 +193,14 @@ The desktop build tests the file extensions the interface advertises before pack
 Contributions are welcome. Read the [contribution guide](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md) before opening a pull request. Report security issues privately, as described in the [security policy](SECURITY.md).
 
 If a problem also exists in DragonFruit, consider fixing it in the [original project](https://github.com/Open-Resin-Alliance/DragonFruit).
+
+## Support Rambutan
+
+Rambutan Slicer is free and open source. Donations help pay for development, test printers and resin. Any amount helps.
+
+- **Pix (Brazil, random key):** `24354104-f7ed-4fdf-ae0a-3045ac6ffc6d`
+
+In the app, the same key and the "Pix copia e cola" code are in **Settings > About > Support Rambutan** and in the Rambutan Slicer menu.
 
 ## Credits
 

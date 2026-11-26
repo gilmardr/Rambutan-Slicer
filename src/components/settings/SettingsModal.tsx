@@ -8,6 +8,7 @@ import { GeneralSettingsTab } from '@/components/settings/GeneralSettingsTab';
 import { useLocale } from '@/components/I18nClientProvider';
 import contributors from '@/components/settings/contributors.json';
 import { SponsorsCarousel } from '@/components/settings/SponsorsCarousel';
+import { SupportRambutanCard } from '@/components/settings/SupportRambutanCard';
 import { CameraSettingsTab } from '@/components/settings/CameraSettingsTab';
 import { HotkeysSettingsTab } from '@/components/settings/HotkeysSettingsTab';
 import { MeshSettingsTab } from '@/components/settings/MeshSettingsTab';
@@ -1667,6 +1668,8 @@ export function SettingsModal({
                           </div>
                         </div>
                       </div>
+
+                      <SupportRambutanCard />
 
                       <div className="rounded-md border p-3" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-1)' }}>
                         <h5 className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>

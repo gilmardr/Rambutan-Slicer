@@ -120,6 +120,7 @@ test('page characterization with one 10 mm cube', async (t) => {
         'Import mesh…',
         'Import scene…',
         'Import diagnostics',
+        'Support Rambutan',
         'Close program',
       ]);
     });
