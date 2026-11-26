@@ -412,7 +412,7 @@ export async function loadMeshRangeFromNativePath(request: {
 }): Promise<Uint8Array> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native mesh loading is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native mesh loading is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
   const bytes = await core.invoke<ArrayBuffer | Uint8Array>('load_mesh_range', {
     sourcePath: request.sourcePath,

@@ -91,7 +91,7 @@ test('store round-trip and resolve precedence', () => {
 // `model.meshModifiers` directly silently skips unbaked hollowing (and saved
 // VOXLs lose re-editability). With modifiers resolved through the store,
 // prepareModelGeometryForOutput must ATTEMPT hollowing — outside the Tauri
-// desktop runtime that attempt rejects with the "DragonFruit Desktop" error,
+// desktop runtime that attempt rejects with the "Rambutan Slicer Desktop" error,
 // which is exactly the observable proof the modifiers were seen.
 test('output preparation resolves unbaked hollowing from the external store', async () => {
   const id = 'stripped-hollow-model';
@@ -100,7 +100,7 @@ test('output preparation resolves unbaked hollowing from the external store', as
     storeModelMeshModifiers(id, HOLLOWING_MODIFIERS);
     await assert.rejects(
       () => prepareModelGeometryForOutput(model),
-      /DragonFruit Desktop/,
+      /Rambutan Slicer Desktop/,
       'stored (externalized) hollowing modifiers were not resolved at output time',
     );
   } finally {

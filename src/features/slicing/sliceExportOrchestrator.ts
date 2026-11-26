@@ -242,7 +242,7 @@ export type SliceExportResult = {
 };
 
 /**
- * Orchestrates export via DragonFruit Desktop native slicer.
+ * Orchestrates export via Rambutan Slicer Desktop native slicer.
  */
 export async function runSliceExportOrchestrator(options: SliceExportOrchestratorOptions): Promise<SliceExportResult> {
     throwIfAborted(options.abortSignal);
@@ -313,7 +313,7 @@ export async function runSliceExportOrchestrator(options: SliceExportOrchestrato
     throwIfAborted(options.abortSignal);
     const nativeAvailable = await isNativeSlicerAvailable();
     if (!nativeAvailable) {
-        throw new Error('Native slicer requires DragonFruit Desktop (Tauri). JS/WebGPU slicing has been removed.');
+        throw new Error('Native slicer requires Rambutan Slicer Desktop (Tauri). JS/WebGPU slicing has been removed.');
     }
 
     options.onProgress?.(0, 1, 'Preparing');

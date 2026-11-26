@@ -322,7 +322,7 @@ export async function sliceSolidAndEncodeWithNativeSlicerToTempPath(
   const bridgeStart = performance.now();
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native slicer is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native slicer is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   if (abortSignal?.aborted) {
@@ -459,7 +459,7 @@ export async function savePrintArtifactWithNativeDialog(
 ): Promise<string> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native save dialog is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native save dialog is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   const path = await core.invoke<string>('save_print_file', {
@@ -478,7 +478,7 @@ export async function savePrintArtifactPathWithNativeDialog(
 ): Promise<string> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native save dialog is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native save dialog is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   const path = await core.invoke<string>('save_print_file_from_path', {
@@ -494,7 +494,7 @@ export async function savePrintArtifactPathWithNativeDialog(
 export async function pickSavePathWithNativeDialog(defaultFilename: string): Promise<string> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native save dialog is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native save dialog is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   return core.invoke<string>('pick_save_path', {
@@ -512,7 +512,7 @@ export async function pickSavePathWithNativeDialogOptions(
 ): Promise<string> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native save dialog is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native save dialog is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   return core.invoke<string>('pick_save_path', {
@@ -526,7 +526,7 @@ export async function pickSavePathWithNativeDialogOptions(
 export async function pickDirectoryWithNativeDialog(currentPath?: string): Promise<string> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native folder picker is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native folder picker is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   return core.invoke<string>('local_backup_pick_directory', {
@@ -541,7 +541,7 @@ export async function pickOpenFilesWithNativeDialog(
 ): Promise<NativePickedOpenFile[]> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native open dialog is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native open dialog is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   return core.invoke<NativePickedOpenFile[]>('pick_open_files', {
@@ -579,7 +579,7 @@ function toPayloadBytes(payload: ArrayBuffer | ArrayBufferView | number[]): Uint
 export async function loadMeshFileFromNativePath(filePath: string, classify?: boolean): Promise<Uint8Array> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native mesh loading is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native mesh loading is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   const payload = await core.invoke<ArrayBuffer | Uint8Array | number[]>('load_mesh_file', {
@@ -604,7 +604,7 @@ export async function loadMeshBytes(
 ): Promise<Uint8Array> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native mesh loading is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native mesh loading is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   const payload = await core.invoke<ArrayBuffer | Uint8Array | number[]>('load_mesh_bytes', bytes, {
@@ -623,7 +623,7 @@ export async function writeBytesToNativePath(
 ): Promise<string> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native file writing is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native file writing is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   return core.invoke<string>('write_bytes_to_path', {
@@ -756,7 +756,7 @@ export async function writeChunkedToNativePath(
 ): Promise<void> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Chunked file writing is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Chunked file writing is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   return runExclusiveNativeWrite(() =>
@@ -880,7 +880,7 @@ export async function writeFileAtomicStreamedToNativePath(
 ): Promise<number> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Atomic file writing is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Atomic file writing is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   return runExclusiveNativeWrite(() =>
@@ -903,7 +903,7 @@ export async function writeFileAtomicToNativePath(
 ): Promise<void> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Atomic file writing is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Atomic file writing is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   return runExclusiveNativeWrite(() =>
@@ -918,7 +918,7 @@ export async function writeFileAtomicToNativePath(
 export async function allocateMeshStagePath(): Promise<string> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('allocateMeshStagePath is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('allocateMeshStagePath is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
   return core.invoke<string>('allocate_mesh_stage_path');
 }
@@ -941,7 +941,7 @@ export async function exportMeshFile(
 ): Promise<string> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('exportMeshFile is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('exportMeshFile is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
   return core.invoke<string>('export_mesh_file', {
     stagingPath,
@@ -953,7 +953,7 @@ export async function exportMeshFile(
 export async function readPrintArtifactBytesFromPath(sourcePath: string): Promise<Uint8Array> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native slicer is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native slicer is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   const result = await core.invoke<ArrayBuffer | ArrayBufferView | number[]>('read_print_file_bytes', {
@@ -968,7 +968,7 @@ export async function listLocalBackupModelLibrary(
 ): Promise<PreparedModelLibraryEntry[]> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Local model library is only available in DragonFruit Desktop.');
+    throw new Error('Local model library is only available in Rambutan Slicer Desktop.');
   }
 
   return core.invoke<PreparedModelLibraryEntry[]>('local_backup_list_model_library', {
@@ -983,7 +983,7 @@ export async function readPrintLayerPreviewPngFromPath(
 ): Promise<Uint8Array> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native slicer is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native slicer is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   const safeLayerNumber = Math.max(1, Math.floor(layerNumber));
@@ -1031,7 +1031,7 @@ export async function replacePrintLayerPixelsPngAtPath(
 ): Promise<number> {
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native print-file editing is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native print-file editing is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   return core.invoke<number>('replace_print_layer_pixels_png', {
@@ -1058,7 +1058,7 @@ export async function readPrintLayerPreviewPngsFromPath(
 
   const core = await loadTauriCore();
   if (!core) {
-    throw new Error('Native slicer is only available in DragonFruit Desktop (Tauri runtime).');
+    throw new Error('Native slicer is only available in Rambutan Slicer Desktop (Tauri runtime).');
   }
 
   const packed = new Uint8Array(await core.invoke<ArrayBuffer>('read_print_layer_pngs', {

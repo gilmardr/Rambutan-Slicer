@@ -318,7 +318,7 @@ export async function prepareModelGeometryForOutput(model: LoadedModel): Promise
 
     const hollowResult = await hollowFromGeometry(workingGeometry, hollowOptions);
     if (!hollowResult) {
-      throw new Error(`Hollowing for "${model.name}" is only available in DragonFruit Desktop.`);
+      throw new Error(`Hollowing for "${model.name}" is only available in Rambutan Slicer Desktop.`);
     }
 
     createdGeometry = createGeometryFromPositions(hollowResult.positions);
@@ -330,7 +330,7 @@ export async function prepareModelGeometryForOutput(model: LoadedModel): Promise
     const punchResult = await punchFromGeometry(workingGeometry, punchOptions);
     if (!punchResult) {
       if (createdGeometry) createdGeometry.dispose();
-      throw new Error(`Hole punching for "${model.name}" is only available in DragonFruit Desktop.`);
+      throw new Error(`Hole punching for "${model.name}" is only available in Rambutan Slicer Desktop.`);
     }
 
     if (createdGeometry) {

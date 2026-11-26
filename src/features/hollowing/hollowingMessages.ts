@@ -9,11 +9,11 @@ import type { MessageDescriptor } from '@lingui/core';
 type Translate = (descriptor: MessageDescriptor) => string;
 
 export function hollowingDesktopOnlyMessage(translate: Translate): string {
-  return translate(msg`Hollowing is available in DragonFruit Desktop only.`);
+  return translate(msg`Hollowing needs the desktop app.`);
 }
 
 export function hollowingPreviewDesktopOnlyMessage(translate: Translate): string {
-  return translate(msg`Hollowing preview is available in DragonFruit Desktop only.`);
+  return translate(msg`Hollowing preview needs the desktop app.`);
 }
 
 export function hollowingFailedMessage(message: string, translate: Translate): string {
@@ -33,7 +33,7 @@ export function hollowingRemoveUnavailableMessage(translate: Translate): string 
 }
 
 export function holePunchDesktopOnlyMessage(translate: Translate): string {
-  return translate(msg`Hole punching is available in DragonFruit Desktop only.`);
+  return translate(msg`Hole punching needs the desktop app.`);
 }
 
 export function holePunchSourceMissingMessage(translate: Translate): string {

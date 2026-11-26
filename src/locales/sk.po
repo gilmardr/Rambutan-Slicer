@@ -4642,7 +4642,7 @@ msgid "Hole punching failed: {message}"
 msgstr ""
 
 #: src/features/hollowing/hollowingMessages.ts:36
-msgid "Hole punching is available in DragonFruit Desktop only."
+msgid "Hole punching needs the desktop app."
 msgstr ""
 
 #: src/components/scene/MeshRepairReportModal.tsx:127
@@ -4670,7 +4670,7 @@ msgid "Hollowing failed: {message}"
 msgstr ""
 
 #: src/features/hollowing/hollowingMessages.ts:12
-msgid "Hollowing is available in DragonFruit Desktop only."
+msgid "Hollowing needs the desktop app."
 msgstr ""
 
 #: src/features/hollowing/hollowingMessages.ts:24
@@ -4678,7 +4678,7 @@ msgid "Hollowing preview failed: {message}"
 msgstr ""
 
 #: src/features/hollowing/hollowingMessages.ts:16
-msgid "Hollowing preview is available in DragonFruit Desktop only."
+msgid "Hollowing preview needs the desktop app."
 msgstr ""
 
 #: src/features/scene/sceneHistoryLabels.ts:25
@@ -10439,12 +10439,12 @@ msgid "Sponsor"
 msgstr ""
 
 #: src/components/settings/SponsorsCarousel.tsx:510
-msgid "Sponsor Us"
+msgid "Support DragonFruit"
 msgstr ""
 
 #: src/components/settings/SponsorsCarousel.tsx:494
 #: src/components/settings/SponsorsCarousel.tsx:499
-msgid "Sponsors"
+msgid "DragonFruit sponsors"
 msgstr ""
 
 #: src/components/controls/autoSupport/autoSupportPanelTabs.ts:73
