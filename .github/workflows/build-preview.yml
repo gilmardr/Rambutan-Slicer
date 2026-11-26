@@ -897,6 +897,8 @@ jobs:
             | Branch | ${{ needs.derive.outputs.branch }} |
 
             ⚠️ This is an automated pre-release built from a feature branch. It is intended for testing purposes only.
+
+            ⚠️ **macOS: untested.** The macOS build only compiles in CI; it has never been run on a Mac. Use it at your own risk and report what you find in an issue.
           prerelease: true
           draft: false
           target_commitish: ${{ needs.derive.outputs.commit_sha }}
