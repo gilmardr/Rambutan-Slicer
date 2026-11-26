@@ -195,6 +195,7 @@ import { useCrossSectionCapDebugPanel } from './useCrossSectionCapDebugPanel';
 import { CrossSectionCapDebugPanel } from './CrossSectionCapDebugPanel';
 import { useDiagnosticsOrbitBenchmark } from './useDiagnosticsOrbitBenchmark';
 import { useWheelZoomInteraction } from './useWheelZoomInteraction';
+import { useModelHoverEvents } from './useModelHoverEvents';
 import { useTrackpadWheelGestures } from './useTrackpadWheelGestures';
 import { useCanvasCameraPreferences, useIsLightTheme, useThemeAccentColors } from './useCanvasPreferences';
 
@@ -1319,64 +1320,15 @@ export function SceneCanvas({
     });
   }, [modelPickerEnabled]);
 
-  React.useEffect(() => {
-    const handleModelPointerHoverImmediate = (event: Event) => {
-      if (!modelPickerEnabled) return;
-      const customEvent = event as CustomEvent<{ modelId?: string | null }>;
-      const modelId = customEvent.detail?.modelId ?? null;
-      onModelHoverModelChange(modelId);
-    };
-
-    const handleSupportRaftModelPointerHover = (event: Event) => {
-      if (!modelPickerEnabled) return;
-      const customEvent = event as CustomEvent<{ modelId?: string | null; category?: string | null }>;
-      const category = customEvent.detail?.category;
-      if (category === 'raft') {
-        const modelId = customEvent.detail?.modelId ?? null;
-        if (modelId) {
-          pendingHoverModelIdRef.current = null;
-          if (hoverModelRafRef.current !== null) {
-            cancelAnimationFrame(hoverModelRafRef.current);
-            hoverModelRafRef.current = null;
-          }
-          setHoveredMeshModelId((prev) => (prev === null ? prev : null));
-          setHoveredSupportPointerModelId((prev) => (prev === null ? prev : null));
-        }
-        if (modelId) {
-          setHoveredRaftModelId((prev) => (prev === modelId ? prev : modelId));
-        } else {
-          setHoveredRaftModelId((prev) => (prev === null ? prev : null));
-        }
-        return;
-      }
-
-      if (category === 'support') {
-        const modelId = customEvent.detail?.modelId ?? null;
-        if (modelId) {
-          pendingHoverModelIdRef.current = null;
-          if (hoverModelRafRef.current !== null) {
-            cancelAnimationFrame(hoverModelRafRef.current);
-            hoverModelRafRef.current = null;
-          }
-          setHoveredMeshModelId((prev) => (prev === null ? prev : null));
-          setHoveredRaftModelId((prev) => (prev === null ? prev : null));
-        }
-        if (modelId) {
-          setHoveredSupportPointerModelId((prev) => (prev === modelId ? prev : modelId));
-        } else {
-          setHoveredSupportPointerModelId((prev) => (prev === null ? prev : null));
-        }
-      }
-    };
-
-    window.addEventListener('model-pointer-hover-immediate', handleModelPointerHoverImmediate as EventListener);
-    window.addEventListener('support-raft-model-pointer-hover', handleSupportRaftModelPointerHover as EventListener);
-
-    return () => {
-      window.removeEventListener('model-pointer-hover-immediate', handleModelPointerHoverImmediate as EventListener);
-      window.removeEventListener('support-raft-model-pointer-hover', handleSupportRaftModelPointerHover as EventListener);
-    };
-  }, [modelPickerEnabled, onModelHoverModelChange]);
+  useModelHoverEvents({
+    modelPickerEnabled,
+    onModelHoverModelChange,
+    pendingHoverModelIdRef,
+    hoverModelRafRef,
+    setHoveredMeshModelId,
+    setHoveredSupportPointerModelId,
+    setHoveredRaftModelId,
+  });
 
   const selectModelFromPointerHit = React.useCallback((modelId: string | null | undefined) => {
     if (mode !== 'prepare') return;
