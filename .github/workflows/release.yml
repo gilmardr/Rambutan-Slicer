@@ -577,12 +577,27 @@ jobs:
 
             core.setOutput("body", body);
 
+      - name: Add the untested-macOS notice to the release notes
+        id: final_notes
+        uses: actions/github-script@v9
+        env:
+          NOTES: ${{ steps.release_notes.outputs.body || needs.detect-version-bump.outputs.release_body }}
+        with:
+          script: |
+            // Nobody on the project can run the macOS build, so every release says so.
+            const notice = [
+              "⚠️ **macOS: não testado.** A versão para macOS só é compilada pelo CI e nunca foi executada em um Mac. Use por sua conta e risco e relate o resultado numa issue.",
+              "",
+              "⚠️ **macOS: untested.** The macOS build only compiles in CI; it has never been run on a Mac. Use it at your own risk and report what you find in an issue.",
+            ].join("\n");
+            core.setOutput("body", `${(process.env.NOTES || "").trimEnd()}\n\n---\n\n${notice}\n`);
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.detect-version-bump.outputs.tag_name }}
           name: ${{ needs.detect-version-bump.outputs.release_name }}
-          body: ${{ steps.release_notes.outputs.body || needs.detect-version-bump.outputs.release_body }}
+          body: ${{ steps.final_notes.outputs.body }}
           prerelease: ${{ needs.detect-version-bump.outputs.is_prerelease }}
           draft: false
           target_commitish: ${{ github.sha }}

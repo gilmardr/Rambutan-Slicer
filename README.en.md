@@ -41,8 +41,11 @@
 
 Installers are on the [Releases](https://github.com/gilmardr/Rambutan-Slicer/releases) page:
 
-- **Windows:** `Rambutan Slicer_<version>_x64-setup.exe`.
-- **macOS and Linux:** no published installer yet. Build from source (see [Getting started](#getting-started)).
+- **Windows:** `Rambutan Slicer_<version>_x64-setup.exe`. Tested by the maintainer on Windows x64.
+- **macOS and Linux:** no official installer yet. Build from source (see [Getting started](#getting-started)). The Linux version has not been tested yet; a test is planned.
+
+> [!WARNING]
+> **The macOS version has never been tested on a Mac.** CI only confirms that the code compiles for macOS; nobody has opened, sliced or printed with it. Without an Apple certificate configured in CI, the `.dmg` is also unsigned and not notarized, so macOS may refuse to open it. Use it at your own risk and, if you try it, [report the result in an issue](https://github.com/gilmardr/Rambutan-Slicer/issues).
 
 As the AGPL requires, the source for each release is in this repository, at the release tag.
 
@@ -161,7 +164,7 @@ To work on the interface without the desktop app:
 3. **Installers:** `npm run tauri:bundle` for the current machine, or a specific target:
    - `npm run tauri:bundle:windows`
    - `npm run tauri:bundle:linux`
-   - `npm run tauri:bundle:macos:universal`: universal `.dmg` for Intel and Apple Silicon.
+   - `npm run tauri:bundle:macos:universal`: universal `.dmg` for Intel and Apple Silicon (compiles in CI, but untested on a Mac).
    - `npm run tauri:bundle:macos` / `npm run tauri:bundle:macos:arm64`: single-architecture shortcuts, for local development only.
 
 The desktop build tests the file extensions the interface advertises before packaging. On Windows, the check uses the installed Microsoft Edge. On macOS, prepare the browser with `npx playwright-core install chromium`. On Linux, use `npx playwright-core install --with-deps chromium`. To repeat the check on an already built frontend, run `npm run verify:release-imports`. The report written to `release-verification/` includes the results and [usage notes](docs/release/NOTAS.md) (in Portuguese).

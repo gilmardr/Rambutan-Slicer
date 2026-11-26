@@ -41,8 +41,11 @@
 
 Os instaladores ficam na página de [Releases](https://github.com/gilmardr/Rambutan-Slicer/releases):
 
-- **Windows:** `Rambutan Slicer_<versão>_x64-setup.exe`.
-- **macOS e Linux:** ainda sem instalador publicado. Compile a partir do código-fonte (veja [Começando](#começando)).
+- **Windows:** `Rambutan Slicer_<versão>_x64-setup.exe`. Testado pelo mantenedor no Windows x64.
+- **macOS e Linux:** ainda sem instalador oficial. Compile a partir do código-fonte (veja [Começando](#começando)). A versão para Linux ainda não foi testada; o teste está previsto.
+
+> [!WARNING]
+> **A versão para macOS nunca foi testada em um Mac.** O CI só confirma que o código compila para macOS; ninguém abriu, fatiou ou imprimiu com ela. Sem um certificado da Apple configurado no CI, o `.dmg` também sai sem assinatura nem notarização, e o macOS pode bloquear a abertura. Use por sua conta e risco e, se testar, [conte o resultado numa issue](https://github.com/gilmardr/Rambutan-Slicer/issues).
 
 Como exige a AGPL, o código-fonte correspondente a cada versão está neste repositório, na tag da release.
 
@@ -161,7 +164,7 @@ Para trabalhar só na interface, sem o app desktop:
 3. **Instaladores:** `npm run tauri:bundle` para a máquina atual, ou um alvo específico:
    - `npm run tauri:bundle:windows`
    - `npm run tauri:bundle:linux`
-   - `npm run tauri:bundle:macos:universal`: `.dmg` universal para Intel e Apple Silicon.
+   - `npm run tauri:bundle:macos:universal`: `.dmg` universal para Intel e Apple Silicon (compila no CI, mas não foi testado em um Mac).
    - `npm run tauri:bundle:macos` / `npm run tauri:bundle:macos:arm64`: atalhos de uma arquitetura, só para desenvolvimento local.
 
 A build desktop testa as extensões anunciadas pela interface antes de empacotar. No Windows, a verificação usa o Microsoft Edge instalado. No macOS, prepare o navegador com `npx playwright-core install chromium`. No Linux, use `npx playwright-core install --with-deps chromium`. Para repetir a verificação do frontend já preparado, rode `npm run verify:release-imports`. O relatório gerado em `release-verification/` inclui os resultados e as [instruções de uso](docs/release/NOTAS.md).

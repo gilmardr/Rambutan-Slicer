@@ -2,9 +2,9 @@
 
 ### Instalação
 
-- **Windows x64** — execute o instalador `setup.exe`. Se recebeu a pasta portátil, mantenha o executável e as DLLs juntos e abra `rambutan-slicer.exe`.
-- **macOS** — abra o DMG e arraste Rambutan Slicer para Aplicativos.
-- **Linux** — instale o arquivo Flatpak e abra Rambutan Slicer pelo menu de aplicativos.
+- **Windows x64 (testado)** — execute o instalador `setup.exe`. Se recebeu a pasta portátil, mantenha o executável e as DLLs juntos e abra `rambutan-slicer.exe`.
+- **macOS (não testado)** — abra o DMG e arraste Rambutan Slicer para Aplicativos. Esta versão só foi compilada; ninguém a testou em um Mac. Sem certificado da Apple no CI, o DMG sai sem assinatura nem notarização.
+- **Linux (ainda não testado)** — instale o arquivo Flatpak e abra Rambutan Slicer pelo menu de aplicativos.
 
 No primeiro acesso, selecione o perfil da sua impressora. Use **Importar modelo** para malhas e **Abrir cena** para projetos. A lista depende dos importadores disponíveis na instalação.
 
