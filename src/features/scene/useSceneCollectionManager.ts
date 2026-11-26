@@ -27,7 +27,6 @@ import type { PluginFileTypeHandler } from '@/features/plugins/pluginFileTypeBri
 import { accelerateGeometry, disposeGeometryBVH } from '@/utils/bvh';
 import { runWithConcurrency } from '@/utils/runWithConcurrency';
 import { logToNativeFile } from '@/utils/nativeLog';
-import { BAKED_OCCLUSION_ATTRIBUTE, DEFAULT_BAKED_OCCLUSION_INTENSITY, bakeOcclusionForGeometry, bumpBakedOcclusionVersion, canBakeOcclusion, setBakedOcclusionIntensity } from '@/features/scene/bakedOcclusion';
 import { computeProjectedFootprintSize } from '@/utils/modelFootprint';
 import { shelfPack, type ShelfItem } from '@/features/scene/arrange/shelfPack';
 import { eulerFromGlobalEuler, quaternionFromGlobalEuler } from '@/utils/rotation';
@@ -38,14 +37,12 @@ import { repairCancelledMessage, repairedModelsMessage, repairFailedForModelMess
 import { addPlateLabel, colorModelLabel, DELETE_MODELS_AND_PLATES_LABEL, deleteModelLabel, deleteModelsLabel, deletePlateLabel, deleteSupportsForModelLabel, deleteSupportsForModelsLabel, duplicateModelLabel, duplicateModelsLabel, hideModelLabel, linkModelsLabel, MARK_AS_MODEL_LABEL, MARK_AS_SUPPORT_LABEL, mergeSupportsLabel, pasteModelLabel, pasteModelsLabel, renameLabel, repairModelLabel, repairModelsLabel, showModelLabel, splitModelLabel, solidOperationLabel, splitSupportsLabel, SWITCH_PRINTER_LABEL, switchPrinterLabel, tetSurfaceModelLabel, solidRemeshModelLabel, transformModelLabel, transformModelsLabel, unlinkModelsLabel } from '@/features/scene/sceneHistoryLabels';
 import { registerMeshForAutoBrace, unregisterMeshForAutoBrace } from '@/supports/autoBracing/meshGeometryStore';
 import { buildModelEdgeGeometry } from '@/hooks/useStlGeometry';
-import { type MatcapVariant, type MeshShaderType } from '@/features/shaders/mesh';
-import { getSavedWorkspaceCameraSettings, getWorkspaceCameraSettingsServerSnapshot, getWorkspaceCameraSettingsSnapshot, subscribeToWorkspaceCameraSettings } from '@/components/settings/workspaceCameraPreferences';
+import { getSavedWorkspaceCameraSettings } from '@/components/settings/workspaceCameraPreferences';
 import { DEFAULT_VIEW3D_SETTINGS, getSavedView3DSettings, normalizeView3DSettings, saveView3DSettings, type View3DSettings } from '@/components/settings/view3dPreferences';
 import { followedPlateIdForMove, rectStandsOnAnyBed } from '@/features/scene/plates/plateInteractivity';
 import { getMultiPlateSettingsServerSnapshot, getMultiPlateSettingsSnapshot, plateOrderingFor, subscribeToMultiPlateSettings } from '@/components/settings/multiPlatePreferences';
-import { getActivePrinterProfile, getMaterialProfilesForPrinter, getProfileStoreSnapshot, getProfileStoreServerSnapshot, importPrinterBundle, setActivePrinterProfile, subscribeToProfileStore } from '@/features/profiles/profileStore';
+import { getActivePrinterProfile, getMaterialProfilesForPrinter, getProfileStoreSnapshot, getProfileStoreServerSnapshot, setActivePrinterProfile, subscribeToProfileStore } from '@/features/profiles/profileStore';
 import { buildVolumeIsSmaller, findPrinterProfileForBundle, toVoxlPrinterBundle } from '@/features/profiles/voxlPrinterBundle';
-import type { VoxlPrinterBundle } from '@/features/scene/voxl/types';
 import { base64ToBytes } from '@/utils/base64';
 import { snapshotGeometryPositions } from '@/utils/geometrySnapshot';
 import type { ModelMeshModifiers, ModelMeshModifiersHistoryOptions } from '@/features/mesh-modifiers/types';
@@ -69,24 +66,22 @@ import { getSavedImportDefaultsSettings } from '@/features/scene/importDefaultsP
 import { readNativeFileSize } from '@/utils/pluginNetworkBridge';
 import { clonePlainData } from '@/utils/plainDataClone';
 import { DEFAULT_LIFT_DISTANCE_MM } from '@/features/transform/liftDefaults';
-import { DEFAULT_MESH_COLOR, DEFAULT_AMBIENT_INTENSITY, DEFAULT_DIRECTIONAL_INTENSITY, DEFAULT_MATERIAL_ROUGHNESS, DEFAULT_WIREFRAME_THICKNESS_PX, DEFAULT_XRAY_OPACITY, DEFAULT_HEATMAP_MIN_ANGLE, DEFAULT_HEATMAP_MAX_ANGLE, DEFAULT_HEATMAP_COLORS, DEFAULT_SHADER_TYPE, DEFAULT_MATCAP_VARIANT, DEFAULT_FLAT_USE_VERTEX_COLORS, DEFAULT_HOVER_TINT_STRENGTH, DEFAULT_SELECTED_TINT_STRENGTH, clampHexColor, readMeshAppearanceFromLocalStorage, writeMeshAppearanceToLocalStorage } from './meshAppearanceSettings';
-import { RECENT_OPENED_FILES_LIMIT, RecentOpenedFileKind, RecentOpenedFileEntry, putRecentOpenedFileBlob, deleteRecentOpenedFileBlobs, readRecentOpenedFileBlob, readRecentOpenedFilesFromLocalStorage, writeRecentOpenedFilesToLocalStorage } from './recentOpenedFiles';
+import { DEFAULT_MESH_COLOR, clampHexColor, readMeshAppearanceFromLocalStorage } from './meshAppearanceSettings';
+import { readRecentOpenedFileBlob } from './recentOpenedFiles';
 import { SCENE_MODELS_SNAPSHOT_APPLY, MODIFIER_HISTORY_MERGE_WINDOW_MS, SceneSnapshotPayload, sceneHistory, SceneSnapshot, TransformHistorySupportSnapshotOptions, sceneSnapshotRegistry, captureSceneSnapshot, storeSceneSnapshotPair } from './sceneSnapshotHistory';
 import { cloneTransform, transformsEqual, cloneLoadedModel, cloneMeshModifiersShallow, cloneMeshModifiersForHistory, schedulePostPaint, paintModelBaseColor, hasSupportsForModel, shiftSupportsWithModels, supportStateFor } from './sceneModelHelpers';
 import { sanitizeImportedModelDisplayName, sha256Hex, remapModelIdsInPayload, voxlSupportsContainData, countSupportEntries, applyImportDefaultsToRaftState, PluginSceneImportPayload, asDragonfruitImportFormat, normalizePluginSceneImportPayload } from './sceneImportHelpers';
 import { ScenePlate, LoadedModel } from './loadedModel';
+import { useMeshAppearanceState } from './useMeshAppearanceState';
+import { useRecentOpenedFiles } from './useRecentOpenedFiles';
+import { useBackgroundGeometryWork } from './useBackgroundGeometryWork';
+import { useBakedOcclusionPass, useHigherContrastEdgeBackfill } from './useSceneGeometryPasses';
+import { useSceneImportPrompts, type MeshRepairReportEntry } from './useSceneImportPrompts';
+export type { SceneImportReportTone, SceneImportReport, MeshRepairReportEntry, SceneImportPlacementPrompt, SceneImportHollowingChoice, SceneImportHollowingPrompt, MeshRepairConfirmPrompt, ObsoleteVoxlScenePrompt, PrinterMismatchPrompt } from './useSceneImportPrompts';
 export { DEFAULT_HEATMAP_COLORS, DEFAULT_HOVER_TINT_STRENGTH, DEFAULT_SELECTED_TINT_STRENGTH } from './meshAppearanceSettings';
 export type { RecentOpenedFileKind, RecentOpenedFileEntry } from './recentOpenedFiles';
 export { SCENE_MODELS_SNAPSHOT_APPLY, getSceneSnapshotRegistryBytes } from './sceneSnapshotHistory';
 export type { ScenePlate, PlateFrame, LoadedModel } from './loadedModel';
-
-/**
- * Ambient-occlusion bakes in flight at once (see the scheduling comment in the
- * bake effect). Each command is internally parallel across vertices, so this is
- * about hiding the serial phases — weld, tree build, IPC — of one model behind
- * another model's ray pass, not about using more cores per model.
- */
-const AO_BAKE_CONCURRENCY = 2;
 
 /**
  * VOXL meshes built at once.
@@ -126,28 +121,14 @@ type ImportProgressState = {
   progress: number | null;
 };
 
-export type SceneImportReportTone = 'success' | 'warning' | 'error';
 
-export type SceneImportReport = {
-  id: number;
-  text: string;
-  tone: SceneImportReportTone;
-  durationMs?: number;
-  clickAction?: 'openMeshRepairReport';
-};
 
-export type MeshRepairReportEntry = {
-  id: string;
-  modelName: string;
-  report: MeshHealthReport;
-};
 
 /** A repair run's progress sink, told also when each model of the run starts. */
 export interface ModelsRepairProgressSink extends MeshRepairProgressSink {
   onModelStart?: (modelId: string, index: number, total: number) => void;
 }
 
-type MeshRepairReportPresentation = 'default' | 'optimistic';
 
 function repairReportNeedsAttention(report: MeshHealthReport): boolean {
   if (!report.fully_repaired) return true;
@@ -161,23 +142,9 @@ function repairReportNeedsAttention(report: MeshHealthReport): boolean {
     || post.inconsistent_edges < pre.inconsistent_edges;
 }
 
-type SceneImportPlacementChoice = 'auto_arrange' | 'load_as_is';
 
-export type SceneImportPlacementPrompt = {
-  source: string;
-  fileName: string;
-  modelCount: number;
-  offPlateModelCount: number;
-};
 
-export type SceneImportHollowingChoice = 'bake' | 'keep_solid';
 
-export type SceneImportHollowingPrompt = {
-  source: string;
-  fileName: string;
-  modelCount: number;
-  hollowedModelCount: number;
-};
 
 /**
  * Joins a pre-baked cavity to its outer shell as one hollow solid.
@@ -255,50 +222,9 @@ function geometryPositionsAsSoup(geometry: THREE.BufferGeometry): Float32Array |
   return soup;
 }
 
-export type MeshRepairConfirmPrompt = {
-  fileName: string;
-  analysis: MeshAnalysisJson;
-  /**
-   * Whether the file can be repaired part by part. A plate imports as one model with many
-   * components, and repairing it whole returns one verdict for all of them; the parts flow returns
-   * a verdict per object instead. Offered only when the import has a file behind it, since the
-   * parts flow reads the source.
-   */
-  canRepairParts: boolean;
-};
 
-/** A scene refused because it was saved by a VOXL generation we no longer read. */
-export type ObsoleteVoxlScenePrompt = {
-  fileName: string;
-  detected: 'v1-json' | 'v1-binary';
-};
 
-/**
- * A scene written for a printer other than the one selected. Raised on import so
- * the user can switch before the scene is dropped into a machine its beds were
- * not laid out for: the plate pitch comes from the build volume, so a scene
- * packed for another printer lands on the wrong ones, and if that printer is the
- * bigger the plates do not fit here at all.
- */
-export type PrinterMismatchPrompt = {
-  /** The printer the scene carries, whole, so switching can add it when it is missing here. */
-  bundle: VoxlPrinterBundle;
-  /** The printer's name as the bundle carries it; absent when it has none. */
-  recordedName?: string;
-  recordedBuildVolumeMm: { width: number; depth: number; height: number };
-  /** The selected profile at the moment of the import. */
-  currentName: string;
-  currentBuildVolumeMm: { width: number; depth: number; height: number };
-  /**
-   * The installed profile the scene's printer resolves to, or null when this
-   * machine has none and switching will add it from the bundle.
-   */
-  installedProfileId: string | null;
-  /** Whether the selected printer is smaller on some axis, so nothing fits as packed. */
-  currentIsSmaller: boolean;
-};
 
-type MeshRepairConfirmChoice = 'repair' | 'repair_parts' | 'load_as_is' | 'cancel_import';
 
 type ModelClipboardEntry = {
   sourceId: string;
@@ -591,7 +517,7 @@ export function useSceneCollectionManager(options?: {
     scheduleChunkStoreSweep(() => modelsRef.current);
   }, [models]);
   const [modelClipboard, setModelClipboard] = useState<ModelClipboardEntry[]>([]);
-  const [recentOpenedFiles, setRecentOpenedFiles] = useState<RecentOpenedFileEntry[]>([]);
+  const { recentOpenedFiles, trackRecentOpenedFiles, clearRecentOpenedFiles } = useRecentOpenedFiles();
   const [importProgress, setImportProgress] = useState<ImportProgressState>({
     active: false,
     type: null,
@@ -599,44 +525,49 @@ export function useSceneCollectionManager(options?: {
     detail: '',
     progress: null,
   });
-  const [sceneImportReport, setSceneImportReport] = useState<SceneImportReport | null>(null);
-  const [sceneImportPlacementPrompt, setSceneImportPlacementPrompt] = useState<SceneImportPlacementPrompt | null>(null);
-  const [obsoleteVoxlScene, setObsoleteVoxlScene] = useState<ObsoleteVoxlScenePrompt | null>(null);
-  const [printerMismatch, setPrinterMismatch] = useState<PrinterMismatchPrompt | null>(null);
-  const [sceneImportHollowingPrompt, setSceneImportHollowingPrompt] = useState<SceneImportHollowingPrompt | null>(null);
-  const [meshRepairConfirmPrompt, setMeshRepairConfirmPrompt] = useState<MeshRepairConfirmPrompt | null>(null);
-  const [meshRepairReports, setMeshRepairReports] = useState<MeshRepairReportEntry[]>([]);
+  const {
+    sceneImportReport,
+    sceneImportPlacementPrompt,
+    obsoleteVoxlScene,
+    setObsoleteVoxlScene,
+    printerMismatch,
+    setPrinterMismatch,
+    sceneImportHollowingPrompt,
+    meshRepairConfirmPrompt,
+    meshRepairReports,
+    setMeshRepairReports,
+    meshRepairReportPresentation,
+    setMeshRepairReportPresentation,
+    setPendingMeshRepairReports,
+    emitSceneImportReport,
+    clearSceneImportReport,
+    dismissMeshRepairReports,
+    dismissObsoleteVoxlScene,
+    resolvePrinterMismatch,
+    openMeshRepairReportForModel,
+    openPendingMeshRepairReports,
+    resolveSceneImportPlacementPrompt,
+    resolveSceneImportHollowingPrompt,
+    resolveMeshRepairConfirmPrompt,
+    requestMeshRepairConfirmation,
+    requestSceneImportPlacementChoice,
+    requestSceneImportHollowingChoice,
+    sceneImportReportTimeoutRef,
+  } = useSceneImportPrompts(models);
   // Which models the user repaired here, as opposed to the import pass repairing them at load.
   // Every imported model carries a `nativeRepairReport`, so that field alone cannot say whether the
   // repair menu should offer "Auto-Repair Again" and the report.
   const [manuallyRepairedModelIds, setManuallyRepairedModelIds] = useState<string[]>([]);
-  const [meshRepairReportPresentation, setMeshRepairReportPresentation] = useState<MeshRepairReportPresentation>('default');
-  const [pendingMeshRepairReports, setPendingMeshRepairReports] = useState<MeshRepairReportEntry[]>([]);
-  const sceneImportReportTimeoutRef = useRef<number | null>(null);
-  const sceneImportPlacementResolveRef = useRef<((choice: SceneImportPlacementChoice) => void) | null>(null);
-  const sceneImportHollowingResolveRef = useRef<((choice: SceneImportHollowingChoice) => void) | null>(null);
-  const meshRepairConfirmResolveRef = useRef<((choice: MeshRepairConfirmChoice) => void) | null>(null);
 
-  const deferredAccelerationQueueRef = useRef<THREE.BufferGeometry[]>([]);
-  const deferredAccelerationProcessingRef = useRef(false);
-  const deferredAccelerationPausedRef = useRef(false);
-  const deferredDisposalQueueRef = useRef<THREE.BufferGeometry[]>([]);
-  const deferredDisposalProcessingRef = useRef(false);
-  // Count of scheduled-but-unfinished flattening-plane computations (idle
-  // callbacks after geometry swaps). Part of hasPendingBackgroundGeometryWork.
-  const pendingFlatteningPlanesRef = useRef(0);
-  // Models whose AO volume bake is queued or awaiting the native round trip.
-  // Part of hasPendingBackgroundGeometryWork.
-  const pendingAoBakeRef = useRef(0);
-  /** The AO sweep's remaining work, replaced wholesale on every run. */
-  const pendingAoQueueRef = useRef<string[]>([]);
-  // Geometries with a bake in flight. The attribute lands only when the bake
-  // resolves, so without this the queue rebuilt on a later `models` change would
-  // send the same soup a second time — measured as 25 bakes of one mesh in three
-  // seconds under a models-change storm, and as the one-second pair on a restored
-  // model. Keyed on the geometry, so a repair that swaps in a new one is not
-  // skipped.
-  const pendingAoGeometriesRef = useRef<Set<THREE.BufferGeometry>>(new Set());
+  const {
+    pendingFlatteningPlanesRef,
+    pendingAoBakeRef,
+    pendingAoQueueRef,
+    deferAccelerateGeometry,
+    setBackgroundGeometryWorkPaused,
+    hasPendingBackgroundGeometryWork,
+    deferDisposeGeometries,
+  } = useBackgroundGeometryWork();
   const trackedGeometriesRef = useRef<Set<THREE.BufferGeometry>>(new Set());
 
   const tryRevokeObjectUrl = useCallback((url: string) => {
@@ -649,213 +580,41 @@ export function useSceneCollectionManager(options?: {
     }
   }, []);
 
-  const emitSceneImportReport = useCallback((
-    text: string,
-    tone: SceneImportReportTone = 'success',
-    options?: { durationMs?: number; clickAction?: SceneImportReport['clickAction'] },
-  ) => {
-    const durationMs = options?.durationMs ?? 4200;
-    setSceneImportReport({
-      id: Date.now(),
-      text,
-      tone,
-      durationMs,
-      clickAction: options?.clickAction,
-    });
-
-    if (typeof window !== 'undefined') {
-      if (sceneImportReportTimeoutRef.current !== null) {
-        window.clearTimeout(sceneImportReportTimeoutRef.current);
-      }
-
-      sceneImportReportTimeoutRef.current = window.setTimeout(() => {
-        setSceneImportReport(null);
-        setPendingMeshRepairReports([]);
-        sceneImportReportTimeoutRef.current = null;
-      }, durationMs);
-    }
-  }, []);
-
-  const clearSceneImportReport = useCallback(() => {
-    setSceneImportReport(null);
-
-    if (typeof window !== 'undefined' && sceneImportReportTimeoutRef.current !== null) {
-      window.clearTimeout(sceneImportReportTimeoutRef.current);
-      sceneImportReportTimeoutRef.current = null;
-    }
-  }, []);
-
-  const dismissMeshRepairReports = useCallback(() => {
-    setMeshRepairReports([]);
-    setMeshRepairReportPresentation('default');
-  }, []);
-
-  const dismissObsoleteVoxlScene = useCallback(() => {
-    setObsoleteVoxlScene(null);
-  }, []);
-
-  /**
-   * Answer the printer-mismatch prompt. Switching selects the scene's printer
-   * when this machine already has it, and otherwise adds it from the bundle the
-   * scene carries, which is the point of shipping it whole.
-   */
-  const resolvePrinterMismatch = useCallback((choice: 'switch' | 'keep') => {
-    if (choice === 'switch' && printerMismatch) {
-      const installedId = printerMismatch.installedProfileId;
-      if (installedId) setActivePrinterProfile(installedId);
-      else setActivePrinterProfile(importPrinterBundle(printerMismatch.bundle));
-    }
-    setPrinterMismatch(null);
-  }, [printerMismatch]);
-
-  /**
-   * Show the report a model already carries, from its recorded repair.
-   *
-   * The record lives on the model (`meshDefects.nativeRepairReport`) and survives everything the
-   * scene does to it, so a model repaired earlier in the session can still say what was done.
-   */
-  const openMeshRepairReportForModel = useCallback((modelId: string) => {
-    const model = models.find((entry) => entry.id === modelId);
-    const report = model?.geometry.meshDefects?.nativeRepairReport;
-    if (!model || !report) return;
-    // The same dialog a repair just showed: the wins, the follow-up notes and the technical details.
-    setMeshRepairReportPresentation('optimistic');
-    setMeshRepairReports([{ id: `model-${modelId}`, modelName: model.name, report }]);
-  }, [models]);
-
-  const openPendingMeshRepairReports = useCallback(() => {
-    if (pendingMeshRepairReports.length === 0) {
-      return;
-    }
-    setMeshRepairReportPresentation('default');
-    setMeshRepairReports(pendingMeshRepairReports);
-    setPendingMeshRepairReports([]);
-    clearSceneImportReport();
-  }, [clearSceneImportReport, pendingMeshRepairReports]);
-
-  const resolveSceneImportPlacementPrompt = useCallback((choice: SceneImportPlacementChoice) => {
-    const resolve = sceneImportPlacementResolveRef.current;
-    sceneImportPlacementResolveRef.current = null;
-    setSceneImportPlacementPrompt(null);
-    resolve?.(choice);
-  }, []);
-
-  const resolveSceneImportHollowingPrompt = useCallback((choice: SceneImportHollowingChoice) => {
-    const resolve = sceneImportHollowingResolveRef.current;
-    sceneImportHollowingResolveRef.current = null;
-    setSceneImportHollowingPrompt(null);
-    resolve?.(choice);
-  }, []);
-
-  const resolveMeshRepairConfirmPrompt = useCallback((choice: MeshRepairConfirmChoice) => {
-    const resolve = meshRepairConfirmResolveRef.current;
-    meshRepairConfirmResolveRef.current = null;
-    setMeshRepairConfirmPrompt(null);
-    resolve?.(choice);
-  }, []);
-
-  const requestMeshRepairConfirmation = useCallback(async (
-    prompt: MeshRepairConfirmPrompt,
-  ): Promise<MeshRepairConfirmChoice> => {
-    if (typeof window === 'undefined') return 'repair';
-
-    if (meshRepairConfirmResolveRef.current) {
-      // Fail-safe: resolve a stale unresolved prompt so imports never deadlock.
-      meshRepairConfirmResolveRef.current('repair');
-      meshRepairConfirmResolveRef.current = null;
-    }
-
-    setMeshRepairConfirmPrompt(prompt);
-
-    return new Promise<MeshRepairConfirmChoice>((resolve) => {
-      meshRepairConfirmResolveRef.current = resolve;
-    });
-  }, []);
-
-  const requestSceneImportPlacementChoice = useCallback(async (
-    prompt: SceneImportPlacementPrompt,
-  ): Promise<SceneImportPlacementChoice> => {
-    if (typeof window === 'undefined') {
-      return 'auto_arrange';
-    }
-
-    if (sceneImportPlacementResolveRef.current) {
-      // Fail-safe: resolve previous unresolved prompt so imports never deadlock.
-      sceneImportPlacementResolveRef.current('load_as_is');
-      sceneImportPlacementResolveRef.current = null;
-    }
-
-    setSceneImportPlacementPrompt(prompt);
-
-    return await new Promise<SceneImportPlacementChoice>((resolve) => {
-      sceneImportPlacementResolveRef.current = resolve;
-    });
-  }, []);
-
-  const requestSceneImportHollowingChoice = useCallback(async (
-    prompt: SceneImportHollowingPrompt,
-  ): Promise<SceneImportHollowingChoice> => {
-    // Headless: take the file at its word and keep the authored hollow.
-    if (typeof window === 'undefined') {
-      return 'bake';
-    }
-
-    if (sceneImportHollowingResolveRef.current) {
-      // Fail-safe: resolve previous unresolved prompt so imports never deadlock.
-      sceneImportHollowingResolveRef.current('bake');
-      sceneImportHollowingResolveRef.current = null;
-    }
-
-    setSceneImportHollowingPrompt(prompt);
-
-    return await new Promise<SceneImportHollowingChoice>((resolve) => {
-      sceneImportHollowingResolveRef.current = resolve;
-    });
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (sceneImportPlacementResolveRef.current) {
-        const resolve = sceneImportPlacementResolveRef.current;
-        sceneImportPlacementResolveRef.current = null;
-        resolve('load_as_is');
-      }
-      if (sceneImportHollowingResolveRef.current) {
-        const resolve = sceneImportHollowingResolveRef.current;
-        sceneImportHollowingResolveRef.current = null;
-        resolve('bake');
-      }
-    };
-  }, []);
-
-  // Lighting controls (Global)
-  const [ambientIntensity, setAmbientIntensity] = useState<number>(DEFAULT_AMBIENT_INTENSITY);
-  const [directionalIntensity, setDirectionalIntensity] = useState<number>(DEFAULT_DIRECTIONAL_INTENSITY);
-  const [materialRoughness, setMaterialRoughness] = useState<number>(DEFAULT_MATERIAL_ROUGHNESS);
-  const [bakedAoIntensity, setBakedAoIntensity] = useState<number>(DEFAULT_BAKED_OCCLUSION_INTENSITY);
-
-  // Geometry prep runs outside React and bakes before a model reaches the scene,
-  // so it reads the intensity from the module rather than from this state.
-  useEffect(() => {
-    setBakedOcclusionIntensity(bakedAoIntensity);
-  }, [bakedAoIntensity]);
-
-  // Shader-specific settings (Global)
-  const [shaderType, setShaderType] = useState<MeshShaderType>(DEFAULT_SHADER_TYPE);
-  // What the Mesh settings tab edits. Deliberately separate from shaderType:
-  // the camera dropdown owns what the viewport renders, the settings tab owns
-  // which type's options it is showing.
-  const [configuredShaderType, setConfiguredShaderType] = useState<MeshShaderType>(DEFAULT_SHADER_TYPE);
-  const [matcapVariant, setMatcapVariant] = useState<MatcapVariant>(DEFAULT_MATCAP_VARIANT);
-  const [flatUseVertexColors, setFlatUseVertexColors] = useState<boolean>(DEFAULT_FLAT_USE_VERTEX_COLORS);
-  const [wireframeThicknessPx, setWireframeThicknessPx] = useState<number>(DEFAULT_WIREFRAME_THICKNESS_PX);
-  const [xrayOpacity, setXrayOpacity] = useState<number>(DEFAULT_XRAY_OPACITY);
-  const [heatmapMinAngle, setHeatmapMinAngle] = useState<number>(DEFAULT_HEATMAP_MIN_ANGLE);
-  const [heatmapMaxAngle, setHeatmapMaxAngle] = useState<number>(DEFAULT_HEATMAP_MAX_ANGLE);
-  const [heatmapColors, setHeatmapColors] = useState<string[]>(DEFAULT_HEATMAP_COLORS);
-  const [preferredMeshColor, setPreferredMeshColor] = useState<string>(DEFAULT_MESH_COLOR);
-  const [hoverTintStrength, setHoverTintStrength] = useState<number>(DEFAULT_HOVER_TINT_STRENGTH);
-  const [selectedTintStrength, setSelectedTintStrength] = useState<number>(DEFAULT_SELECTED_TINT_STRENGTH);
+  // Lighting, shader, heatmap and tint settings, persisted in localStorage.
+  const {
+    ambientIntensity,
+    setAmbientIntensity,
+    directionalIntensity,
+    setDirectionalIntensity,
+    materialRoughness,
+    setMaterialRoughness,
+    bakedAoIntensity,
+    setBakedAoIntensity,
+    shaderType,
+    setShaderType,
+    configuredShaderType,
+    setConfiguredShaderType,
+    matcapVariant,
+    setMatcapVariant,
+    flatUseVertexColors,
+    setFlatUseVertexColors,
+    wireframeThicknessPx,
+    setWireframeThicknessPx,
+    xrayOpacity,
+    setXrayOpacity,
+    heatmapMinAngle,
+    setHeatmapMinAngle,
+    heatmapMaxAngle,
+    setHeatmapMaxAngle,
+    heatmapColors,
+    setHeatmapColors,
+    preferredMeshColor,
+    setPreferredMeshColor,
+    hoverTintStrength,
+    setHoverTintStrength,
+    selectedTintStrength,
+    setSelectedTintStrength,
+  } = useMeshAppearanceState();
   const [storedView3dSettings, setView3dSettingsState] = useState<View3DSettings>(() => DEFAULT_VIEW3D_SETTINGS);
   const profileState = useSyncExternalStore(subscribeToProfileStore, getProfileStoreSnapshot, getProfileStoreServerSnapshot);
   const activePrinterProfile = useMemo(() => getActivePrinterProfile(profileState), [profileState]);
@@ -914,71 +673,8 @@ export function useSceneCollectionManager(options?: {
   );
 
   useEffect(() => {
-    const persistedAppearance = readMeshAppearanceFromLocalStorage();
-    if (persistedAppearance) {
-      setShaderType(persistedAppearance.shaderType);
-      setConfiguredShaderType(persistedAppearance.configuredShaderType);
-      setMatcapVariant(persistedAppearance.matcapVariant);
-      setFlatUseVertexColors(persistedAppearance.flatUseVertexColors);
-      setAmbientIntensity(persistedAppearance.ambientIntensity);
-      setDirectionalIntensity(persistedAppearance.directionalIntensity);
-      setMaterialRoughness(persistedAppearance.materialRoughness);
-      setBakedAoIntensity(persistedAppearance.bakedAoIntensity);
-      setWireframeThicknessPx(persistedAppearance.wireframeThicknessPx);
-      setXrayOpacity(persistedAppearance.xrayOpacity);
-      setHeatmapMinAngle(persistedAppearance.heatmapMinAngle ?? DEFAULT_HEATMAP_MIN_ANGLE);
-      setHeatmapMaxAngle(persistedAppearance.heatmapMaxAngle ?? DEFAULT_HEATMAP_MAX_ANGLE);
-      setHeatmapColors(persistedAppearance.heatmapColors ?? DEFAULT_HEATMAP_COLORS);
-      setPreferredMeshColor(persistedAppearance.meshColor);
-      setHoverTintStrength(persistedAppearance.hoverTintStrength);
-      setSelectedTintStrength(persistedAppearance.selectedTintStrength);
-    }
-
-    setRecentOpenedFiles(readRecentOpenedFilesFromLocalStorage());
     setView3dSettingsState(getSavedView3DSettings());
   }, []);
-
-  // The whole appearance record is persisted whenever any of it changes, so
-  // settings survive a reload: the view mode the camera dropdown picks, the
-  // type the Mesh tab is configuring, and every parameter either of them edits.
-  useEffect(() => {
-    writeMeshAppearanceToLocalStorage({
-      v: 2,
-      shaderType,
-      configuredShaderType,
-      matcapVariant,
-      flatUseVertexColors,
-      ambientIntensity,
-      directionalIntensity,
-      materialRoughness,
-      bakedAoIntensity,
-      wireframeThicknessPx,
-      xrayOpacity,
-      heatmapMinAngle,
-      heatmapMaxAngle,
-      heatmapColors,
-      meshColor: preferredMeshColor,
-      hoverTintStrength,
-      selectedTintStrength,
-    });
-  }, [
-    shaderType,
-    configuredShaderType,
-    matcapVariant,
-    flatUseVertexColors,
-    ambientIntensity,
-    directionalIntensity,
-    materialRoughness,
-    bakedAoIntensity,
-    wireframeThicknessPx,
-    xrayOpacity,
-    heatmapMinAngle,
-    heatmapMaxAngle,
-    heatmapColors,
-    preferredMeshColor,
-    hoverTintStrength,
-    selectedTintStrength,
-  ]);
 
   const setView3dSettings = useCallback((next: View3DSettings) => {
     const normalized = normalizeView3DSettings(next);
@@ -1413,214 +1109,7 @@ export function useSceneCollectionManager(options?: {
     };
   }, []);
 
-  const processDeferredAccelerationQueue = useCallback(() => {
-    if (deferredAccelerationProcessingRef.current) return;
-    if (deferredAccelerationPausedRef.current) return;
-    if (deferredAccelerationQueueRef.current.length === 0) return;
 
-    deferredAccelerationProcessingRef.current = true;
-
-    const scheduleNext = (cb: () => void) => {
-      if (typeof window !== 'undefined' && typeof (window as any).requestIdleCallback === 'function') {
-        (window as any).requestIdleCallback(cb, { timeout: 120 });
-      } else {
-        setTimeout(cb, 16);
-      }
-    };
-
-    const step = () => {
-      if (deferredAccelerationPausedRef.current) {
-        deferredAccelerationProcessingRef.current = false;
-        return;
-      }
-
-      const geometry = deferredAccelerationQueueRef.current.shift();
-      if (!geometry) {
-        deferredAccelerationProcessingRef.current = false;
-        return;
-      }
-
-      accelerateGeometry(geometry);
-
-      if (deferredAccelerationQueueRef.current.length === 0) {
-        deferredAccelerationProcessingRef.current = false;
-        return;
-      }
-
-      scheduleNext(step);
-    };
-
-    scheduleNext(step);
-  }, []);
-
-  const deferAccelerateGeometry = useCallback((entries: GeometryWithBounds[]) => {
-    if (entries.length === 0) return;
-
-    deferredAccelerationQueueRef.current.push(...entries.map((entry) => entry.geometry));
-    processDeferredAccelerationQueue();
-  }, [processDeferredAccelerationQueue]);
-
-  const setBackgroundGeometryWorkPaused = useCallback((paused: boolean) => {
-    deferredAccelerationPausedRef.current = paused;
-    if (!paused) {
-      processDeferredAccelerationQueue();
-    }
-  }, [processDeferredAccelerationQueue]);
-
-  /**
-   * True while deferred post-swap geometry work (BVH acceleration builds,
-   * deferred geometry disposals, flattening-plane computation, AO bakes) is
-   * queued or
-   * running. Lets the UI keep a blocking "finalizing" indicator visible
-   * until the app is genuinely responsive again after a large geometry swap
-   * — the swap itself resolves long before this work drains.
-   */
-  const hasPendingBackgroundGeometryWork = useCallback(() => (
-    deferredAccelerationQueueRef.current.length > 0
-    || deferredAccelerationProcessingRef.current
-    || deferredDisposalQueueRef.current.length > 0
-    || deferredDisposalProcessingRef.current
-    || pendingFlatteningPlanesRef.current > 0
-    || pendingAoBakeRef.current > 0
-    || pendingAoQueueRef.current.length > 0
-  ), []);
-
-  const processDeferredDisposalQueue = useCallback(() => {
-    if (deferredDisposalProcessingRef.current) return;
-    if (deferredDisposalQueueRef.current.length === 0) return;
-
-    deferredDisposalProcessingRef.current = true;
-
-    const scheduleNext = (cb: () => void) => {
-      if (typeof window !== 'undefined' && typeof (window as any).requestIdleCallback === 'function') {
-        (window as any).requestIdleCallback(cb, { timeout: 120 });
-      } else {
-        setTimeout(cb, 16);
-      }
-    };
-
-    const step = () => {
-      const geometry = deferredDisposalQueueRef.current.shift();
-      if (!geometry) {
-        deferredDisposalProcessingRef.current = false;
-        return;
-      }
-
-      try {
-        disposeGeometryBVH(geometry);
-      } catch {
-        // ignore disposal failures
-      }
-      try {
-        geometry.dispose();
-      } catch {
-        // ignore disposal failures
-      }
-
-      if (deferredDisposalQueueRef.current.length === 0) {
-        deferredDisposalProcessingRef.current = false;
-        return;
-      }
-
-      scheduleNext(step);
-    };
-
-    scheduleNext(step);
-  }, []);
-
-  const deferDisposeGeometries = useCallback((geometries: THREE.BufferGeometry[]) => {
-    if (geometries.length === 0) return;
-
-    deferredDisposalQueueRef.current.push(...geometries);
-    processDeferredDisposalQueue();
-  }, [processDeferredDisposalQueue]);
-
-  const trackRecentOpenedFiles = useCallback((
-    files: File[],
-    kind: RecentOpenedFileKind,
-    options?: { sourcePaths?: Array<string | null | undefined>; fileSizes?: Array<number | undefined> },
-  ) => {
-    if (files.length === 0) return;
-
-    setRecentOpenedFiles((prev) => {
-      const next = [...prev];
-      const removedBlobIds: string[] = [];
-      const now = Date.now();
-
-      files.forEach((file, index) => {
-        const name = file.name?.trim();
-        if (!name) return;
-
-        const sourcePath = (typeof options?.sourcePaths?.[index] === 'string' && options.sourcePaths[index]!.trim().length > 0
-          ? options.sourcePaths[index]!.trim()
-          : undefined);
-
-        // Use the resolved on-disk file size (for path-backed files whose
-        // File.size is 0) when available, falling back to the File API size.
-        const sizeBytes = options?.fileSizes?.[index] ?? (Number.isFinite(file.size) && file.size > 0 ? file.size : undefined);
-
-        // When a concrete sourcePath is known, use it as the primary dedup key,
-        // ignoring sizeBytes. This prevents duplicates when Ctrl+S re-saves the
-        // file with an updated thumbnail (changing its size), and ensures mesh
-        // files backed by a disk path can be re-opened via the Rust sideload.
-        const matchBySourcePath = sourcePath != null;
-
-        const isMatchingEntry = (entry: RecentOpenedFileEntry): boolean => {
-          if (entry.kind !== kind || entry.name !== name) return false;
-          if (matchBySourcePath) {
-            return (entry.sourcePath ?? null) === sourcePath;
-          }
-          return entry.sizeBytes === sizeBytes
-            && (kind !== 'scene' || (entry.sourcePath ?? null) === (sourcePath ?? null));
-        };
-
-        const matches = next.filter(isMatchingEntry);
-
-        const existingId = matches.length > 0 ? matches[matches.length - 1].id : uuidv4();
-        const duplicateIds = matches.slice(0, -1).map((entry) => entry.id);
-
-        if (matches.length > 0) {
-          for (let i = next.length - 1; i >= 0; i -= 1) {
-            if (isMatchingEntry(next[i])) {
-              next.splice(i, 1);
-            }
-          }
-        }
-
-        if (duplicateIds.length > 0) {
-          removedBlobIds.push(...duplicateIds);
-        }
-
-        const entry: RecentOpenedFileEntry = {
-          id: existingId,
-          name,
-          kind,
-          sourcePath,
-          sizeBytes,
-          openedAt: now + index,
-        };
-
-        next.push(entry);
-        void putRecentOpenedFileBlob(entry, file);
-      });
-
-      const overflowCount = Math.max(0, next.length - RECENT_OPENED_FILES_LIMIT);
-      const overflow = overflowCount > 0
-        ? next.slice(0, overflowCount).map((entry) => entry.id)
-        : [];
-      const trimmed = overflowCount > 0
-        ? next.slice(overflowCount)
-        : next;
-
-      writeRecentOpenedFilesToLocalStorage(trimmed);
-
-      if (overflow.length > 0 || removedBlobIds.length > 0) {
-        void deleteRecentOpenedFileBlobs([...removedBlobIds, ...overflow]);
-      }
-
-      return trimmed;
-    });
-  }, []);
 
   // Active model derived state — meshModifiers are hydrated from the
   // external store so model objects never carry the heavy base64 payloads.
@@ -2050,7 +1539,7 @@ export function useSceneCollectionManager(options?: {
         progress: null,
       });
     }
-  }, [_, defaultImportCenterXY.x, defaultImportCenterXY.y, emitSceneImportReport, findFreeSpotCentersForModels, getMeshExtension, requestMeshRepairConfirmation, trackRecentOpenedFiles, waitForUiYield]);
+  }, [_, defaultImportCenterXY.x, defaultImportCenterXY.y, emitSceneImportReport, findFreeSpotCentersForModels, getMeshExtension, requestMeshRepairConfirmation, trackRecentOpenedFiles, waitForUiYield, setPendingMeshRepairReports]);
 
   const onFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -2695,7 +2184,7 @@ export function useSceneCollectionManager(options?: {
     void scheduleModelChunkBake(nextModels.find((m) => m.id === id));
 
     return true;
-  }, [pushSceneSnapshotHistory, deferAccelerateGeometry]);
+  }, [pushSceneSnapshotHistory, deferAccelerateGeometry, pendingFlatteningPlanesRef]);
 
   /**
    * Commits a brand-new model built from an arbitrary BufferGeometry, inheriting
@@ -3019,174 +2508,9 @@ export function useSceneCollectionManager(options?: {
     return extraIds;
   }, [isModelPlateLocked, pushSceneSnapshotHistory]);
 
-  /**
-   * The Higher Contrast Model Edges setting can be enabled after models are
-   * already loaded, and those models have no overlay geometry — import only
-   * builds one while the setting is on. Fill them in here, one model per idle
-   * callback: each build is ~2 s for a 500k-triangle mesh, so a batch would
-   * freeze the app, and the overlay is worth nothing until it is looked at.
-   * The result is cached on the geometry, so it is built exactly once.
-   */
-  const higherContrastModelEdges = useSyncExternalStore(
-    subscribeToWorkspaceCameraSettings,
-    getWorkspaceCameraSettingsSnapshot,
-    getWorkspaceCameraSettingsServerSnapshot,
-  ).higherContrastModelEdges;
+  useHigherContrastEdgeBackfill(modelsRef, setModels);
 
-  useEffect(() => {
-    if (!higherContrastModelEdges) return;
-
-    const queue = modelsRef.current
-      .filter((model) => !model.geometry.edgeGeometry && model.geometry.geometry.getAttribute('position'))
-      .map((model) => model.id);
-    if (queue.length === 0) return;
-
-    let cancelled = false;
-    const scheduleIdle = (cb: () => void) => {
-      if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-        window.requestIdleCallback(cb, { timeout: 500 });
-      } else {
-        setTimeout(cb, 16);
-      }
-    };
-
-    const step = () => {
-      if (cancelled) return;
-      const id = queue.shift();
-      if (!id) return;
-
-      const model = modelsRef.current.find((m) => m.id === id);
-      if (model) {
-        const edges = buildModelEdgeGeometry(model.geometry.geometry);
-        if (edges) {
-          setModels((prev) => prev.map((m) => (
-            m.id === id && m.geometry === model.geometry
-              ? { ...m, geometry: { ...m.geometry, edgeGeometry: edges } }
-              : m
-          )));
-        }
-      }
-      if (queue.length > 0) scheduleIdle(step);
-    };
-
-    scheduleIdle(step);
-    return () => { cancelled = true; };
-  }, [higherContrastModelEdges, setModels]);
-
-  /**
-   * Baked ambient occlusion.
-   *
-   * One native bake per model, on an idle callback, off the main thread:
-   * `dragonfruit-mesh-core::vertex_occlusion` fires a hemisphere fan per vertex
-   * from the mesh's own normal, which measures 12-263 ms for 40k-640k triangle
-   * meshes. The result is attached to the geometry as `aBakedAo`, so nothing is
-   * paid per frame afterwards.
-   */
-  useEffect(() => {
-    // Whatever the last run left, this one owns the queue from here: cleared
-    // before any early return, because a stale one keeps
-    // `hasPendingBackgroundGeometryWork()` true for work nobody will do (the
-    // modifier-apply overlay polls it to clear its spinner).
-    pendingAoQueueRef.current = [];
-
-    // Zero intensity means off, so there is nothing to bake for: raising the
-    // slider later re-runs this and the geometries that never got an attribute
-    // are the ones that get baked.
-    if (!canBakeOcclusion() || bakedAoIntensity <= 0) return;
-
-    const queue = modelsRef.current
-      .filter((model) => {
-        const geometry = model.geometry.geometry;
-        if (!geometry.getAttribute('position')) return false;
-        if (geometry.userData.skipBakedOcclusion === true) return false;
-        // Re-bake when the geometry was replaced (repair, boolean cut, hole
-        // punch): the attribute lives on the old geometry, so without this the
-        // new shape would be shaded with the old shape's occlusion.
-        if (geometry.getAttribute(BAKED_OCCLUSION_ATTRIBUTE) !== undefined) return false;
-        // A bake already in flight for this geometry has not attached yet, so it
-        // would look identical to "never baked" and be sent a second time.
-        return !pendingAoGeometriesRef.current.has(geometry);
-      })
-      .map((model) => model.id);
-    if (queue.length === 0) return;
-
-    // What this run still has to bake, as a ref as well as a local: the workers
-    // below shift the same array, so the ref is the live remainder and
-    // `hasPendingBackgroundGeometryWork` can read it without the run's own
-    // bookkeeping. Re-derived on every run, so a superseded run cannot leave
-    // anything counted.
-    pendingAoQueueRef.current = queue;
-
-    let cancelled = false;
-
-    const scheduleIdle = (cb: () => void) => {
-      if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-        window.requestIdleCallback(cb, { timeout: 500 });
-      } else {
-        setTimeout(cb, 16);
-      }
-    };
-
-    const bakeOne = async () => {
-      if (cancelled) return;
-      const id = queue.shift();
-      if (!id) return;
-      // Taken, so in flight: the counter rides the take, not the whole queue. It
-      // used to be `+= queue.length` at the top of the run and decremented per
-      // bake, so the items a superseded run never took stayed counted — and every
-      // `models` change while a bake was queued (a hollowing apply patches them,
-      // the idle plane pass patches them again) leaked one. The "finalizing"
-      // overlay then waited out its 20 s cap after every hollow, with all the
-      // work done in the first 200 ms.
-      pendingAoBakeRef.current += 1;
-      const model = modelsRef.current.find((m) => m.id === id);
-      const geometry = model?.geometry.geometry;
-      if (geometry) pendingAoGeometriesRef.current.add(geometry);
-      try {
-        if (geometry) {
-          const occlusion = await bakeOcclusionForGeometry(geometry);
-          // Attach whatever came back even if this run was superseded: the
-          // values belong to this geometry, and discarding them is what left
-          // it looking unbaked and re-queueable on the next `models` change.
-          if (occlusion) {
-            const attribute = new THREE.BufferAttribute(occlusion, 1);
-            attribute.setUsage(THREE.StaticDrawUsage);
-            geometry.setAttribute(BAKED_OCCLUSION_ATTRIBUTE, attribute);
-            // The store, not the `models` array: replacing that array here
-            // invalidated everything derived from it — the clearance map and
-            // the raft rebuilt on every bake that landed. See
-            // `bumpBakedOcclusionVersion`.
-            bumpBakedOcclusionVersion(geometry);
-          }
-        }
-      } catch (error) {
-        // A failed bake is not worth surfacing: the model simply keeps the
-        // unoccluded look it has today.
-        console.warn('[ao] bake failed', error);
-      } finally {
-        if (geometry) pendingAoGeometriesRef.current.delete(geometry);
-        pendingAoBakeRef.current = Math.max(0, pendingAoBakeRef.current - 1);
-        // One model per idle callback, not a loop over the queue. The soup copy
-        // and the attribute attach are main-thread work, so chaining bakes back to
-        // back is what made a fifteen-model scene stutter for the whole drain
-        // rather than between models. Interaction always outranks this.
-        scheduleIdle(() => void bakeOne());
-      }
-    };
-
-    // Two bakes in flight, not one. The ray pass saturates the pool on its own,
-    // but the weld, the tree build and the IPC transfer of each model are serial
-    // phases — on a print-sized model that is about a quarter of its bake, and in
-    // a loaded scene it is a quarter of *every* model's bake spent with fifteen
-    // cores idle. Both commands share one rayon pool, so overlapping them lets
-    // one model's serial phase run during another's ray pass. Two rather than
-    // more: each in-flight bake holds its soup and its output, and past a couple
-    // the pool is oversubscribed for no further gain.
-    for (let worker = 0; worker < Math.min(AO_BAKE_CONCURRENCY, queue.length); worker += 1) {
-      scheduleIdle(() => void bakeOne());
-    }
-    return () => { cancelled = true; };
-  }, [models, bakedAoIntensity]);
+  useBakedOcclusionPass({ models, modelsRef, bakedAoIntensity, pendingAoBakeRef, pendingAoQueueRef });
 
   const finalizeModelGeometryPostProcessing = useCallback((id: string) => {
     const target = modelsRef.current.find((m) => m.id === id);
@@ -3215,7 +2539,7 @@ export function useSceneCollectionManager(options?: {
         pendingFlatteningPlanesRef.current = Math.max(0, pendingFlatteningPlanesRef.current - 1);
       }
     });
-  }, [deferAccelerateGeometry]);
+  }, [deferAccelerateGeometry, pendingFlatteningPlanesRef]);
 
   const setModelVisibility = useCallback((id: string, visible: boolean) => {
     const currentModels = modelsRef.current;
@@ -3845,7 +3169,7 @@ export function useSceneCollectionManager(options?: {
     } finally {
       setImportProgress({ active: false, type: null, label: '', detail: '', progress: null });
     }
-  }, [_, clearSceneImportReport, emitSceneImportReport, setImportProgress, waitForUiYield]);
+  }, [_, clearSceneImportReport, emitSceneImportReport, setImportProgress, waitForUiYield, setMeshRepairReportPresentation, setMeshRepairReports, setPendingMeshRepairReports]);
 
   const renameGroup = useCallback((groupId: string, nextName: string) => {
     const trimmed = nextName.trim();
@@ -6007,7 +5331,7 @@ export function useSceneCollectionManager(options?: {
         });
       }
     }
-  }, [_, cloneGeometryWithBounds, emitSceneImportReport, findFreeSpotCentersForModels, isModelFootprintInsidePlate, requestSceneImportPlacementChoice, shouldAutoRepairSceneImports, trackRecentOpenedFiles, waitForUiYield]);
+  }, [_, cloneGeometryWithBounds, emitSceneImportReport, findFreeSpotCentersForModels, isModelFootprintInsidePlate, requestSceneImportPlacementChoice, shouldAutoRepairSceneImports, trackRecentOpenedFiles, waitForUiYield, setObsoleteVoxlScene, setPrinterMismatch]);
 
   const importSceneFile = useCallback(async (file: File, options?: SceneImportRunOptions): Promise<boolean> => {
     const extension = getSceneExtension(file.name);
@@ -6176,15 +5500,6 @@ export function useSceneCollectionManager(options?: {
     return true;
   }, [importSceneFile, loadFiles, recentOpenedFiles]);
 
-  // Clears the recent-files list: localStorage entries + cached blobs in IndexedDB.
-  const clearRecentOpenedFiles = useCallback(() => {
-    const ids = recentOpenedFiles.map((entry) => entry.id);
-    setRecentOpenedFiles([]);
-    writeRecentOpenedFilesToLocalStorage([]);
-    if (ids.length > 0) {
-      void deleteRecentOpenedFileBlobs(ids);
-    }
-  }, [recentOpenedFiles]);
 
   // Legacy support JSON loader wrapper
   const handleLoadSupportJson = async () => {
@@ -6261,7 +5576,7 @@ export function useSceneCollectionManager(options?: {
     setModels(nextModels);
     const after = captureSceneSnapshot(nextModels, activeModelIdRef.current, selectedModelIdsRef.current);
     pushSceneSnapshotHistory(before, after, colorModelLabel(target.name));
-  }, [activeModelId, pushSceneSnapshotHistory]);
+  }, [activeModelId, pushSceneSnapshotHistory, setPreferredMeshColor]);
 
   const setMeshVisible = useCallback((visible: boolean) => {
     if (activeModelId) {
@@ -6399,7 +5714,7 @@ export function useSceneCollectionManager(options?: {
       emitSceneImportReport(_(msg`Could not restore the model.`), 'error');
       return false;
     }
-  }, [_, emitSceneImportReport, models, shouldAutoRepairSceneImports]);
+  }, [_, emitSceneImportReport, models, shouldAutoRepairSceneImports, setMeshRepairReports, setPendingMeshRepairReports]);
 
   /**
    * Re-runs the full native repair pipeline on each model in turn and swaps every result in as
@@ -6511,7 +5826,7 @@ export function useSceneCollectionManager(options?: {
     }
 
     return allRepaired;
-  }, [_, clearSceneImportReport, emitSceneImportReport, pushSceneSnapshotHistory]);
+  }, [_, clearSceneImportReport, emitSceneImportReport, pushSceneSnapshotHistory, setMeshRepairReportPresentation, setMeshRepairReports, setPendingMeshRepairReports]);
 
   /**
    * Rebuild one model's surface with the native tetrahedral surfacing pass and swap the result in
@@ -7430,7 +6745,7 @@ export function useSceneCollectionManager(options?: {
         next[index] = color;
         return next;
       });
-    }, []),
+    }, [setHeatmapColors]),
 
     // Legacy/Other
     handleLoadSupportJson,

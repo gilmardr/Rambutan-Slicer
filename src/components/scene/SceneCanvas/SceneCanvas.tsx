@@ -141,7 +141,6 @@ import {
   meshHitsMarquee,
   ringHitsMarquee,
   shapeHitsMarquee,
-  type MarqueePoint,
   type ProjectedMesh,
 } from './marqueeHitTest';
 import { PickingEmptySpaceHoverResetter, SceneRenderBindings } from './SceneCanvasInteractionBits';
@@ -180,8 +179,6 @@ import {
   DEFAULT_CAMERA_TRACKPAD_SETTINGS,
   getSavedCameraTrackpadSettings,
   subscribeToCameraTrackpadSettings,
-  type CameraTrackpadModifierKey,
-  type CameraTrackpadPrimaryAction,
 } from '@/components/settings/cameraTrackpadPreferences';
 import {
   DIAGNOSTICS_BENCHMARK_PROGRESS_EVENT,
@@ -214,7 +211,7 @@ import {
   toggleSupportPathfindingDebugTuningEnabled,
 } from '@/supports/PlacementLogic/Pathfinding/pathfindingDebugState';
 import { applyScaleFactor } from '@/components/gizmo/scale/applyScaleFactor';
-import { createWheelDeviceClassifier, type WheelDevice } from '@/components/scene/SceneCanvas/wheelDeviceClassifier';
+import { createWheelDeviceClassifier } from '@/components/scene/SceneCanvas/wheelDeviceClassifier';
 import { getSelectionGizmoCenter } from '@/features/scene/selectionPosition';
 import { rotateSelectionFromActive, type SelectionRotationMode } from '@/features/scene/selectionTransform';
 import { preserveModelBottom } from '@/features/scene/selectionLiftDrop';
@@ -229,14 +226,12 @@ import {
   type TrackpadGestureAction,
   type TrackpadGesturePose,
 } from '@/components/scene/camera/trackpadGesturePose';
+import { projectModelMesh, makeSupportPointProjector, resolveTrackpadGestureAction } from './sceneCanvasProjection';
+import { PEARL_MODEL_COLOR, LOGO_RED_MODEL_COLOR, getModelBaseColor, usesLogoRedModelColor } from './modelBaseColor';
+import { GhostPreviewTransform, GhostPreviewInstances } from './GhostPreviewInstances';
+import { CrossSectionCapDebugPanelState, CROSS_SECTION_CAP_DEBUG_STORAGE_KEY, CROSS_SECTION_CAP_DEBUG_HOTKEY_ENABLED, DEFAULT_CROSS_SECTION_CAP_DEBUG_STATE } from './crossSectionCapDebug';
 
 const Canvas = dynamic(() => import('@react-three/fiber').then(m => m.Canvas), { ssr: false });
-
-type GhostPreviewTransform = {
-  position: THREE.Vector3;
-  rotation: THREE.Euler;
-  scale: THREE.Vector3;
-};
 
 // Interpolated and pluralized, so it follows the house rule: a static ICU
 // pattern in a module-level formatter with the value passed to `translate`.
@@ -252,127 +247,7 @@ function formatOutOfBoundsLabel(
   }), { count });
 }
 
-/**
- * Projects a model's mesh to container pixels for the marquee hit test. Runs
- * once per drag — the camera cannot move while the marquee is up — and the
- * result is reused for every pointer move.
- */
-function projectModelMesh(
-  positions: Float32Array,
-  modelMatrix: THREE.Matrix4,
-  camera: THREE.Camera,
-  rect: DOMRect,
-): ProjectedMesh {
-  const clip = new THREE.Matrix4()
-    .multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
-    .multiply(modelMatrix);
-  const m = clip.elements;
-
-  const count = positions.length / 3;
-  const xs = new Float32Array(count);
-  const ys = new Float32Array(count);
-
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  let dropped = false;
-
-  for (let i = 0; i < count; i += 1) {
-    const px = positions[i * 3];
-    const py = positions[(i * 3) + 1];
-    const pz = positions[(i * 3) + 2];
-
-    const w = (m[3] * px) + (m[7] * py) + (m[11] * pz) + m[15];
-    if (w <= 0) {
-      // Behind the camera: no screen position to compare against.
-      xs[i] = NaN;
-      ys[i] = NaN;
-      dropped = true;
-      continue;
-    }
-
-    const ndcX = ((m[0] * px) + (m[4] * py) + (m[8] * pz) + m[12]) / w;
-    const ndcY = ((m[1] * px) + (m[5] * py) + (m[9] * pz) + m[13]) / w;
-
-    const x = ((ndcX + 1) * 0.5) * rect.width;
-    const y = ((1 - ndcY) * 0.5) * rect.height;
-
-    xs[i] = x;
-    ys[i] = y;
-
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  }
-
-  return {
-    xs,
-    ys,
-    count,
-    bounds: minX > maxX ? null : { minX, minY, maxX, maxY },
-    dropped,
-  };
-}
-
-/**
- * Projects support positions to container pixels for the marquee hit test.
- * Points that fall outside clip space come back as null.
- */
-function makeSupportPointProjector(rect: DOMRect, camera: THREE.Camera) {
-  const point = new THREE.Vector3();
-  const projected = new THREE.Vector3();
-
-  return (positions: Array<{ x: number; y: number; z: number }>): Array<MarqueePoint | null> => (
-    positions.map((position) => {
-      projected.copy(point.set(position.x, position.y, position.z)).project(camera);
-
-      if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y) || !Number.isFinite(projected.z)) {
-        return null;
-      }
-      if (projected.z < -1 || projected.z > 1) return null;
-
-      return {
-        x: ((projected.x + 1) * 0.5) * rect.width,
-        y: ((1 - projected.y) * 0.5) * rect.height,
-      };
-    })
-  );
-}
-
-function isTrackpadModifierPressed(event: WheelEvent, modifierKey: CameraTrackpadModifierKey): boolean {
-  return modifierKey === 'shift' ? event.shiftKey : event.altKey;
-}
-
-function resolveTrackpadGestureAction(
-  event: WheelEvent,
-  device: WheelDevice,
-  primaryAction: CameraTrackpadPrimaryAction,
-  modifierKey: CameraTrackpadModifierKey,
-): TrackpadGestureAction | null {
-  if (primaryAction === 'off') return null;
-  if (event.ctrlKey || event.metaKey) return null;
-  if (device !== 'trackpad') return null;
-
-  const modifierPressed = isTrackpadModifierPressed(event, modifierKey);
-  if (!modifierPressed) return primaryAction;
-  return primaryAction === 'pan' ? 'orbit' : 'pan';
-}
-
 const EMPTY_MODEL_ID_LIST: readonly string[] = Object.freeze([]);
-const PEARL_MODEL_COLOR = '#f3f0e8';
-const LOGO_RED_MODEL_COLOR = '#ed0921';
-// Scene files can retain an older app default in per-model colors.
-const LEGACY_DEFAULT_MODEL_COLORS = new Set(['#a3a3a3', LOGO_RED_MODEL_COLOR]);
-
-function getModelBaseColor(color: string | undefined, fallback: string): string {
-  return color && LEGACY_DEFAULT_MODEL_COLORS.has(color.toLowerCase()) ? fallback : color || fallback;
-}
-
-function usesLogoRedModelColor(mode: SupportMode | undefined, supportModelColorMapEnabled: boolean): boolean {
-  return mode === 'export' || mode === 'printing' || (mode === 'support' && !supportModelColorMapEnabled);
-}
 
 const FLOATING_PANEL_RIGHT_INSET_PX = 12;
 // Drei GizmoHelper positions by gizmo center, not right edge.
@@ -382,97 +257,7 @@ const VIEW_CUBE_HALF_EXTENT_PX = 30;
 // Match this gap on the right side so the cube feels equally spaced from panel and screen bottom.
 const VIEW_CUBE_PANEL_GAP_PX = 42;
 
-function GhostPreviewInstances({
-  geometry,
-  center,
-  color,
-  transforms,
-  opacity = 0.22,
-  renderOrder = 2,
-}: {
-  geometry: THREE.BufferGeometry;
-  center: THREE.Vector3;
-  color: string;
-  transforms: GhostPreviewTransform[];
-  opacity?: number;
-  renderOrder?: number;
-}) {
-  const instancedRef = React.useRef<THREE.InstancedMesh>(null);
-  const workMatrixRef = React.useRef(new THREE.Matrix4());
-  const workQuaternionRef = React.useRef(new THREE.Quaternion());
-  const workOffsetMatrixRef = React.useRef(new THREE.Matrix4());
-
-  React.useLayoutEffect(() => {
-    const instanced = instancedRef.current;
-    if (!instanced) return;
-
-    const workMatrix = workMatrixRef.current;
-    const workQuaternion = workQuaternionRef.current;
-    const offsetMatrix = workOffsetMatrixRef.current.makeTranslation(-center.x, -center.y, -center.z);
-
-    for (let i = 0; i < transforms.length; i += 1) {
-      const transform = transforms[i];
-      workQuaternion.setFromEuler(transform.rotation);
-      workMatrix.compose(transform.position, workQuaternion, transform.scale);
-      workMatrix.multiply(offsetMatrix);
-      instanced.setMatrixAt(i, workMatrix);
-    }
-
-    instanced.count = transforms.length;
-    instanced.instanceMatrix.needsUpdate = true;
-    instanced.computeBoundingSphere();
-  }, [center.x, center.y, center.z, transforms]);
-
-  if (transforms.length === 0) return null;
-
-  return (
-    <instancedMesh
-      ref={instancedRef}
-      args={[geometry, undefined, transforms.length]}
-      renderOrder={renderOrder}
-      raycast={() => null}
-      frustumCulled={false}
-    >
-      <meshBasicMaterial
-        color={color}
-        transparent
-        opacity={opacity}
-        depthWrite={false}
-        toneMapped={false}
-      />
-    </instancedMesh>
-  );
-}
-
-type CrossSectionCapDebugPanelState = {
-  enabled: boolean;
-  top: CrossSectionCapDebugOverrides;
-  bottom: CrossSectionCapDebugOverrides;
-};
-
-const CROSS_SECTION_CAP_DEBUG_STORAGE_KEY = 'df:cross-section-cap-debug:v4';
-const CROSS_SECTION_CAP_DEBUG_HOTKEY_ENABLED = false;
 const SUPPORT_PATHFINDING_DEBUG_DOUBLE_TAP_WINDOW_MS = 420;
-
-const DEFAULT_CROSS_SECTION_CAP_DEBUG_STATE: CrossSectionCapDebugPanelState = {
-  enabled: false,
-  top: {
-    side: 'front',
-    offsetMm: 1e-4,
-    rotationXDeg: 0,
-    clipMode: 'upper',
-    stencilMode: 'standard',
-    depthTest: true,
-  },
-  bottom: {
-    side: 'back',
-    offsetMm: -1e-4,
-    rotationXDeg: 0,
-    clipMode: 'lower',
-    stencilMode: 'standard',
-    depthTest: false,
-  },
-};
 
 export function SceneCanvas({
   models: modelsProp = [],
@@ -3680,7 +3465,6 @@ export function SceneCanvas({
       sourceSupportAnchor.add(root.transform.pos);
       sourceSupportAnchorCount += 1;
     }
-
 
     if (sourceSupportAnchor && sourceSupportAnchorCount > 0) {
       sourceSupportAnchor.multiplyScalar(1 / sourceSupportAnchorCount);
@@ -8163,7 +7947,6 @@ export function SceneCanvas({
 
       {/* GPU Picking Debug Overlay - shows what's under cursor */}
       {gpuPickingTest && <PickingDebugOverlay position="top-right" />}
-
 
       {showCrossSectionCapDebugPanel && (
         <div
