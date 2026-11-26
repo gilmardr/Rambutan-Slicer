@@ -44,6 +44,7 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['usePrintingProcessingElapsedTicker.ts', 'usePrintingProcessingElapsedTicker'],
   ['useSceneImportPromptEscape.ts', 'useSceneImportPromptEscape'],
   ['useHolePunchSelectionEscape.ts', 'useHolePunchSelectionEscape'],
+  ['useSupportDragSyncTransaction.ts', 'useSupportDragSyncTransaction'],
 ];
 
 for (const [file, hook] of HOOKS) {

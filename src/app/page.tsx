@@ -267,6 +267,7 @@ import { usePrintTempArtifactCleanup } from './home/usePrintTempArtifactCleanup'
 import { usePrintingProcessingElapsedTicker } from './home/usePrintingProcessingElapsedTicker';
 import { useSceneImportPromptEscape } from './home/useSceneImportPromptEscape';
 import { useHolePunchSelectionEscape } from './home/useHolePunchSelectionEscape';
+import { useSupportDragSyncTransaction, type TransformStoreCommitResult } from './home/useSupportDragSyncTransaction';
 import { usePrintJobSender } from './home/usePrintJobSender';
 import { useEditorContextMenuItems, useEditorMenuActions } from './home/useEditorContextMenu';
 
@@ -392,23 +393,9 @@ if (typeof window !== 'undefined') {
   installReactDevtoolsSemverGuard();
 }
 
-const SUPPORT_DRAG_HOLD_FALLBACK_MS = 320;
 const DEFAULT_RELAY_AUTORETRY_LIMIT = 2;
 const DEFAULT_RELAY_AUTORETRY_DELAY_MS = 1200;
 
-
-type TransformStoreCommitResult = {
-  updated: boolean;
-  supportsChanged: boolean;
-  kickstandsChanged: boolean;
-};
-
-type PendingSupportDragSyncTransaction = {
-  transactionId: number;
-  expectedModelTransformKeys: Map<string, string>;
-  expectedSupportStoreVersion: number;
-  expectedKickstandStoreVersion: number;
-};
 
 export default function Home() {
   const { _ } = useLingui();
@@ -624,14 +611,7 @@ export default function Home() {
   const supportDragGroupRef = React.useRef<THREE.Group | null>(null);
   const supportDragResetRafRef = React.useRef<number | null>(null);
   const supportDragResetSecondRafRef = React.useRef<number | null>(null);
-  const [holdSupportDragDeltaUntilSupportSync, setHoldSupportDragDeltaUntilSupportSync] = React.useState(false);
-  const [supportDragTransactionId, setSupportDragTransactionId] = React.useState(0);
   const [showSupportModelColorMap, setShowSupportModelColorMap] = React.useState(false);
-  const supportDragTransactionIdRef = React.useRef(0);
-  const pendingSupportDragSyncRef = React.useRef<PendingSupportDragSyncTransaction | null>(null);
-  const supportStoreVersionRef = React.useRef(0);
-  const kickstandStoreVersionRef = React.useRef(0);
-  const supportSyncFallbackTimeoutRef = React.useRef<number | null>(null);
   const transformDebugTimelineRef = React.useRef<{
     lastOperation: 'move' | 'rotate' | 'scale' | null;
     dragReleasedAt: { perfMs: number; epochMs: number } | null;
@@ -1268,133 +1248,17 @@ export default function Home() {
     bracePlacementStore.getSnapshot,
   );
 
-  React.useEffect(() => {
-    supportDragTransactionIdRef.current = supportDragTransactionId;
-  }, [supportDragTransactionId]);
-
-  const clearSupportSyncFallbackTimeout = React.useCallback(() => {
-    if (typeof window === 'undefined') return;
-    if (supportSyncFallbackTimeoutRef.current !== null) {
-      window.clearTimeout(supportSyncFallbackTimeoutRef.current);
-      supportSyncFallbackTimeoutRef.current = null;
-    }
-  }, []);
-
-  const finalizeSupportDragSyncTransaction = React.useCallback((transactionId?: number) => {
-    if (
-      transactionId !== undefined
-      && pendingSupportDragSyncRef.current
-      && pendingSupportDragSyncRef.current.transactionId !== transactionId
-    ) {
-      return;
-    }
-
-    pendingSupportDragSyncRef.current = null;
-    clearSupportSyncFallbackTimeout();
-    setHoldSupportDragDeltaUntilSupportSync(false);
-  }, [clearSupportSyncFallbackTimeout]);
-
-  const beginSupportDragSyncTransaction = React.useCallback((
-    expectedModelTransforms: Array<{ modelId: string; transform: ModelTransform }>,
-    commitResult: TransformStoreCommitResult,
-  ) => {
-    const nextTransactionId = supportDragTransactionIdRef.current + 1;
-    supportDragTransactionIdRef.current = nextTransactionId;
-    setSupportDragTransactionId(nextTransactionId);
-
-    const expectedModelTransformKeys = new Map<string, string>();
-    expectedModelTransforms.forEach(({ modelId, transform }) => {
-      expectedModelTransformKeys.set(modelId, createModelTransformKey(modelId, transform));
-    });
-
-    const expectedSupportStoreVersion = supportStoreVersionRef.current + (commitResult.supportsChanged ? 1 : 0);
-    const expectedKickstandStoreVersion = kickstandStoreVersionRef.current + (commitResult.kickstandsChanged ? 1 : 0);
-    const needsHold = (
-      expectedModelTransformKeys.size > 0
-      || expectedSupportStoreVersion > supportStoreVersionRef.current
-      || expectedKickstandStoreVersion > kickstandStoreVersionRef.current
-    );
-
-    if (!needsHold) {
-      finalizeSupportDragSyncTransaction();
-      return;
-    }
-
-    pendingSupportDragSyncRef.current = {
-      transactionId: nextTransactionId,
-      expectedModelTransformKeys,
-      expectedSupportStoreVersion,
-      expectedKickstandStoreVersion,
-    };
-    setHoldSupportDragDeltaUntilSupportSync(true);
-
-    if (typeof window !== 'undefined') {
-      clearSupportSyncFallbackTimeout();
-      const requiresSupportSync = commitResult.supportsChanged || commitResult.kickstandsChanged;
-      const fallbackMs = requiresSupportSync
-        ? Math.max(SUPPORT_DRAG_HOLD_FALLBACK_MS, 520)
-        : SUPPORT_DRAG_HOLD_FALLBACK_MS;
-      supportSyncFallbackTimeoutRef.current = window.setTimeout(() => {
-        finalizeSupportDragSyncTransaction(nextTransactionId);
-      }, fallbackMs);
-    }
-  }, [clearSupportSyncFallbackTimeout, finalizeSupportDragSyncTransaction]);
-
-  React.useEffect(() => {
-    return () => {
-      clearSupportSyncFallbackTimeout();
-    };
-  }, [clearSupportSyncFallbackTimeout]);
-
-  React.useEffect(() => {
-    transformDebugTimelineRef.current.supportStoreUpdatedAt = {
-      perfMs: performance.now(),
-      epochMs: Date.now(),
-    };
-    supportStoreVersionRef.current += 1;
-  }, [supportStateSnapshot]);
-
-  React.useEffect(() => {
-    transformDebugTimelineRef.current.kickstandStoreUpdatedAt = {
-      perfMs: performance.now(),
-      epochMs: Date.now(),
-    };
-    kickstandStoreVersionRef.current += 1;
-  }, [kickstandStateSnapshot]);
-
-  React.useEffect(() => {
-    if (!holdSupportDragDeltaUntilSupportSync) return;
-
-    const pendingTransaction = pendingSupportDragSyncRef.current;
-    if (!pendingTransaction) {
-      finalizeSupportDragSyncTransaction();
-      return;
-    }
-
-    if (supportDragTransactionId < pendingTransaction.transactionId) return;
-
-    const modelsById = new Map(scene.models.map((model) => [model.id, model]));
-    const modelTransformsSynced = Array.from(pendingTransaction.expectedModelTransformKeys.entries()).every(
-      ([modelId, expectedTransformKey]) => {
-        const model = modelsById.get(modelId);
-        if (!model) return false;
-        return createModelTransformKey(modelId, model.transform) === expectedTransformKey;
-      },
-    );
-    if (!modelTransformsSynced) return;
-
-    if (supportStoreVersionRef.current < pendingTransaction.expectedSupportStoreVersion) return;
-    if (kickstandStoreVersionRef.current < pendingTransaction.expectedKickstandStoreVersion) return;
-
-    finalizeSupportDragSyncTransaction(pendingTransaction.transactionId);
-  }, [
-    finalizeSupportDragSyncTransaction,
+  const {
     holdSupportDragDeltaUntilSupportSync,
-    kickstandStateSnapshot,
-    scene.models,
     supportDragTransactionId,
+    beginSupportDragSyncTransaction,
+    supportSyncFallbackTimeoutRef,
+  } = useSupportDragSyncTransaction({
+    scene,
     supportStateSnapshot,
-  ]);
+    kickstandStateSnapshot,
+    transformDebugTimelineRef,
+  });
 
   React.useEffect(() => {
     const activeModel = scene.models.find((m) => m.id === scene.activeModelId);
@@ -6244,7 +6108,7 @@ export default function Home() {
         supportSyncFallbackTimeoutRef.current = null;
       }
     };
-  }, []);
+  }, [supportSyncFallbackTimeoutRef]);
 
   const handleRotationComplete = () => {
     const targetModelId = scene.activeModelId;
