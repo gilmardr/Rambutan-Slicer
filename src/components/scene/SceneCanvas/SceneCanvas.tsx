@@ -211,7 +211,7 @@ import { PEARL_MODEL_COLOR, LOGO_RED_MODEL_COLOR, getModelBaseColor, usesLogoRed
 import { GhostPreviewTransform, GhostPreviewInstances } from './GhostPreviewInstances';
 import { useCrossSectionCapDebugPanel } from './useCrossSectionCapDebugPanel';
 import { CrossSectionCapDebugPanel } from './CrossSectionCapDebugPanel';
-import { useCanvasCameraPreferences, useIsLightTheme } from './useCanvasPreferences';
+import { useCanvasCameraPreferences, useIsLightTheme, useThemeAccentColors } from './useCanvasPreferences';
 
 const Canvas = dynamic(() => import('@react-three/fiber').then(m => m.Canvas), { ssr: false });
 
@@ -1447,14 +1447,7 @@ export function SceneCanvas({
 
   const [isCameraBelowBuildPlate, setIsCameraBelowBuildPlate] = React.useState(false);
   const [buildPlateOpacity, setBuildPlateOpacity] = React.useState(1);
-  const [outOfBoundsStripeColor, setOutOfBoundsStripeColor] = React.useState<string>('#b6ff2e');
-  const [gizmoColors, setGizmoColors] = React.useState({
-    face: '#1f2937',
-    text: '#f8fafc',
-    accent: '#ffb45d',
-    chip: '#20242c',
-    chipBorder: '#3a3f4b',
-  });
+  const { outOfBoundsStripeColor, gizmoColors } = useThemeAccentColors();
     // Orientation labels are resolved out here, in the React tree, and handed to
   // the 3D helpers as props — those live inside the r3f reconciler, where the
   // i18n provider is not in scope. "Front" is shared with the build plate's
@@ -2158,77 +2151,6 @@ export function SceneCanvas({
       buildVolumeBoxGeometry?.dispose();
     };
   }, [buildVolumeBoxGeometry, buildVolumeEdgeGeometry]);
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const resolveOutOfBoundsStripeColor = () => {
-      const rootStyles = getComputedStyle(document.documentElement);
-      const accentSecondary = rootStyles.getPropertyValue('--accent-secondary').trim();
-
-      if (!accentSecondary) {
-        setOutOfBoundsStripeColor('#b6ff2e');
-      } else {
-        try {
-          const parsedSecondary = new THREE.Color();
-          parsedSecondary.setStyle(accentSecondary);
-          setOutOfBoundsStripeColor(parsedSecondary.getStyle());
-        } catch {
-          setOutOfBoundsStripeColor('#b6ff2e');
-        }
-      }
-    };
-
-    resolveOutOfBoundsStripeColor();
-
-    const resolveGizmoColors = () => {
-      const rootStyles = getComputedStyle(document.documentElement);
-      const tryColor = (variable: string, fallback: string) => {
-        const raw = rootStyles.getPropertyValue(variable).trim();
-        if (!raw) return fallback;
-        try {
-          const c = new THREE.Color();
-          c.setStyle(raw);
-          return c.getStyle();
-        } catch {
-          return fallback;
-        }
-      };
-
-      const accent = tryColor('--accent-secondary', '#ffb45d');
-      // Derive face/text colors from theme surface/text tokens.
-      // --surface-1 is the panel background; --text-strong is primary text.
-      const face = tryColor('--surface-1', '#1f2937');
-      const text = tryColor('--text-strong', '#f8fafc');
-      // The home chip wears the same surface and hairline as the app's own floating
-      // buttons, so it reads as a control rather than a stray glyph.
-      const chip = tryColor('--surface-0', '#20242c');
-      const chipBorder = tryColor('--border-subtle', '#3a3f4b');
-      setGizmoColors((prev) => {
-        if (
-          prev.face === face
-          && prev.text === text
-          && prev.accent === accent
-          && prev.chip === chip
-          && prev.chipBorder === chipBorder
-        ) return prev;
-        return { face, text, accent, chip, chipBorder };
-      });
-    };
-
-    resolveGizmoColors();
-
-    const observer = new MutationObserver(() => {
-      resolveOutOfBoundsStripeColor();
-      resolveGizmoColors();
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class', 'style', 'data-theme'],
-    });
-
-    return () => observer.disconnect();
-  }, []);
 
   const updateCameraBelowBuildPlate = React.useCallback(() => {
     const cameraZ = cameraRef.current?.position?.z;

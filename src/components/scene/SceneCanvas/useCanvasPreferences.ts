@@ -5,6 +5,7 @@
  * is showing its light theme.
  */
 import React from 'react';
+import * as THREE from 'three';
 import { subscribeToCameraProjectionSettings, getSavedCameraProjectionSettings, DEFAULT_CAMERA_PROJECTION_SETTINGS } from '@/components/settings/cameraProjectionPreferences';
 import { subscribeToCameraFovSettings, getSavedCameraFovSettings, DEFAULT_CAMERA_FOV_SETTINGS } from '@/components/settings/cameraFovPreferences';
 import { subscribeToCameraFeelSettings, getSavedCameraFeelSettings, DEFAULT_CAMERA_FEEL_SETTINGS } from '@/components/settings/cameraFeelPreferences';
@@ -93,4 +94,92 @@ export function useIsLightTheme() {
   }, []);
 
   return isLightTheme;
+}
+
+/**
+ * The out-of-bounds stripe colour and the view cube colours, resolved from the
+ * theme's CSS variables and refreshed whenever the theme changes.
+ */
+export function useThemeAccentColors() {
+  const [outOfBoundsStripeColor, setOutOfBoundsStripeColor] = React.useState<string>('#b6ff2e');
+  const [gizmoColors, setGizmoColors] = React.useState({
+    face: '#1f2937',
+    text: '#f8fafc',
+    accent: '#ffb45d',
+    chip: '#20242c',
+    chipBorder: '#3a3f4b',
+  });
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const resolveOutOfBoundsStripeColor = () => {
+      const rootStyles = getComputedStyle(document.documentElement);
+      const accentSecondary = rootStyles.getPropertyValue('--accent-secondary').trim();
+
+      if (!accentSecondary) {
+        setOutOfBoundsStripeColor('#b6ff2e');
+      } else {
+        try {
+          const parsedSecondary = new THREE.Color();
+          parsedSecondary.setStyle(accentSecondary);
+          setOutOfBoundsStripeColor(parsedSecondary.getStyle());
+        } catch {
+          setOutOfBoundsStripeColor('#b6ff2e');
+        }
+      }
+    };
+
+    resolveOutOfBoundsStripeColor();
+
+    const resolveGizmoColors = () => {
+      const rootStyles = getComputedStyle(document.documentElement);
+      const tryColor = (variable: string, fallback: string) => {
+        const raw = rootStyles.getPropertyValue(variable).trim();
+        if (!raw) return fallback;
+        try {
+          const c = new THREE.Color();
+          c.setStyle(raw);
+          return c.getStyle();
+        } catch {
+          return fallback;
+        }
+      };
+
+      const accent = tryColor('--accent-secondary', '#ffb45d');
+      // Derive face/text colors from theme surface/text tokens.
+      // --surface-1 is the panel background; --text-strong is primary text.
+      const face = tryColor('--surface-1', '#1f2937');
+      const text = tryColor('--text-strong', '#f8fafc');
+      // The home chip wears the same surface and hairline as the app's own floating
+      // buttons, so it reads as a control rather than a stray glyph.
+      const chip = tryColor('--surface-0', '#20242c');
+      const chipBorder = tryColor('--border-subtle', '#3a3f4b');
+      setGizmoColors((prev) => {
+        if (
+          prev.face === face
+          && prev.text === text
+          && prev.accent === accent
+          && prev.chip === chip
+          && prev.chipBorder === chipBorder
+        ) return prev;
+        return { face, text, accent, chip, chipBorder };
+      });
+    };
+
+    resolveGizmoColors();
+
+    const observer = new MutationObserver(() => {
+      resolveOutOfBoundsStripeColor();
+      resolveGizmoColors();
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'style', 'data-theme'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  return { outOfBoundsStripeColor, gizmoColors };
 }
