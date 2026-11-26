@@ -246,7 +246,17 @@ function resolveAnchorAtZ(support: SupportSample, targetZ: number): AnchorPoint 
     };
 }
 
-type Edge = { a: SupportSample; b: SupportSample; hDist: number; angleRad: number };
+type Edge = {
+    a: SupportSample;
+    b: SupportSample;
+    hDist: number;
+    angleRad: number;
+    /**
+     * A plan-diagonal pair on the support grid. The grid keeps the spanning
+     * braces on its rows and columns; only the lateral trellis may use these.
+     */
+    gridDiagonal?: boolean;
+};
 
 const KICKSTAND_MAX_EDGES_PER_TRUNK = 2;
 const KICKSTAND_MAX_EDGES_PER_KICKSTAND = 2;
@@ -311,6 +321,37 @@ function autoBracingMinPairSpanMm(settings: AutoBracingSettings): number {
     return Math.max(AUTO_BRACING_HARD_RULES.minPairSpanMm, settings.braceDiameterMm);
 }
 
+/**
+ * Whether the plan segment between posts `aIndex` and `bIndex` comes closer
+ * than `clearanceMm` to any other post. Only interior points count: the ends
+ * are the two posts being joined.
+ */
+function segmentPassesThroughOtherPost(
+    points: ReadonlyArray<{ x: number; y: number }>,
+    aIndex: number,
+    bIndex: number,
+    clearanceMm: number,
+): boolean {
+    const a = points[aIndex];
+    const b = points[bIndex];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lengthSq = dx * dx + dy * dy;
+    if (lengthSq < EPS) return false;
+    for (let i = 0; i < points.length; i++) {
+        if (i === aIndex || i === bIndex) continue;
+        const p = points[i];
+        // A post standing on one of the ends is that end's twin (closer than
+        // a brace can bridge), not one the brace runs through.
+        if (Math.hypot(p.x - a.x, p.y - a.y) < clearanceMm || Math.hypot(p.x - b.x, p.y - b.y) < clearanceMm) continue;
+        const t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq;
+        if (t <= 0 || t >= 1) continue;
+        const distance = Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y);
+        if (distance < clearanceMm) return true;
+    }
+    return false;
+}
+
 function buildGroupPairs(
     group: SupportSample[],
     maxLen: number,
@@ -327,6 +368,13 @@ function buildGroupPairs(
     // Grid-correlated plan points once per support, not once per pair: this is
     // the inner call of an O(n²) loop.
     const points = group.map((s) => getGridCorrelatedPoint(s, gridSettings));
+    // Where the posts really stand: the grid-correlated points can put two
+    // posts in one cell, which would hide the one a brace runs through.
+    const footprints = group.map((s) => {
+        const base = getSupportBottomAnchor(s);
+        return { x: base.x, y: base.y };
+    });
+    const postClearanceMm = Math.max(0.5, minSpanMm);
 
     const edges: Edge[] = [];
     for (let i = 0; i < group.length; i++) {
@@ -336,15 +384,22 @@ function buildGroupPairs(
             const dx = bPoint.x - aPoint.x;
             const dy = bPoint.y - aPoint.y;
 
-            if (gridCardinalOnly && Math.abs(dx) > axisToleranceMm && Math.abs(dy) > axisToleranceMm) {
-                continue;
-            }
+            // On the grid the spanning braces follow rows and columns. The
+            // lateral trellis also braces the plan diagonals (its eight
+            // directions), so those pairs are kept but flagged.
+            const gridDiagonal = gridCardinalOnly && Math.abs(dx) > axisToleranceMm && Math.abs(dy) > axisToleranceMm;
+            if (gridDiagonal && !lateralTrellisEnabled) continue;
 
             const hDist = Math.sqrt(dx * dx + dy * dy);
             // below minSpanMm the two supports are one post: bracing between
             // them is material with no stiffness to show for it
             if (hDist < Math.max(0.001, minSpanMm) || hDist > maxRun) continue;
-            edges.push({ a: group[i], b: group[j], hDist, angleRad: normalizeAxisAngleRad(Math.atan2(dy, dx)) });
+            const edge: Edge = { a: group[i], b: group[j], hDist, angleRad: normalizeAxisAngleRad(Math.atan2(dy, dx)) };
+            if (gridDiagonal) edge.gridDiagonal = true;
+            // A brace that runs through a third post does not tie two
+            // neighbours together: it pierces that shaft on the way.
+            if (segmentPassesThroughOtherPost(footprints, i, j, postClearanceMm)) continue;
+            edges.push(edge);
         }
     }
     edges.sort((x, y) => x.hDist - y.hDist);
@@ -401,6 +456,7 @@ function buildGroupPairs(
 
     for (let ei = 0; ei < edges.length; ei++) {
         const e = edges[ei];
+        if (e.gridDiagonal) continue;
         if (find(e.a.supportId) !== find(e.b.supportId)) {
             parent.set(find(e.a.supportId), find(e.b.supportId));
             link(ei);
@@ -431,6 +487,7 @@ function buildGroupPairs(
         for (const ei of edgesBySupport.get(s.supportId) ?? []) {
             if (addedEdges.has(ei)) continue;
             const e = edges[ei];
+            if (e.gridDiagonal) continue;
             const otherId = e.a.supportId === s.supportId ? e.b.supportId : e.a.supportId;
 
             // Rule: Skip if they already share a braced neighbor to reduce redundancy
@@ -845,6 +902,9 @@ export function buildAutoBracedSnapshot(snapshot: SupportState, inputSettings: A
     // local.
     const pairsByModel = new Map<string, Edge[]>();
     const pairDistanceOverrides = new Map<string, PairDistanceOverride>();
+    // Plan-diagonal trellis pairs on the grid: the ladder's row-and-column
+    // check below must let these through.
+    const gridDiagonalPairKeys = new Set<string>();
     const pairKey = (aId: string, bId: string) => [aId, bId].sort().join(':');
     const braceProfile = buildBraceProfile(settings.braceDiameterMm);
 
@@ -863,6 +923,9 @@ export function buildAutoBracedSnapshot(snapshot: SupportState, inputSettings: A
                 settings.lateralTrellisEnabled,
             );
             if (modelId) pairsByModel.set(modelId, pairs);
+            for (const pair of pairs) {
+                if (pair.gridDiagonal) gridDiagonalPairKeys.add(pairKey(pair.a.supportId, pair.b.supportId));
+            }
         }
         const extra = groupMembers.filter((s) => isLateralStabiliserType(s.supportKind));
         if (extra.length > 0 && groupTrunks.length > 0) {
@@ -1126,7 +1189,7 @@ export function buildAutoBracedSnapshot(snapshot: SupportState, inputSettings: A
                 const dy = highAnchor.pos.y - lowAnchor.pos.y;
                 const dz = highAnchor.pos.z - lowAnchor.pos.z;
 
-                if (activeGridSettings.enabled) {
+                if (activeGridSettings.enabled && !gridDiagonalPairKeys.has(pairKey(lowS.supportId, highS.supportId))) {
                     if (!ignoreMaxDistance && !isCardinalDelta(dx, dy, activeGridSettings.spacingMm)) return;
                 }
 
