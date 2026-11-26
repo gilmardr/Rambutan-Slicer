@@ -3,7 +3,7 @@
 Cada versão lista o que há de novo e o que foi corrigido em relação à anterior.
 A seção da versão também vira o texto da release no GitHub.
 
-## [0.7.1] - em preparação
+## [0.7.1] - 2026-11-26
 
 ### Novidades
 
@@ -13,6 +13,9 @@ A seção da versão também vira o texto da release no GitHub.
 
 ### Correções
 
+- **Instalador do Windows:** a tela do Microsoft Visual C++ e as mensagens dela diziam "DragonFruit". Agora dizem "Rambutan Slicer" e aparecem em português no Windows em português. O instalador também ficou em português.
+- **Reinício no instalador:** quando o Visual C++ novo já está no disco, o instalador continua sem pedir para reiniciar. Só pede quando um arquivo em uso ficou para ser trocado.
+- **Nomes no app:** o tipo de arquivo VOXL e a mensagem de STL grande demais não falam mais em DragonFruit.
 - **Painel de Slicing:** o painel agora rola quando não cabe na tela, e o botão de fatiar fica sempre visível no rodapé.
 
 ## [0.7.0] - 2026-11-26
