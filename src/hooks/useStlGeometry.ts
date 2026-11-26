@@ -833,7 +833,7 @@ export async function loadStlBinaryStreaming(fileUrl: string): Promise<THREE.Buf
       throw new StlWebviewMemoryError(
         `This STL contains ${triCount.toLocaleString()} triangles and needs at least ` +
         `${(positionBytes / 1_000_000_000).toFixed(2)} GB for positions in the WebView. ` +
-        'Open it from a desktop file path so DragonFruit can use the native STL loader.',
+        'Open it from a desktop file path so Rambutan Slicer can use the native STL loader.',
       );
     }
     console.warn(

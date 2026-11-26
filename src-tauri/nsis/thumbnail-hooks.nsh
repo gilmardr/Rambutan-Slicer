@@ -1,4 +1,4 @@
-; NSIS installer hooks for DragonFruit.
+; NSIS installer hooks for Rambutan Slicer.
 ; Referenced by bundle.windows.nsis.installerHooks in tauri.windows.conf.json.
 ;
 ; Provides:
@@ -16,7 +16,7 @@
 
 !macro NSIS_HOOK_PREINSTALL
   !if "${ARCH}" != "x64"
-    !error "The DragonFruit Visual C++ prerequisite supports x64 packages only."
+    !error "The Rambutan Slicer Visual C++ prerequisite supports x64 packages only."
   !endif
   Call DF_EnsureVcRuntime
 !macroend
