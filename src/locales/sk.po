@@ -12665,3 +12665,30 @@ msgstr ""
 #: src/features/hollowing/HollowingPanel.tsx
 msgid "2D infill pixel intensity"
 msgstr ""
+
+#: src/components/settings/SupportRambutanCard.tsx
+msgid "Support Rambutan"
+msgstr ""
+
+#: src/components/settings/SupportRambutanCard.tsx
+msgid "Rambutan Slicer is free and open source. Donations help pay for development, test printers and resin. Any amount helps."
+msgstr ""
+
+#. Pix is the Brazilian instant payment system; keep the name "Pix".
+#: src/components/settings/SupportRambutanCard.tsx
+msgid "Pix (Brazil)"
+msgstr ""
+
+#: src/components/settings/SupportRambutanCard.tsx
+msgid "Copy key"
+msgstr ""
+
+#. "Pix copia e cola" code.
+#: src/components/settings/SupportRambutanCard.tsx
+msgid "Copies the full Pix code to paste in your bank app"
+msgstr ""
+
+#. The "Pix copia e cola" code. In pt-BR use "Pix copia e cola".
+#: src/components/settings/SupportRambutanCard.tsx
+msgid "Copy Pix code"
+msgstr ""
