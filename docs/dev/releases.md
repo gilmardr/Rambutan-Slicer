@@ -139,6 +139,16 @@ and prerelease identifier, so the tag doesn't need to encode it separately.
 
 ## How to cut a release
 
+### Release notes: `CHANGELOG.md`
+
+Every version gets a section in `CHANGELOG.md` at the repository root, in
+Portuguese, with **Novidades** (what is new) and **Correções** (what was
+fixed) compared with the previous version. The heading is
+`## [x.y.z] - date`. `release.yml` uses that section as the text of the
+GitHub release, followed by the Windows and macOS notices; without a section
+it falls back to a one-line note. Fill in the section, and replace "em
+preparação" with the date, in the same commit that bumps the version.
+
 ### Regular dev release
 
 ```
