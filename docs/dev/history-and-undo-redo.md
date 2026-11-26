@@ -19,7 +19,7 @@ Three layers:
    payload type via a generic map, so a push can't drift from the handler that
    inverts it.
 3. **Domain modules** — e.g. `src/supports/history/`, `src/features/mesh-smoothing/history/`,
-   the scene snapshot registry in `src/features/scene/useSceneCollectionManager.ts`.
+   the scene snapshot registry in `src/features/scene/sceneSnapshotHistory.ts`.
 
 Types live in `src/history/types.ts`:
 
@@ -213,7 +213,7 @@ Three payload patterns exist:
 - **Typed arrays** — mesh smoothing pushes `{ geometryKey, uniqueIds, before, after }`
   and the handler writes the recorded deltas back into the topology.
 - **Snapshot references** — whole-scene actions push a `{ key }` pointing into
-  `sceneSnapshotRegistry` (in `useSceneCollectionManager.ts`), which stores the
+  `sceneSnapshotRegistry` (in `sceneSnapshotHistory.ts`), which stores the
   heavy `{ before, after }` pairs with a 200-entry + ~300 MB-eviction budget.
 
 ### Plates on the scene snapshot
