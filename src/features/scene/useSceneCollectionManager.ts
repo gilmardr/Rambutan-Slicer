@@ -75,6 +75,7 @@ import { sanitizeImportedModelDisplayName, sha256Hex, remapModelIdsInPayload, vo
 import { ScenePlate, LoadedModel } from './loadedModel';
 import { useMeshAppearanceState } from './useMeshAppearanceState';
 import { useRecentOpenedFiles } from './useRecentOpenedFiles';
+import { useBackgroundGeometryWork } from './useBackgroundGeometryWork';
 import { useSceneImportPrompts, type MeshRepairReportEntry } from './useSceneImportPrompts';
 export type { SceneImportReportTone, SceneImportReport, MeshRepairReportEntry, SceneImportPlacementPrompt, SceneImportHollowingChoice, SceneImportHollowingPrompt, MeshRepairConfirmPrompt, ObsoleteVoxlScenePrompt, PrinterMismatchPrompt } from './useSceneImportPrompts';
 export { DEFAULT_HEATMAP_COLORS, DEFAULT_HOVER_TINT_STRENGTH, DEFAULT_SELECTED_TINT_STRENGTH } from './meshAppearanceSettings';
@@ -566,19 +567,15 @@ export function useSceneCollectionManager(options?: {
   // repair menu should offer "Auto-Repair Again" and the report.
   const [manuallyRepairedModelIds, setManuallyRepairedModelIds] = useState<string[]>([]);
 
-  const deferredAccelerationQueueRef = useRef<THREE.BufferGeometry[]>([]);
-  const deferredAccelerationProcessingRef = useRef(false);
-  const deferredAccelerationPausedRef = useRef(false);
-  const deferredDisposalQueueRef = useRef<THREE.BufferGeometry[]>([]);
-  const deferredDisposalProcessingRef = useRef(false);
-  // Count of scheduled-but-unfinished flattening-plane computations (idle
-  // callbacks after geometry swaps). Part of hasPendingBackgroundGeometryWork.
-  const pendingFlatteningPlanesRef = useRef(0);
-  // Models whose AO volume bake is queued or awaiting the native round trip.
-  // Part of hasPendingBackgroundGeometryWork.
-  const pendingAoBakeRef = useRef(0);
-  /** The AO sweep's remaining work, replaced wholesale on every run. */
-  const pendingAoQueueRef = useRef<string[]>([]);
+  const {
+    pendingFlatteningPlanesRef,
+    pendingAoBakeRef,
+    pendingAoQueueRef,
+    deferAccelerateGeometry,
+    setBackgroundGeometryWorkPaused,
+    hasPendingBackgroundGeometryWork,
+    deferDisposeGeometries,
+  } = useBackgroundGeometryWork();
   // Geometries with a bake in flight. The attribute lands only when the bake
   // resolves, so without this the queue rebuilt on a later `models` change would
   // send the same soup a second time — measured as 25 bakes of one mesh in three
@@ -1127,127 +1124,6 @@ export function useSceneCollectionManager(options?: {
     };
   }, []);
 
-  const processDeferredAccelerationQueue = useCallback(() => {
-    if (deferredAccelerationProcessingRef.current) return;
-    if (deferredAccelerationPausedRef.current) return;
-    if (deferredAccelerationQueueRef.current.length === 0) return;
-
-    deferredAccelerationProcessingRef.current = true;
-
-    const scheduleNext = (cb: () => void) => {
-      if (typeof window !== 'undefined' && typeof (window as any).requestIdleCallback === 'function') {
-        (window as any).requestIdleCallback(cb, { timeout: 120 });
-      } else {
-        setTimeout(cb, 16);
-      }
-    };
-
-    const step = () => {
-      if (deferredAccelerationPausedRef.current) {
-        deferredAccelerationProcessingRef.current = false;
-        return;
-      }
-
-      const geometry = deferredAccelerationQueueRef.current.shift();
-      if (!geometry) {
-        deferredAccelerationProcessingRef.current = false;
-        return;
-      }
-
-      accelerateGeometry(geometry);
-
-      if (deferredAccelerationQueueRef.current.length === 0) {
-        deferredAccelerationProcessingRef.current = false;
-        return;
-      }
-
-      scheduleNext(step);
-    };
-
-    scheduleNext(step);
-  }, []);
-
-  const deferAccelerateGeometry = useCallback((entries: GeometryWithBounds[]) => {
-    if (entries.length === 0) return;
-
-    deferredAccelerationQueueRef.current.push(...entries.map((entry) => entry.geometry));
-    processDeferredAccelerationQueue();
-  }, [processDeferredAccelerationQueue]);
-
-  const setBackgroundGeometryWorkPaused = useCallback((paused: boolean) => {
-    deferredAccelerationPausedRef.current = paused;
-    if (!paused) {
-      processDeferredAccelerationQueue();
-    }
-  }, [processDeferredAccelerationQueue]);
-
-  /**
-   * True while deferred post-swap geometry work (BVH acceleration builds,
-   * deferred geometry disposals, flattening-plane computation, AO bakes) is
-   * queued or
-   * running. Lets the UI keep a blocking "finalizing" indicator visible
-   * until the app is genuinely responsive again after a large geometry swap
-   * — the swap itself resolves long before this work drains.
-   */
-  const hasPendingBackgroundGeometryWork = useCallback(() => (
-    deferredAccelerationQueueRef.current.length > 0
-    || deferredAccelerationProcessingRef.current
-    || deferredDisposalQueueRef.current.length > 0
-    || deferredDisposalProcessingRef.current
-    || pendingFlatteningPlanesRef.current > 0
-    || pendingAoBakeRef.current > 0
-    || pendingAoQueueRef.current.length > 0
-  ), []);
-
-  const processDeferredDisposalQueue = useCallback(() => {
-    if (deferredDisposalProcessingRef.current) return;
-    if (deferredDisposalQueueRef.current.length === 0) return;
-
-    deferredDisposalProcessingRef.current = true;
-
-    const scheduleNext = (cb: () => void) => {
-      if (typeof window !== 'undefined' && typeof (window as any).requestIdleCallback === 'function') {
-        (window as any).requestIdleCallback(cb, { timeout: 120 });
-      } else {
-        setTimeout(cb, 16);
-      }
-    };
-
-    const step = () => {
-      const geometry = deferredDisposalQueueRef.current.shift();
-      if (!geometry) {
-        deferredDisposalProcessingRef.current = false;
-        return;
-      }
-
-      try {
-        disposeGeometryBVH(geometry);
-      } catch {
-        // ignore disposal failures
-      }
-      try {
-        geometry.dispose();
-      } catch {
-        // ignore disposal failures
-      }
-
-      if (deferredDisposalQueueRef.current.length === 0) {
-        deferredDisposalProcessingRef.current = false;
-        return;
-      }
-
-      scheduleNext(step);
-    };
-
-    scheduleNext(step);
-  }, []);
-
-  const deferDisposeGeometries = useCallback((geometries: THREE.BufferGeometry[]) => {
-    if (geometries.length === 0) return;
-
-    deferredDisposalQueueRef.current.push(...geometries);
-    processDeferredDisposalQueue();
-  }, [processDeferredDisposalQueue]);
 
 
   // Active model derived state — meshModifiers are hydrated from the
@@ -2323,7 +2199,7 @@ export function useSceneCollectionManager(options?: {
     void scheduleModelChunkBake(nextModels.find((m) => m.id === id));
 
     return true;
-  }, [pushSceneSnapshotHistory, deferAccelerateGeometry]);
+  }, [pushSceneSnapshotHistory, deferAccelerateGeometry, pendingFlatteningPlanesRef]);
 
   /**
    * Commits a brand-new model built from an arbitrary BufferGeometry, inheriting
@@ -2814,7 +2690,7 @@ export function useSceneCollectionManager(options?: {
       scheduleIdle(() => void bakeOne());
     }
     return () => { cancelled = true; };
-  }, [models, bakedAoIntensity]);
+  }, [models, bakedAoIntensity, pendingAoBakeRef, pendingAoQueueRef]);
 
   const finalizeModelGeometryPostProcessing = useCallback((id: string) => {
     const target = modelsRef.current.find((m) => m.id === id);
@@ -2843,7 +2719,7 @@ export function useSceneCollectionManager(options?: {
         pendingFlatteningPlanesRef.current = Math.max(0, pendingFlatteningPlanesRef.current - 1);
       }
     });
-  }, [deferAccelerateGeometry]);
+  }, [deferAccelerateGeometry, pendingFlatteningPlanesRef]);
 
   const setModelVisibility = useCallback((id: string, visible: boolean) => {
     const currentModels = modelsRef.current;
