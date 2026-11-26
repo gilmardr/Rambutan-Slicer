@@ -37,6 +37,9 @@ const HOOKS: Array<[file: string, hook: string]> = [
   ['useHoldEmptyStateDuringSceneImport.ts', 'useHoldEmptyStateDuringSceneImport'],
   ['useSaveAsHotkey.ts', 'useSaveAsHotkey'],
   ['useOverhangViewToggle.ts', 'useOverhangViewToggle'],
+  ['useStaleSliceKickFromPrinting.ts', 'useStaleSliceKickFromPrinting'],
+  ['useSupportShaftHover.ts', 'useSupportShaftHover'],
+  ['useLayerStepHotkeys.ts', 'useLayerStepHotkeys'],
 ];
 
 for (const [file, hook] of HOOKS) {
