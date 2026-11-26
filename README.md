@@ -33,6 +33,7 @@
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Documentação](#documentação)
 - [Contribuindo](#contribuindo)
+- [Apoie o Rambutan](#apoie-o-rambutan)
 - [Créditos](#créditos)
 - [Marcas](#marcas)
 - [Licença](#licença)
@@ -192,6 +193,14 @@ A build desktop testa as extensões anunciadas pela interface antes de empacotar
 Contribuições são bem-vindas. Leia o [guia de contribuição](CONTRIBUTING.md) e o [Código de Conduta](CODE_OF_CONDUCT.md) antes de abrir um pull request. Falhas de segurança devem ser reportadas de forma privada, conforme a [política de segurança](SECURITY.md).
 
 Se o problema também existe no DragonFruit, considere corrigi-lo no [projeto original](https://github.com/Open-Resin-Alliance/DragonFruit).
+
+## Apoie o Rambutan
+
+O Rambutan Slicer é gratuito e de código aberto. As doações ajudam a pagar o desenvolvimento, as impressoras de teste e a resina. Qualquer valor ajuda.
+
+- **Pix (chave aleatória):** `24354104-f7ed-4fdf-ae0a-3045ac6ffc6d`
+
+No aplicativo, a mesma chave e o código "Pix copia e cola" ficam em **Configurações > Sobre > Apoiar o Rambutan** e no menu do Rambutan Slicer.
 
 ## Créditos
 

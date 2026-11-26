@@ -2898,7 +2898,7 @@ msgstr ""
 
 #: src/components/layout/EmptySceneState.tsx:496
 msgid "Copied!"
-msgstr ""
+msgstr "Copiado!"
 
 #: src/components/controls/AutoSupportPanel.tsx:1384
 #: src/components/ui/EditorContextMenu.tsx:114
@@ -12963,3 +12963,30 @@ msgstr "Use a extensão de arquivo da impressora selecionada."
 #: src/app/page.tsx
 msgid "The active plate changed during Magic Prepare. Run it again on the intended plate."
 msgstr "A plataforma ativa mudou durante a Preparação Mágica. Execute novamente na plataforma desejada."
+
+#: src/components/settings/SupportRambutanCard.tsx
+msgid "Support Rambutan"
+msgstr "Apoiar o Rambutan"
+
+#: src/components/settings/SupportRambutanCard.tsx
+msgid "Rambutan Slicer is free and open source. Donations help pay for development, test printers and resin. Any amount helps."
+msgstr "O Rambutan Slicer é gratuito e de código aberto. As doações ajudam a pagar o desenvolvimento, as impressoras de teste e a resina. Qualquer valor ajuda."
+
+#. Pix is the Brazilian instant payment system; keep the name "Pix".
+#: src/components/settings/SupportRambutanCard.tsx
+msgid "Pix (Brazil)"
+msgstr "Pix"
+
+#: src/components/settings/SupportRambutanCard.tsx
+msgid "Copy key"
+msgstr "Copiar chave"
+
+#. "Pix copia e cola" code.
+#: src/components/settings/SupportRambutanCard.tsx
+msgid "Copies the full Pix code to paste in your bank app"
+msgstr "Copia o código Pix completo para colar no app do banco"
+
+#. The "Pix copia e cola" code. In pt-BR use "Pix copia e cola".
+#: src/components/settings/SupportRambutanCard.tsx
+msgid "Copy Pix code"
+msgstr "Pix copia e cola"

@@ -246,7 +246,7 @@ run_island_scan_native() ──►  { paramsJson }   ──────►  spaw
 
 | File | Purpose |
 |---|---|
-| `src-tauri/src/main.rs` | `run_island_scan_native` IPC command (uses `dragonfruit_islands::*` directly) |
+| `src-tauri/src/island_scan.rs` | `run_island_scan_native` IPC command (uses `dragonfruit_islands::*` directly) |
 | `src/volumeAnalysis/IslandScan/nativeIslandScan.ts` | TS bridge (`runIslandScanNative()`) |
 | `src/volumeAnalysis/IslandScan/useIslandManager.ts` | React hook with `useNativeScan` toggle |
 

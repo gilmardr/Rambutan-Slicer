@@ -13,7 +13,7 @@ import type { MatcapVariant, MeshShaderType } from '@/features/shaders/mesh';
 import { AlertDiamondIcon, Button } from '@/components/atoms';
 import { StructuredDialogModal } from '@/components/ui/StructuredDialogModal';
 import { ContextMenu, type ContextMenuEntry } from '@/components/ui/ContextMenu';
-import { Activity, AlertTriangle, Anchor, BookOpen, ChevronDown, FilePlus2, FolderInput, FolderOpen, Lock, Maximize2, Minimize2, Power, Printer, Ruler, Save, SaveAll, Settings, Square, Upload, X } from 'lucide-react';
+import { Activity, AlertTriangle, Anchor, BookOpen, ChevronDown, FilePlus2, FolderInput, FolderOpen, Heart, Lock, Maximize2, Minimize2, Power, Printer, Ruler, Save, SaveAll, Settings, Square, Upload, X } from 'lucide-react';
 import {
   applyThemeCustomColors,
   getSavedThemeCustomColors,
@@ -25,7 +25,8 @@ import {
   dispatchProfileSettingsModalOpenChange,
   type ProfileSettingsTab,
 } from '@/components/settings/profileModalEvents';
-import { OPEN_SETTINGS_MODAL_EVENT } from '@/components/settings/settingsModalEvents';
+import { OPEN_SETTINGS_MODAL_EVENT, openSettingsModal } from '@/components/settings/settingsModalEvents';
+import { hasDonationOptions } from '@/features/donations/donationConfig';
 import {
   getActivePrinterProfile,
   getProfileStoreSnapshot,
@@ -683,6 +684,9 @@ export function TopBar({
     {
       id: 'import-diagnostics', label: _(msg`Import diagnostics`), icon: Activity,
     },
+    ...(hasDonationOptions()
+      ? [{ id: 'support-rambutan', label: _(msg`Support Rambutan`), icon: Heart, startsGroup: true }]
+      : []),
     {
       id: 'close-program',
       label: _(msg`Close program`),
@@ -715,6 +719,9 @@ export function TopBar({
         break;
       case 'import-diagnostics':
         setDiagnosticsOpen(true);
+        break;
+      case 'support-rambutan':
+        openSettingsModal('about');
         break;
       case 'close-program':
         void handleCloseProgram();

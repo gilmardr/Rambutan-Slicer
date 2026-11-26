@@ -1,0 +1,13 @@
+{
+  "$comment": "Donation channels shown in About > Support Rambutan and in the app menu. Empty values are hidden.",
+  "pix": {
+    "key": "24354104-f7ed-4fdf-ae0a-3045ac6ffc6d",
+    "name": "",
+    "city": ""
+  },
+  "links": [
+    { "id": "github-sponsors", "label": "GitHub Sponsors", "url": "" },
+    { "id": "ko-fi", "label": "Ko-fi", "url": "" },
+    { "id": "apoia-se", "label": "Apoia.se", "url": "" }
+  ]
+}
