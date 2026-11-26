@@ -1156,7 +1156,7 @@ can have zero XY area while supplying essential winding crossings.
 ## Known: a scene history push snapshots the whole support state, twice
 
 Every scene-level edit pushes a `{ before, after }` pair into
-`sceneSnapshotRegistry` (`useSceneCollectionManager.ts`), and each half carries a
+`sceneSnapshotRegistry` (`sceneSnapshotHistory.ts`), and each half carries a
 full deep copy of the support store — thousands of entities once a plate has been
 auto-supported. `Confirm Duplicate` measured ~340 ms on a synthetic 20-model ×
 150-support scene (9,000 entities) with 8 copies: ~130 ms for the two support
