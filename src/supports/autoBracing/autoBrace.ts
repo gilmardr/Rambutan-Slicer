@@ -251,11 +251,10 @@ type Edge = {
     b: SupportSample;
     hDist: number;
     angleRad: number;
-    /**
-     * A plan-diagonal pair on the support grid. The grid keeps the spanning
-     * braces on its rows and columns; only the lateral trellis may use these.
-     */
+    /** A checkerboard-selected, adjacent-cell diagonal in the plan grid. */
     gridDiagonal?: boolean;
+    /** Selected for the sparse side trellis, including when it is also structural. */
+    lateralTrellis?: boolean;
 };
 
 const KICKSTAND_MAX_EDGES_PER_TRUNK = 2;
@@ -313,6 +312,31 @@ function getGridCorrelatedPoint(
 function isCardinalDelta(dx: number, dy: number, spacingMm: number): boolean {
     const axisToleranceMm = Math.max(0.1, spacingMm * 0.05);
     return Math.abs(dx) <= axisToleranceMm || Math.abs(dy) <= axisToleranceMm;
+}
+
+/**
+ * Permit one plan diagonal per adjacent grid square. Alternating its slope by
+ * square parity makes a checkerboard trellis instead of crossing both
+ * diagonals through every cell. Longer diagonals skip support bays.
+ */
+function isPreferredAdjacentGridDiagonal(
+    a: { x: number; y: number },
+    b: { x: number; y: number },
+    spacingMm: number,
+): boolean {
+    if (!(spacingMm > 0) || !Number.isFinite(spacingMm)) return false;
+
+    const ax = Math.round(a.x / spacingMm);
+    const ay = Math.round(a.y / spacingMm);
+    const bx = Math.round(b.x / spacingMm);
+    const by = Math.round(b.y / spacingMm);
+    const dx = bx - ax;
+    const dy = by - ay;
+    if (Math.abs(dx) !== 1 || Math.abs(dy) !== 1) return false;
+
+    const squareParity = (Math.min(ax, bx) + Math.min(ay, by)) % 2;
+    const preferPositiveSlope = squareParity === 0;
+    return (dx * dy > 0) === preferPositiveSlope;
 }
 
 // Supports closer than this are one post: two brace surfaces that overlap
@@ -385,10 +409,11 @@ function buildGroupPairs(
             const dy = bPoint.y - aPoint.y;
 
             // On the grid the spanning braces follow rows and columns. The
-            // lateral trellis also braces the plan diagonals (its eight
-            // directions), so those pairs are kept but flagged.
+            // The lateral trellis also braces one preferred plan diagonal in
+            // adjacent cells, so those pairs are kept but flagged.
             const gridDiagonal = gridCardinalOnly && Math.abs(dx) > axisToleranceMm && Math.abs(dy) > axisToleranceMm;
-            if (gridDiagonal && !lateralTrellisEnabled) continue;
+            if (gridDiagonal && (!lateralTrellisEnabled || !gridSettings
+                || !isPreferredAdjacentGridDiagonal(aPoint, bPoint, gridSettings.spacingMm))) continue;
 
             const hDist = Math.sqrt(dx * dx + dy * dy);
             // below minSpanMm the two supports are one post: bracing between
@@ -517,11 +542,10 @@ function buildGroupPairs(
 
     // The spanning tree and two-axis pass keep the forest connected, but they
     // intentionally choose only a sparse set of edges. A side trellis needs
-    // the nearby posts in each local direction too, otherwise long rows of
-    // supports can have large unbraced bays. Pick the closest eligible post in
-    // each of eight plan directions, then keep at most four directions per
-    // support. The same clearance and reach checks still apply when the brace
-    // itself is placed below.
+    // nearby posts in each local direction too, otherwise long rows can have
+    // large unbraced bays. Keep at most three local neighbors per shaft. In
+    // grid mode, trellis diagonals are limited to one adjacent cell and alternate
+    // slope by square so the plan lattice cannot form overlapping X crossings.
     if (lateralTrellisEnabled) {
         const supportIndex = new Map(group.map((support, index) => [support.supportId, index] as const));
         const trellisCandidates = new Set<number>();
@@ -571,10 +595,14 @@ function buildGroupPairs(
             return aIndex - bIndex;
         });
         for (const edgeIndex of orderedCandidates) {
-            if (addedEdges.has(edgeIndex)) continue;
             const edge = edges[edgeIndex];
+            if (addedEdges.has(edgeIndex)) {
+                edge.lateralTrellis = true;
+                continue;
+            }
             if ((adjacency.get(edge.a.supportId)?.length ?? 0) >= maxNeighbors
                 || (adjacency.get(edge.b.supportId)?.length ?? 0) >= maxNeighbors) continue;
+            edge.lateralTrellis = true;
             link(edgeIndex);
         }
     }
@@ -1242,8 +1270,27 @@ export function buildAutoBracedSnapshot(snapshot: SupportState, inputSettings: A
                 place(lowS, highS, section, anchorZ);
             if (isInitial) {
                 applyInitialPattern(pairs, pattern, placeAtTier);
+                return;
+            }
+
+            const trellisPairs = pairs.filter((pair) => pair.lateralTrellis);
+            const structuralPairs = pairs.filter((pair) => !pair.lateralTrellis);
+            applyRepeatingPattern(structuralPairs, pattern, placeAtTier);
+
+            if (pattern === 'crossDiagonal') {
+                // Keep the selected Cross Diagonal pattern for the primary
+                // spanning braces. The side trellis uses one alternating
+                // diagonal per tier, avoiding a full X on every neighboring bay.
+                trellisPairs.forEach((pair, pairIndex) => {
+                    const reverse = (tierIndex + pairIndex) % 2 === 1;
+                    placeAtTier(
+                        reverse ? pair.b : pair.a,
+                        reverse ? pair.a : pair.b,
+                        'repeating',
+                    );
+                });
             } else {
-                applyRepeatingPattern(pairs, pattern, placeAtTier);
+                applyRepeatingPattern(trellisPairs, pattern, placeAtTier);
             }
         });
     }
