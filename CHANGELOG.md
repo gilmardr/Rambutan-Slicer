@@ -8,6 +8,28 @@ depois **Linux** e por último **macOS**. O que vale para todas as plataformas
 vem em "Todas as plataformas", depois das três. Uma plataforma sem mudanças
 nesta versão aparece com "Nada específico nesta versão".
 
+## [0.7.2] - 2026-11-27
+
+### Windows
+
+Nada específico nesta versão. A correção está em Todas as plataformas.
+
+### Linux
+
+Nada específico nesta versão. O Flatpak recebe as mudanças de Todas as plataformas.
+
+### macOS
+
+Nada específico nesta versão. O DMG recebe as mudanças de Todas as plataformas.
+
+### Todas as plataformas
+
+**Correções**
+
+- **Treliça lateral dos suportes:** reduz conexões repetidas, impede diagonais que saltam células e alterna a orientação dentro de cada célula para não formar X sobre X.
+- **Reforços verticais:** mantém a densidade de contatos calibrada para cobertura; a redução atua nas travessas laterais redundantes.
+- **Preview técnico:** inclui vistas lateral e em perspectiva geradas pela geometria do algoritmo.
+
 ## [0.7.1] - 2026-11-26
 
 ### Windows

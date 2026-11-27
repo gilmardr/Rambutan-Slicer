@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="860" viewBox="0 0 980 860">
+<defs><linearGradient id="bg" x2="0" y2="1"><stop stop-color="#111922"/><stop offset="1" stop-color="#1b2630"/></linearGradient></defs>
+<rect width="100%" height="100%" fill="url(#bg)"/>
+<text x="44" y="58" fill="#f2f5f7" font-family="Segoe UI,Arial,sans-serif" font-size="27" font-weight="700">VISTA LATERAL | TRELICA 0.7.2</text>
+<text x="44" y="88" fill="#9eabb8" font-family="Segoe UI,Arial,sans-serif" font-size="15">Vista lateral da geometria gerada pelo algoritmo | grade 4 mm | 3 colunas</text>
+<rect x="140" y="245" width="650" height="48" rx="10" fill="#b7142a" opacity="0.28" stroke="#e94753" stroke-width="2"/>
+<text x="812" y="274" fill="#e94753" font-family="Segoe UI,Arial,sans-serif" font-size="13">modelo</text>
+<rect x="145" y="723" width="610" height="13" rx="6" fill="#168ad5" opacity="0.82" stroke="#46b9ff" stroke-width="2"/>
+<line x1="190.0" y1="712.0" x2="470.0" y2="676.0" stroke="#d7a7ff" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="470.0" y1="712.0" x2="190.0" y2="676.0" stroke="#d7a7ff" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="470.0" y1="712.0" x2="750.0" y2="676.0" stroke="#d7a7ff" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="750.0" y1="712.0" x2="470.0" y2="676.0" stroke="#d7a7ff" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="190.0" y1="640.0" x2="470.0" y2="604.0" stroke="#8fce57" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="470.0" y1="640.0" x2="750.0" y2="604.0" stroke="#8fce57" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="470.0" y1="568.0" x2="190.0" y2="532.0" stroke="#8fce57" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="750.0" y1="568.0" x2="470.0" y2="532.0" stroke="#8fce57" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="190.0" y1="496.0" x2="470.0" y2="460.0" stroke="#8fce57" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="470.0" y1="496.0" x2="750.0" y2="460.0" stroke="#8fce57" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="470.0" y1="424.0" x2="190.0" y2="388.0" stroke="#8fce57" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="750.0" y1="424.0" x2="470.0" y2="388.0" stroke="#8fce57" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="190.0" y1="352.0" x2="470.0" y2="316.0" stroke="#8fce57" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="470.0" y1="352.0" x2="750.0" y2="316.0" stroke="#8fce57" stroke-width="4" stroke-linecap="round" opacity="0.96"/>
+<line x1="190" y1="730" x2="190" y2="298" stroke="#347c32" stroke-width="9" stroke-linecap="round"/><line x1="188.5" y1="730" x2="188.5" y2="298" stroke="#98d76b" stroke-width="2" opacity="0.85"/><ellipse cx="190" cy="730" rx="15" ry="6" fill="#5ab34a" stroke="#b5ef78" stroke-width="1.5"/>
+<line x1="470" y1="730" x2="470" y2="298" stroke="#347c32" stroke-width="9" stroke-linecap="round"/><line x1="468.5" y1="730" x2="468.5" y2="298" stroke="#98d76b" stroke-width="2" opacity="0.85"/><ellipse cx="470" cy="730" rx="15" ry="6" fill="#5ab34a" stroke="#b5ef78" stroke-width="1.5"/>
+<line x1="750" y1="730" x2="750" y2="298" stroke="#347c32" stroke-width="9" stroke-linecap="round"/><line x1="748.5" y1="730" x2="748.5" y2="298" stroke="#98d76b" stroke-width="2" opacity="0.85"/><ellipse cx="750" cy="730" rx="15" ry="6" fill="#5ab34a" stroke="#b5ef78" stroke-width="1.5"/>
+<g font-family="Segoe UI,Arial,sans-serif"><rect x="36" y="775" width="908" height="66" rx="13" fill="#0b1118" opacity="0.85"/><circle cx="62" cy="805" r="6" fill="#347c32"/><text x="77" y="810" fill="#d8e1e8" font-size="14">Colunas principais mantidas</text><circle cx="287" cy="805" r="6" fill="#8fce57"/><text x="302" y="810" fill="#d8e1e8" font-size="14">Travessas alternadas</text><circle cx="500" cy="805" r="6" fill="#d7a7ff"/><text x="515" y="810" fill="#d8e1e8" font-size="14">X inicial mantido</text></g>
+<text x="44" y="850" fill="#81909d" font-family="Segoe UI,Arial,sans-serif" font-size="12">14 travessas nesta vista | intervalo vertical de 8 mm | geometria do algoritmo</text>
+</svg>

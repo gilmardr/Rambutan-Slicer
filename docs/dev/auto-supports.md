@@ -40,15 +40,20 @@ await runAutoPlaceSequenceInWorker(islands, modelId, [light, medium, heavy], onP
 ### Lateral trellis
 
 Auto-bracing first makes a connected spanning set and adds any missing second
-axis. **Lateral Trellis** then fills each side with the nearest eligible
-neighbor in each plan direction, up to four neighbors per shaft. The option is
-on by default and can be changed in the Auto Bracing settings card. The
-initial and repeating pattern settings determine whether each selected gap
-gets a single diagonal, an X, or a continuous zigzag. With **Cross Diagonal**
-selected, two support shafts with overlapping height are enough for a first X;
-a longer trellis needs neighbors within **Max Brace Distance**. Mesh clearance
-and support height checks still reject braces that would hit the model or miss
-either shaft.
+axis. **Lateral Trellis** then adds at most three nearby neighbors per shaft.
+With the support grid enabled, it only uses diagonals between adjacent cells and
+alternates the selected diagonal by cell, so a square cannot receive two
+crossing plan diagonals. Repeated trellis braces use one alternating diagonal
+per tier when **Cross Diagonal** is selected; the initial brace and the primary
+spanning braces keep the selected pattern. The option is on by default and can
+be changed in the Auto Bracing settings card. **Max Brace Distance**, mesh
+clearance and support height checks still reject braces that are too long, hit
+the model or miss either shaft. The auto-support contact density is independent
+of this trellis simplification.
+
+![Vista lateral da treliça 0.7.2](../assets/previews/lateral-trellis-side-0.7.2.png)
+
+[Perspective preview of the complete generated trellis](../assets/previews/lateral-trellis-0.7.2.png)
 
 ### Batch runs across selected models
 

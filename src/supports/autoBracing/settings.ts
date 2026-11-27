@@ -61,7 +61,7 @@ export const AUTO_BRACING_HARD_RULES = {
     // Two supports can still form a useful X in their shared side plane.
     minGroupSize: 2,
     /** Maximum local neighbors selected for the side trellis around one shaft. */
-    maxTrellisNeighborsPerSupport: 4,
+    maxTrellisNeighborsPerSupport: 3,
     // A second axis must be separated by at least the ladder's own brace
     // angle: the 45° X-pattern diagonals qualify as a second axis, so a
     // braced trunk reads as 2-axis and does NOT get a kickstand. (Was 50° —
