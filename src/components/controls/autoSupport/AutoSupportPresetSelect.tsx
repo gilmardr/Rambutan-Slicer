@@ -2,7 +2,7 @@
 
 /**
  * The Auto Support panel's run-policy selector: every preset the store holds —
- * the `Light` / `Medium` / `Heavy` built-ins *and* the custom profiles a user
+ * the `Filigree` / `Weave` / `Buttress` / `Hollow Core` built-ins *and* the custom profiles a user
  * saved — as one dropdown.
  *
  * The panel used to render one button per built-in, which is why a profile a user

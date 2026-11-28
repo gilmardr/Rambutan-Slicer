@@ -95,15 +95,15 @@ descrição do formato CXDLPv4 do UVtools serviu de referência para a disposiç
 dos campos do encoder `.cxdlpv4`, escrito de forma independente;
 nenhum arquivo do UVtools foi copiado para o repositório.
 
-## Análise de concorrentes e REA
+## Análise independente de produtos
 
-O uso do REA para observar documentação, interfaces ou artefatos de outros
-programas não transfere código desses programas para este repositório nem altera
-a licença do Rambutan. A implementação deve permanecer independente: não copie
-código-fonte, pseudocódigo decompilado, imagens, ícones, textos ou outros ativos
-proprietários de Lychee, CHITUBOX ou VoxelDance. Registre fatos funcionais e use
-fontes públicas para comparação, sem apresentar análise estática como prova de
-paridade ou de autorização para redistribuir artefatos examinados.
+Observar documentação, interfaces ou artefatos de outros programas não transfere
+código desses programas para este repositório nem altera a licença do Rambutan. A
+implementação deve permanecer independente: não copie código-fonte, pseudocódigo
+decompilado, imagens, ícones, textos ou outros ativos proprietários de Lychee,
+CHITUBOX ou VoxelDance. Registre fatos funcionais e use fontes públicas para
+comparação; não apresente análise estática como prova de paridade ou autorização
+para redistribuir artefatos examinados.
 
 Os relatórios de comparação são notas de pesquisa; a presença de um relatório
 não demonstra, por si só, que todo o código do aplicativo foi auditado. Antes de

@@ -11,6 +11,9 @@ export const DEFAULT_RAFT_SETTINGS: RaftSettings = {
   crenulationSpacing: 5.0,  // 5.0mm (not used in UI, kept for compatibility)
   lineWidthMm: 1.5,
   lineHeightMm: 0.6,
+  baseReliefEnabled: false,
+  baseReliefHoleDiameterMm: 2.0,
+  baseReliefPitchMm: 6.0,
   showFootprintBorder: true, // Show footprint border by default
   footprintBorderMargin: 0.5, // max 0.05mm margin beyond raft/model edge
   footprintMode: 'contour',

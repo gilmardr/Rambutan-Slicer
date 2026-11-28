@@ -1304,6 +1304,7 @@ function placeOneCandidate(
         candidate,
         supportSettings.autoSupport?.sizeScale ?? 1,
         sizingCtx,
+        _settingsOverride?.sizingPreset,
     );
     const isSmallIsland = (candidate.source !== 'overhang' && (candidate.islandAreaMm2 ?? 0) < 5) || candidate.zHeight < 15;
     const trunkResult = buildTrunkData({
@@ -3967,7 +3968,7 @@ export function computeAutoSupportPlan(
     if (changed && !autoSettings.debugSkipAutoBracing) {
         console.log(LOG_PREFIX, 'Running auto-brace...');
         try {
-            const braceResult = buildAutoBracedSnapshot(draft, getSettings().autoBracing);
+            const braceResult = buildAutoBracedSnapshot(draft, getSettings().autoBracing, { sizingPreset: autoSettings.sizingPreset, modelIds: [modelId] });
             draft = braceResult.snapshot;
             console.log(LOG_PREFIX,
                 `Auto-brace: ${braceResult.status} ` +

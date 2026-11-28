@@ -958,8 +958,9 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
 
   return (
     <>
-      <Card>
+      <Card className="flex max-h-[calc(100dvh-var(--topbar-height)-16px)] min-h-0 flex-col overflow-hidden">
         <CardHeader
+          className="shrink-0"
           left={(
             <>
               <PanelCollapseToggle expanded={expanded} onToggle={() => setExpanded(!expanded)} />
@@ -975,7 +976,7 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
 
 
         {expanded && (
-          <div className="px-2.5 pb-3 space-y-2.5">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-2.5 pb-3 space-y-2.5">
             {/* Run button — always at top */}
             <Button
               onClick={() => { void handleRun(false); }}
@@ -1090,7 +1091,7 @@ export function AutoSupportPanel({ islands, hasGeometry, activeModelId, models =
                     onChange={(event) => setMagicSupportsEnabled(event.target.checked)}
                     className="ui-checkbox !w-3.5 !h-3.5"
                   />
-                  <Trans>Automatic supports · Light, Medium, Heavy</Trans>
+                  <Trans>Automatic supports · Filigree, Weave, Buttress</Trans>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer text-[10px]" style={{ color: 'var(--text-strong)' }}>
                   <input

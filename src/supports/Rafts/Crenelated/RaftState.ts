@@ -1,4 +1,5 @@
-import { RaftSettings } from './RaftTypes';
+import { minimumRaftReliefPitch } from './RaftTypes';
+import type { RaftSettings } from './RaftTypes';
 import { DEFAULT_RAFT_SETTINGS } from './RaftDefaults';
 
 let currentRaftSettings: RaftSettings = { ...DEFAULT_RAFT_SETTINGS };
@@ -12,11 +13,21 @@ let wasManuallyModifiedInSession = false;
 const FOOTPRINT_BORDER_MARGIN_MAX_MM = 0.05;
 
 function normalizeRaftSettings(settings: RaftSettings): RaftSettings {
+  const merged = { ...DEFAULT_RAFT_SETTINGS, ...settings };
+  const baseReliefHoleDiameterMm = Number.isFinite(merged.baseReliefHoleDiameterMm)
+    ? Math.min(8, Math.max(0.5, merged.baseReliefHoleDiameterMm))
+    : DEFAULT_RAFT_SETTINGS.baseReliefHoleDiameterMm;
+  const baseReliefPitchMm = Number.isFinite(merged.baseReliefPitchMm)
+    ? Math.min(30, Math.max(minimumRaftReliefPitch(baseReliefHoleDiameterMm, merged.baseReliefPattern), merged.baseReliefPitchMm))
+    : DEFAULT_RAFT_SETTINGS.baseReliefPitchMm;
+
   return {
-    ...settings,
+    ...merged,
+    baseReliefHoleDiameterMm,
+    baseReliefPitchMm,
     footprintBorderMargin: Math.min(
       FOOTPRINT_BORDER_MARGIN_MAX_MM,
-      Math.max(0, settings.footprintBorderMargin ?? DEFAULT_RAFT_SETTINGS.footprintBorderMargin),
+      Math.max(0, merged.footprintBorderMargin ?? DEFAULT_RAFT_SETTINGS.footprintBorderMargin),
     ),
   };
 }

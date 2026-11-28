@@ -11,9 +11,10 @@ support scaling, automatic bracing and other support controls. Its Tango 4.0
 announcement specifically describes applying different support scripts to
 areas of one model and a branching tree-support script.
 
-The product behavior below is based only on VoxelDance's public documentation.
-No Tango software was inspected, and no VoxelDance code or asset is used in this
-project.
+This snapshot is based only on VoxelDance's public documentation and does not
+include the later interface review recorded in
+[`avaliacao-suportes-voxeldance-tango.md`](../research/avaliacao-suportes-voxeldance-tango.md).
+No VoxelDance code or asset is used in this project.
 
 ## Feature comparison
 
@@ -57,11 +58,11 @@ dedicated end-to-end desktop verification and remains **experimental**.
 
 ## Feasibility of other Tango features
 
-The Tango comparison is based on VoxelDance's public feature sheet and user
-guides, cross-checked against the current Rambutan source. Tango is not
-installed in the inspected Windows program locations or registered in the
-uninstall inventory, so REA could not inspect its binary or live interface.
-These results do not claim internal Tango behavior or file-format compatibility.
+This snapshot compares VoxelDance's public feature sheet and user guides against
+the Rambutan source available at the time. It does not claim internal Tango
+behavior or file-format compatibility. For observations of the installed Tango
+4.0 interface and a current Rambutan feature mapping, see
+[`the current support review`](../research/avaliacao-suportes-voxeldance-tango.md).
 
 | Tango feature | Rambutan status | Feasibility and implementation boundary |
 | --- | --- | --- |

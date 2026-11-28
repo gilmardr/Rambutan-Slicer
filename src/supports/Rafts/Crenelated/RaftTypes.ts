@@ -2,6 +2,16 @@ import * as THREE from 'three';
 
 export type RaftBottomMode = 'off' | 'solid' | 'line';
 
+/** Minimum solid bridge left between two base-relief openings. */
+export const RAFT_BASE_RELIEF_MIN_WEB_MM = 0.8;
+
+export function minimumRaftReliefPitch(diameter: number, pattern: RaftSettings['baseReliefPattern']): number {
+  // The staggered hex grid places neighboring faces parallel, with 0.7 mm left between them.
+  return pattern === 'staggered-hex'
+    ? diameter * Math.sqrt(3) / 2 + 0.7
+    : diameter + RAFT_BASE_RELIEF_MIN_WEB_MM;
+}
+
 export interface RaftSettings {
   bottomMode: RaftBottomMode;
   wallEnabled: boolean;
@@ -13,6 +23,10 @@ export interface RaftSettings {
   crenulationSpacing: number;  // mm
   lineWidthMm: number;         // mm
   lineHeightMm: number;        // mm
+  baseReliefEnabled: boolean;
+  baseReliefPattern?: 'square-round' | 'staggered-round' | 'staggered-hex';
+  baseReliefHoleDiameterMm: number; // mm
+  baseReliefPitchMm: number;   // mm, center to center
   showFootprintBorder: boolean; // Show combined model+raft footprint border
   footprintBorderMargin: number; // mm - margin beyond raft/model edge
   /** contour: hug the support bases (gaps up to ~6 mm bridged); hull: one convex outline. */

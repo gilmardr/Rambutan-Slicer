@@ -83,9 +83,11 @@ function npmEntries() {
 function rustEntries() {
   let metadata;
   try {
+    const target = process.env.RAMBUTAN_NOTICES_TARGET;
+    const targetArgs = target ? ['--filter-platform', target] : [];
     const output = execFileSync(
       'cargo',
-      ['metadata', '--format-version', '1', '--locked', '--manifest-path', path.join(root, 'src-tauri', 'Cargo.toml')],
+      ['metadata', '--format-version', '1', '--locked', ...targetArgs, '--manifest-path', path.join(root, 'src-tauri', 'Cargo.toml')],
       { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'inherit'] },
     );
     metadata = JSON.parse(output);

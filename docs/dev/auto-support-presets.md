@@ -7,8 +7,10 @@ the collection, the active selection and the preset file format are owned by
 `src/supports/Settings/autoSupportPresets.ts`, and the built-ins' translated
 names by `src/supports/Settings/autoSupportPresetMessages.ts`.
 
-This is what the Auto Support panel's light/medium/heavy quick-select becomes: a
-list the user can extend, rename, duplicate and share as a file.
+The Auto Support panel exposes Filigree, Weave, Buttress, Hollow Core, Sculpture
+Lattice and Fine Lattice. The original four retain their internal ids and
+settings so existing user data stays compatible. Users can
+extend the list, rename and duplicate their own profiles, and share them as files.
 
 ## Separate from the Support Studio presets
 
@@ -23,9 +25,10 @@ These are **two systems**, and neither store knows the other exists:
 | UX | pinned slots, hotkeys, reordering, one selection driving the whole settings panel | pick per run, save / revert, import / export |
 
 They have no shared storage, state, ids or functions. Support Studio's presets
-keep excluding `autoSupport`, and an auto-support preset carries no geometry: its
-`sizingPreset` is the id of the Support Studio preset the run borrows its tip,
-shaft and roots from, resolved at run time. `supportScope` selects which island
+keep excluding `autoSupport`. The auto-support `sizingPreset` normally names
+the Support Studio preset the run borrows its tip, shaft and roots from. The
+lattice ids instead resolve their contact and brace dimensions from
+`src/supports/autoSupport/latticeProfiles.ts`. `supportScope` selects which island
 surfaces the Auto Support panel sends to that run (`combined` by default,
 `exterior`, or `interior`). That one geometry read is the coupling the user
 chose — see [backlog.md](backlog.md) for the decision and its cost. A payload
@@ -71,12 +74,23 @@ written by a newer build round-trips through this one unchanged.
 
 ## Built-ins
 
-`light`, `medium`, `heavy` and `interior-pillar`. The first three are the Auto
-Support panel's tier values — the same blocks the Support Studio preset store
-gives to Detail, Structure and Anchor. Reusing those ids and values is what keeps
-existing users' settings where they are. `interior-pillar` selects interior
-surfaces, uses the sparsest built-in density, and borrows geometry from the
-Support Studio `interior-pillar` profile. That profile has a 1.5 mm shaft and
+The lattice profiles work with any supported mesh and with multiple selected
+models. Native auto placement still evaluates each model's islands, clearances
+and available brace spans. Selecting either profile also updates the scene raft.
+Its perforations are generated within the raft boundary and away from support
+feet, so the exact hole count depends on the scene.
+
+| Profile | Trunk contact | Bracing | Raft openings |
+| --- | --- | --- | --- |
+| Sculpture Lattice | 0.40 mm tip, 0.30 mm penetration | 45° target, 0.90 mm brace, 9 mm span limit | 4 mm hexagons, 4.2 mm pitch |
+| Fine Lattice | 0.35 mm ball, 0.10 mm penetration | 60° target, 0.80 mm brace, 7 mm span limit | 2 mm 12-sided openings, 3 mm pitch |
+
+`light`, `medium`, `heavy` and `interior-pillar`. They display as Filigree,
+Weave, Buttress and Hollow Core. The first three keep the same blocks the Support
+Studio preset store gives to Detail, Structure and Anchor. Reusing those ids and
+values is what keeps existing users' settings where they are. `interior-pillar`
+selects interior surfaces, uses the sparsest built-in density, and borrows
+geometry from the Support Studio `interior-pillar` profile. That profile has a 1.5 mm shaft and
 contact tip with a 2 mm tip length, based on the dimensions in
 [J3D-Tech's Lychee support guide](https://docs.mango3d.io/doc/j3d-tech-s-guide-to-resin-printing/print-settings/introduction-to-supporting/).
 

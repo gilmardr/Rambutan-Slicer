@@ -139,12 +139,20 @@ export function RaftSettingsCard({ settings, onChange, activeModelId, selectedMo
                     </label>
                 )}
                 {settings.bottomMode === 'solid' && (
-                    <ToggleButton
-                        checked={isWallEnabled}
-                        onChange={() => onChange({ wallEnabled: !isWallEnabled })}
-                        label={_(msg`Wall`)}
-                        tone="secondary"
-                    />
+                    <div className="flex flex-wrap gap-1.5">
+                        <ToggleButton
+                            checked={isWallEnabled}
+                            onChange={() => onChange({ wallEnabled: !isWallEnabled })}
+                            label={_(msg`Wall`)}
+                            tone="secondary"
+                        />
+                        <ToggleButton
+                            checked={settings.baseReliefEnabled}
+                            onChange={() => onChange({ baseReliefEnabled: !settings.baseReliefEnabled })}
+                            label={_(msg`Base relief`)}
+                            tone="secondary"
+                        />
+                    </div>
                 )}
             </div>
 
@@ -177,6 +185,50 @@ export function RaftSettingsCard({ settings, onChange, activeModelId, selectedMo
                                     {unitHint('°')}
                                 </div>
                             </label>
+                            {settings.baseReliefEnabled && (
+                                <>
+                                    <SelectDropdown
+                                        ariaLabel={_(msg`Opening pattern`)}
+                                        value={settings.baseReliefPattern ?? 'square-round'}
+                                        options={[
+                                            { value: 'square-round', label: _(msg`Round openings on a square grid`) },
+                                            { value: 'staggered-round', label: _(msg`Staggered round openings`) },
+                                            { value: 'staggered-hex', label: _(msg`Staggered hexagonal openings`) },
+                                        ]}
+                                        onChange={(value) => {
+                                            if (value === 'square-round' || value === 'staggered-round' || value === 'staggered-hex') {
+                                                onChange({ baseReliefPattern: value });
+                                            }
+                                        }}
+                                    />
+                                    <label className="flex flex-col gap-0.5" {...makeFocusHandlers('raft.baseReliefHoleDiameterMm')}>
+                                        <span className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>{_(msg`Opening diameter`)}</span>
+                                        <div className="relative">
+                                            <NumberInput
+                                                value={settings.baseReliefHoleDiameterMm}
+                                                onChange={(val) => onChange({ baseReliefHoleDiameterMm: val })}
+                                                step={0.1}
+                                                showStepper={false}
+                                                className={compactInputClass}
+                                            />
+                                            {unitHint('mm')}
+                                        </div>
+                                    </label>
+                                    <label className="flex flex-col gap-0.5" {...makeFocusHandlers('raft.baseReliefPitchMm')}>
+                                        <span className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>{_(msg`Opening pitch`)}</span>
+                                        <div className="relative">
+                                            <NumberInput
+                                                value={settings.baseReliefPitchMm}
+                                                onChange={(val) => onChange({ baseReliefPitchMm: val })}
+                                                step={0.5}
+                                                showStepper={false}
+                                                className={compactInputClass}
+                                            />
+                                            {unitHint('mm')}
+                                        </div>
+                                    </label>
+                                </>
+                            )}
                         </>
                     )}
 
