@@ -109,7 +109,10 @@ function buildTipProfile(
         contactDiameterMm,
         bodyDiameterMm: overrides?.tipBodyDiameterMm ?? settings.tip.bodyDiameterMm,
         lengthMm: overrides?.tipLengthMm ?? settings.tip.lengthMm,
-        penetrationMm: overrides?.tipPenetrationMm ?? settings.tip.penetrationMm,
+        penetrationMm: overrides?.tipUseProfilePenetration
+            ? (overrides.tipPenetrationMm ?? settings.tip.penetrationMm)
+            : settings.tip.penetrationMm,
+        ...(overrides?.tipUseProfilePenetration && { useProfilePenetration: true }),
     };
     if (overrides?.tipSphereDiameterMm !== undefined) {
         return { ...cone, type: 'sphere', sphereRadiusRatio: overrides.tipSphereDiameterMm / contactDiameterMm };
@@ -139,6 +142,7 @@ export interface TrunkBuildInput {
         tipBodyDiameterMm?: number;
         tipLengthMm?: number;
         tipPenetrationMm?: number;
+        tipUseProfilePenetration?: boolean;
         tipSphereDiameterMm?: number;
         tipDiskLengthOverrideMm?: number;
     };

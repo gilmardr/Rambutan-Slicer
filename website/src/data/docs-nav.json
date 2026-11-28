@@ -75,6 +75,10 @@
           "slug": "workflows/support-placement"
         },
         {
+          "label": "Comparação de suportes com o Tango",
+          "slug": "research/avaliacao-suportes-voxeldance-tango"
+        },
+        {
           "label": "Island Analysis Workflow",
           "slug": "workflows/island-analysis-workflow"
         },

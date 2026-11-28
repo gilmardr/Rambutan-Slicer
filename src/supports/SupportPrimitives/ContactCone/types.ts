@@ -37,6 +37,7 @@ export type SupportTipProfile = {
     bodyDiameterMm: number;     // Larger end (socket side)
     lengthMm: number;           // Total head length (excluding primitive offset)
     penetrationMm: number;      // Embed depth (legacy use, mostly for sphere now)
+    useProfilePenetration?: boolean;
 } & (ContactDiskProfile | ContactSphereProfile | { type?: undefined }); // Allow undefined for legacy compatibility
 
 /**

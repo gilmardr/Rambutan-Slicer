@@ -8,6 +8,26 @@ depois **Linux** e por último **macOS**. O que vale para todas as plataformas
 vem em "Todas as plataformas", depois das três. Uma plataforma sem mudanças
 nesta versão aparece com "Nada específico nesta versão".
 
+## [0.7.7] - 2026-11-27
+
+### Windows
+
+Nada específico nesta versão.
+
+### Linux
+
+Nada específico nesta versão.
+
+### macOS
+
+Nada específico nesta versão.
+
+### Todas as plataformas
+
+- Corrige o fatiamento 3DAA dos suportes existentes: a penetração do perfil passa a ser usada somente para os novos contatos que a definem explicitamente ou para contatos esféricos.
+- Inclui a comparação de suportes na navegação da documentação e corrige as referências a arquivos de build locais.
+- Inclui os novos presets e os padrões de raft da 0.7.6.
+
 ## [0.7.6] - 2026-11-27
 
 ### Windows

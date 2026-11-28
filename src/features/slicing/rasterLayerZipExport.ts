@@ -729,7 +729,7 @@ function appendContactConePrimitive(
     normal: { x: number; y: number; z: number };
     surfaceNormal?: { x: number; y: number; z: number };
     diskLengthOverride?: number;
-    profile: { contactDiameterMm: number; bodyDiameterMm: number; type?: string; diskThicknessMm?: number; maxStandoffMm?: number; standoffAngleThreshold?: number; penetrationMm?: number; sphereRadiusRatio?: number };
+    profile: { contactDiameterMm: number; bodyDiameterMm: number; type?: string; diskThicknessMm?: number; maxStandoffMm?: number; standoffAngleThreshold?: number; penetrationMm?: number; sphereRadiusRatio?: number; useProfilePenetration?: boolean };
   },
   radialSegments = 12,
   penetrationMm = 0,
@@ -737,9 +737,9 @@ function appendContactConePrimitive(
 ): void {
   const socket = getFinalSocketPosition(cone as any);
   const effectiveNormal = cone.surfaceNormal ?? cone.normal;
-  const embed = cone.profile.type === 'sphere'
+  const embed = cone.profile.type === 'sphere' || cone.profile.useProfilePenetration
     ? (cone.profile.penetrationMm ?? 0)
-    : Math.max(cone.profile.penetrationMm ?? 0, penetrationMm);
+    : penetrationMm;
   const start = new THREE.Vector3(
     cone.pos.x - effectiveNormal.x * embed,
     cone.pos.y - effectiveNormal.y * embed,

@@ -140,8 +140,8 @@ A build Windows x64 `0.7.5` gerou executável, MSI e NSIS do mesmo código-fonte
 
 | Artefato local | Caminho | SHA-256 |
 | --- | --- | --- |
-| Executável 0.7.5 | `src-tauri/target/x86_64-pc-windows-msvc/release/rambutan-slicer.exe` | `679B5497A0AF17F8FB1801D102F7368044416B4222BEB6F55AFAAC022FDABA3C` |
-| Instalador MSI 0.7.5 | `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/Rambutan Slicer_0.7.5_x64_en-US.msi` | `3941F47204F5AA49FD2DD5A9A180F1B4CE2F1C09A0E47F0A2E377B58E151F50C` |
-| Instalador NSIS 0.7.5 | `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Rambutan Slicer_0.7.5_x64-setup.exe` | `1E70B18F07DFAE91771B5C566E0680D97439B300722A14076592B93208FEA783` |
+| Executável 0.7.5 | `rambutan-slicer.exe` | `679B5497A0AF17F8FB1801D102F7368044416B4222BEB6F55AFAAC022FDABA3C` |
+| Instalador MSI 0.7.5 | `Rambutan Slicer_0.7.5_x64_en-US.msi` | `3941F47204F5AA49FD2DD5A9A180F1B4CE2F1C09A0E47F0A2E377B58E151F50C` |
+| Instalador NSIS 0.7.5 | `Rambutan Slicer_0.7.5_x64-setup.exe` | `1E70B18F07DFAE91771B5C566E0680D97439B300722A14076592B93208FEA783` |
 
 A versão do executável e dos dois instaladores é `0.7.5`. Esta build local ainda não foi publicada como release.

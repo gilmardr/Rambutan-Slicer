@@ -270,6 +270,7 @@ export interface SizeOverrides {
     tipBodyDiameterMm?: number;
     tipLengthMm?: number;
     tipPenetrationMm?: number;
+    tipUseProfilePenetration?: boolean;
     rootsDiameterMm?: number;
     rootsDiskHeightMm?: number;
     rootsConeHeightMm?: number;
@@ -367,6 +368,7 @@ export function sizeParameters(
         tipBodyDiameterMm: tip?.bodyDiameterMm ?? shaftDiameterMm,
         tipLengthMm: tip ? 1 : round(band.tipLengthMm, 3),
         tipPenetrationMm: tip?.penetrationMm ?? round(band.tipPenetrationMm, 3),
+        tipUseProfilePenetration: tip ? true : undefined,
         tipSphereDiameterMm: tip?.sphereDiameterMm,
         rootsDiameterMm: round(band.rootDiameterMm * trunkScale * sizeScale, 3),
         rootsDiskHeightMm: band.rootDiskHeightMm,
