@@ -30,8 +30,8 @@ supports closer together. **Grid Threshold** decides which regions receive a
 grid, while **Flat Boost**, **Slope Relax** and **Suction Scale** adjust spacing
 for surface angle and large flat regions. **Coverage Target** controls when gap
 filling stops. These settings affect automatic placement; they do not change
-supports already placed in the scene. The built-in Light, Medium and Heavy
-presets use 30, 20 and 12 mm² per support, respectively; the grid keeps at least
+supports already placed in the scene. The built-in Filigree, Weave and Buttress
+presets use 16, 10 and 5 mm² per support, respectively; the grid keeps at least
 2 mm between support points to avoid crowding broad undersides.
 
 **Edits are staged.** Changing a field or switch updates the draft only. **Save**
@@ -43,15 +43,24 @@ the next run.
 ## Presets
 
 A preset is a named set of auto-support settings — the whole run policy: density,
-self-support angle, merge radius, fan limits and the sizing tier. Three ship with
-the app:
+self-support angle, merge radius, fan limits and the sizing tier. Six factory
+profiles ship with the app:
 
-- **Light** — sparse supports, detail sizing.
-- **Medium** — balanced supports, structure sizing.
-- **Heavy** — dense supports, anchor sizing.
+- **Filigree** — sparse supports with detail sizing.
+- **Weave** — balanced supports with structure sizing.
+- **Buttress** — dense supports with anchor sizing.
+- **Hollow Core** — sparse, larger supports scoped to interior surfaces.
+- **Sculpture Lattice** - wider trunk contacts, a more open lattice and a raft
+  with staggered hexagonal openings.
+- **Fine Lattice** - spherical trunk contacts, closer bracing and a raft
+  with smaller staggered openings.
 
-They are also the three buttons on the Auto Supports card, so the quick-select
-and the preset selector are the same policy under the same names.
+All six are available in the preset selector on the **Auto Supports** panel.
+Selecting either lattice profile applies its perforated 0.5 mm raft to the
+scene. The raft can then be adjusted under **Raft Settings**.
+The support engine uses the profile dimensions as inputs to the Rambutan's
+own placement and collision checks. The number and location of supports
+depend on the model.
 
 The selector at the top of the dialog shows the preset your settings are; its
 menu lists the presets — built-ins first, then your own, each with the sizing tier
@@ -68,7 +77,7 @@ Beside the selector:
 The dialog's footer commits:
 
 - **Delete** on the left, in red, greyed out for a built-in (its id defines the
-  file format). It asks first. Deleting the preset you are on selects **Medium**,
+  file format). It asks first. Deleting the preset you are on selects **Weave**,
   so the dialog never ends up without a policy.
 - **Reset**: discard the edits made in the dialog and reload the selected preset.
   Available once there is something to discard.

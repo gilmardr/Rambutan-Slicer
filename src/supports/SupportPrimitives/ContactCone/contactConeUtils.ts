@@ -57,6 +57,11 @@ export function getFinalSocketPosition(cone: ContactCone): Vec3 {
     return getSocketPosition(startPos, normal, profile);
 }
 
+export function contactBallRadiusMm(profile: { contactDiameterMm: number; type?: string; sphereRadiusRatio?: number }): number {
+    const ratio = profile.type === 'sphere' ? (profile.sphereRadiusRatio ?? 1) : 1;
+    return profile.contactDiameterMm * ratio / 2;
+}
+
 /** Lowest world Z of the authored body, round tip and (when present) disk. */
 export function getContactConeLowestZ(cone: ContactCone): number {
     const { pos, normal, profile } = cone;
@@ -71,7 +76,7 @@ export function getContactConeLowestZ(cone: ContactCone): number {
     // The frustum's minimum is attained on one of its two end rims.
     const axisRadialZ = Math.sqrt(Math.max(0, 1 - normal.z * normal.z));
     let lowestZ = Math.min(
-        startZ - contactRadius,
+        startZ - contactBallRadiusMm(profile) - (profile.type === 'sphere' ? surfaceNormal.z * profile.penetrationMm : 0),
         startZ - contactRadius * axisRadialZ,
         startZ + normal.z * profile.lengthMm - bodyRadius * axisRadialZ,
     );

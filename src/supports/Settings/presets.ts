@@ -788,7 +788,7 @@ export function setActivePreset(id: string | null): void {
         },
         // Preserve current Auto Supports settings. Trunk presets are sizing/
         // geometry profiles; auto-support density is owned by the Auto
-        // Support panel (whose light/medium/heavy quick-select writes it via
+        // Support panel (whose sparse/balanced/dense presets write it via
         // updateAutoSupportSettings before calling this), never by the
         // trunk-preset dropdown.
         autoSupport: {

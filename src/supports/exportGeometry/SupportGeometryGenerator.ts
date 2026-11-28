@@ -302,7 +302,8 @@ export class SupportGeometryGenerator {
     group.add(coneMesh);
 
     // 3. Cone-start sphere (matches the live ContactConeRenderer)
-    const sphereGeom = new THREE.SphereGeometry(contactRadius, 16, 12);
+    const ballRadius = contactRadius * (profile.type === 'sphere' ? (profile.sphereRadiusRatio ?? 1) : 1);
+    const sphereGeom = new THREE.SphereGeometry(ballRadius, 16, 12);
     const sphereMesh = new THREE.Mesh(sphereGeom);
     sphereMesh.position.set(coneStartPos.x, coneStartPos.y, coneStartPos.z);
     group.add(sphereMesh);

@@ -376,7 +376,10 @@ export async function runAutoPlaceSequenceInWorker(
         // A worker plan already includes any braces added after optimization.
         if (options.autoBracing !== false && !bracingInWorker) {
             onProgress?.({ phase: 'Bracing supports', done: 0, total: 1 });
-            const braced = buildAutoBracedSnapshot(cumulativeState, getSettings().autoBracing);
+            const braced = buildAutoBracedSnapshot(cumulativeState, getSettings().autoBracing, {
+                sizingPreset: finalSettings.sizingPreset ?? getSettings().autoSupport.sizingPreset,
+                modelIds: [modelId],
+            });
             cumulativeState = braced.snapshot;
             changed ||= braced.changed;
             onProgress?.({ phase: 'Bracing supports', done: 1, total: 1 });
@@ -600,7 +603,10 @@ export async function runAutoPlaceBatchSequenceInWorker(
         }
         if (options.autoBracing !== false && !bracingInWorker) {
             onProgress?.({ phase: 'Bracing supports', done: 0, total: 1 });
-            const braced = buildAutoBracedSnapshot(cumulativeState, getSettings().autoBracing);
+            const braced = buildAutoBracedSnapshot(cumulativeState, getSettings().autoBracing, {
+                sizingPreset: activeSequence[activeSequence.length - 1].sizingPreset ?? getSettings().autoSupport.sizingPreset,
+                modelIds: entries.map(({ modelId }) => modelId),
+            });
             cumulativeState = braced.snapshot;
             changed ||= braced.changed;
             onProgress?.({ phase: 'Bracing supports', done: 1, total: 1 });

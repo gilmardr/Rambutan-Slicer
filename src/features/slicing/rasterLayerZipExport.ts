@@ -20,7 +20,7 @@ import { filterLineRaftEdges, generateUnionedLineRaftMesh } from '@/supports/Raf
 import { generateChamferedBeam } from '@/supports/Rafts/Crenelated/geometry/generateChamferedBeam';
 import { buildLineRaftEdgePairs } from '@/supports/Rafts/Crenelated/geometry/buildLineRaftEdgePairs';
 import type { ContactDisk, Segment, SupportState, Vec3 } from '@/supports/types';
-import { getFinalSocketPosition } from '@/supports/SupportPrimitives/ContactCone/contactConeUtils';
+import { contactBallRadiusMm, getFinalSocketPosition } from '@/supports/SupportPrimitives/ContactCone/contactConeUtils';
 import { calculateDiskThickness, getDiskCenter, getDiskRotation } from '@/supports/SupportPrimitives/ContactDisk/contactDiskUtils';
 import { getBezierPointAtT } from '@/supports/Curves/BezierUtils';
 import { resolveSegmentEndpoints, type ShaftEntity } from '@/supports/SupportPrimitives/Knot/segmentEndpoints';
@@ -729,7 +729,7 @@ function appendContactConePrimitive(
     normal: { x: number; y: number; z: number };
     surfaceNormal?: { x: number; y: number; z: number };
     diskLengthOverride?: number;
-    profile: { contactDiameterMm: number; bodyDiameterMm: number; type?: string; diskThicknessMm?: number; maxStandoffMm?: number; standoffAngleThreshold?: number; penetrationMm?: number };
+    profile: { contactDiameterMm: number; bodyDiameterMm: number; type?: string; diskThicknessMm?: number; maxStandoffMm?: number; standoffAngleThreshold?: number; penetrationMm?: number; sphereRadiusRatio?: number };
   },
   radialSegments = 12,
   penetrationMm = 0,
@@ -737,10 +737,13 @@ function appendContactConePrimitive(
 ): void {
   const socket = getFinalSocketPosition(cone as any);
   const effectiveNormal = cone.surfaceNormal ?? cone.normal;
+  const embed = cone.profile.type === 'sphere'
+    ? (cone.profile.penetrationMm ?? 0)
+    : Math.max(cone.profile.penetrationMm ?? 0, penetrationMm);
   const start = new THREE.Vector3(
-    cone.pos.x - effectiveNormal.x * penetrationMm,
-    cone.pos.y - effectiveNormal.y * penetrationMm,
-    cone.pos.z - effectiveNormal.z * penetrationMm,
+    cone.pos.x - effectiveNormal.x * embed,
+    cone.pos.y - effectiveNormal.y * embed,
+    cone.pos.z - effectiveNormal.z * embed,
   );
   const end = new THREE.Vector3(socket.x, socket.y, socket.z);
   const g = createFrustumGeometryBetween(
@@ -753,6 +756,12 @@ function appendContactConePrimitive(
   if (!g) return;
   appendGeometryTriangles(sink, g);
   g.dispose();
+  if (cone.profile.type === 'sphere') {
+    const ball = new THREE.SphereGeometry(contactBallRadiusMm(cone.profile) * tipScale, radialSegments, 8);
+    ball.translate(start.x, start.y, start.z);
+    appendGeometryTriangles(sink, ball);
+    ball.dispose();
+  }
 }
 
 function appendContactDiskPrimitive(

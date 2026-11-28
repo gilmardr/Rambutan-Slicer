@@ -22,7 +22,7 @@ This page is the developer-facing source of truth for client-side persistence us
 | `support-settings`            | localStorage | Core support-generation settings (tip/shaft/root/grid/auto-bracing/etc.) |
 | `support-presets-v1`          | localStorage | Preset definitions + active preset metadata                              |
 | `support-active-preset-id-v1` | localStorage | Legacy active preset key (redundant with `support-presets-v1`)           |
-| `auto-support-presets-v1`     | localStorage | Auto-support policy presets (the `light`/`medium`/`heavy` built-ins and the user's own) |
+| `auto-support-presets-v1`     | localStorage | Auto-support policy presets (Filigree/Weave/Buttress/Hollow Core and user profiles; stable factory IDs are retained) |
 | `auto-support-active-preset-id-v1` | localStorage | Active auto-support preset id; selecting one writes the block into `support-settings` |
 
 `support-presets-v1` carries a `supportDefaultsVersion` field beside its payload:

@@ -4,6 +4,7 @@ import { getSettings } from '../Settings/state';
 import { getPresetById } from '../Settings/presets';
 import { AUTO_SUPPORT_CONSTRAINTS, SIZING_BANDS } from './settings';
 import type { SizingBand, SizingPreset } from './settings';
+import { getLatticeProfile } from './latticeProfiles';
 import type { SupportSettings } from '../Settings/types';
 
 // ---------------------------------------------------------------------------
@@ -47,6 +48,10 @@ export function applySizingOverridesToSettings(
         },
         tip: {
             ...settings.tip,
+            ...(overrides.tipSphereDiameterMm !== undefined && {
+                type: 'sphere' as const,
+                sphereRadiusRatio: overrides.tipSphereDiameterMm / (overrides.tipContactDiameterMm ?? settings.tip.contactDiameterMm),
+            }),
             contactDiameterMm: overrides.tipContactDiameterMm ?? settings.tip.contactDiameterMm,
             bodyDiameterMm: overrides.tipBodyDiameterMm ?? settings.tip.bodyDiameterMm,
             lengthMm: overrides.tipLengthMm ?? settings.tip.lengthMm,
@@ -260,6 +265,7 @@ function shaftDiameterForArea(baseDiameterMm: number, areaMm2: number): number {
 
 export interface SizeOverrides {
     shaftDiameterMm?: number;
+    tipSphereDiameterMm?: number;
     tipContactDiameterMm?: number;
     tipBodyDiameterMm?: number;
     tipLengthMm?: number;
@@ -316,8 +322,10 @@ export function sizeParameters(
     candidate: CandidatePoint,
     sizeScale = 1,
     ctx?: ModelSizingContext,
+    sizingPreset = getSettings().autoSupport.sizingPreset,
 ): SizeOverrides {
-    const band = activeSizingBand();
+    const band = resolveSizingBand(sizingPreset);
+    const tip = getLatticeProfile(sizingPreset)?.tip;
 
     // The area that drives thickness: the candidate's own supported island.
     // No merge-radius cluster summing — dense regions would double-count
@@ -350,15 +358,16 @@ export function sizeParameters(
     // Per-point override (small-island shrunk tip) bypasses the band and
     // its 30%-of-shaft floor — explicit means explicit.
     const tipContactDiameterMm = round(
-        candidate.tipDiameterMm ?? Math.max(band.tipContactDiameterMm * angleFactor, shaftDiameterMm * 0.3),
+        candidate.tipDiameterMm ?? tip?.contactDiameterMm ?? Math.max(band.tipContactDiameterMm * angleFactor, shaftDiameterMm * 0.3),
     3);
 
     return {
         shaftDiameterMm,
         tipContactDiameterMm,
-        tipBodyDiameterMm: shaftDiameterMm,
-        tipLengthMm: round(band.tipLengthMm, 3),
-        tipPenetrationMm: round(band.tipPenetrationMm, 3),
+        tipBodyDiameterMm: tip?.bodyDiameterMm ?? shaftDiameterMm,
+        tipLengthMm: tip ? 1 : round(band.tipLengthMm, 3),
+        tipPenetrationMm: tip?.penetrationMm ?? round(band.tipPenetrationMm, 3),
+        tipSphereDiameterMm: tip?.sphereDiameterMm,
         rootsDiameterMm: round(band.rootDiameterMm * trunkScale * sizeScale, 3),
         rootsDiskHeightMm: band.rootDiskHeightMm,
         rootsConeHeightMm: band.rootConeHeightMm,

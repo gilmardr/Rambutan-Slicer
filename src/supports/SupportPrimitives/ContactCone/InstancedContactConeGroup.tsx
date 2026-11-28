@@ -131,10 +131,11 @@ export function conePrimitiveScales(
     penetration: number,
 ): { disk: [number, number, number]; body: [number, number, number]; tip: [number, number, number] } {
     const contactRadius = Math.max(0.001, cone.profile.contactDiameterMm / 2);
+    const ballRadius = contactRadius * (cone.profile.type === 'sphere' ? cone.profile.sphereRadiusRatio : 1);
     return {
         disk: [contactRadius, Math.max(0.001, diskThickness + penetration), contactRadius],
         body: [contactRadius, Math.max(0.001, cone.profile.lengthMm), contactRadius],
-        tip: [contactRadius, contactRadius, contactRadius],
+        tip: [ballRadius, ballRadius, ballRadius],
     };
 }
 
@@ -302,7 +303,12 @@ function ConeBucketMesh({
         write(overlayBodyRef.current, conePosition, coneQuaternion, scales.body);
 
         // Tip sphere: the contact point itself, unrotated.
-        conePosition.set(startX, startY, startZ);
+        const ballEmbed = cone.profile.type === 'sphere' ? cone.profile.penetrationMm : 0;
+        conePosition.set(
+            startX - effectiveSurfaceNormal.x * ballEmbed,
+            startY - effectiveSurfaceNormal.y * ballEmbed,
+            startZ - effectiveSurfaceNormal.z * ballEmbed,
+        );
         coneQuaternion.identity();
         write(tipSphereRef.current, conePosition, coneQuaternion, scales.tip);
         write(overlayTipSphereRef.current, conePosition, coneQuaternion, scales.tip);

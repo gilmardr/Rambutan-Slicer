@@ -104,12 +104,19 @@ function buildTipProfile(
     settings: ReturnType<typeof getSettings>,
     overrides: TrunkBuildInput['overrides'],
 ): SupportTipProfile {
-    return {
-        type: 'disk',
-        contactDiameterMm: overrides?.tipContactDiameterMm ?? settings.tip.contactDiameterMm,
+    const contactDiameterMm = overrides?.tipContactDiameterMm ?? settings.tip.contactDiameterMm;
+    const cone = {
+        contactDiameterMm,
         bodyDiameterMm: overrides?.tipBodyDiameterMm ?? settings.tip.bodyDiameterMm,
         lengthMm: overrides?.tipLengthMm ?? settings.tip.lengthMm,
-        penetrationMm: settings.tip.penetrationMm,
+        penetrationMm: overrides?.tipPenetrationMm ?? settings.tip.penetrationMm,
+    };
+    if (overrides?.tipSphereDiameterMm !== undefined) {
+        return { ...cone, type: 'sphere', sphereRadiusRatio: overrides.tipSphereDiameterMm / contactDiameterMm };
+    }
+    return {
+        ...cone,
+        type: 'disk',
         diskThicknessMm: settings.tip.diskThicknessMm ?? 0.1,
         maxStandoffMm: settings.tip.maxStandoffMm ?? 1.5,
         standoffAngleThreshold: settings.tip.standoffAngleThreshold ?? (Math.PI / 4),
@@ -131,6 +138,8 @@ export interface TrunkBuildInput {
         tipContactDiameterMm?: number;
         tipBodyDiameterMm?: number;
         tipLengthMm?: number;
+        tipPenetrationMm?: number;
+        tipSphereDiameterMm?: number;
         tipDiskLengthOverrideMm?: number;
     };
     /** Small islands (voxel/minima <5mm² or z<15) bypass SDF — true straight, no central joint */

@@ -352,9 +352,13 @@ export function ContactConeRenderer({
 
             {/* --- Cone Tip Sphere (The Ball Joint at the Disk) --- */}
             {/* Renders at coneStartPos, size = contactRadius */}
-            <group position={[coneStartPos.x, coneStartPos.y, coneStartPos.z]}>
+            <group position={profile.type === 'sphere' ? [
+                coneStartPos.x - effectiveSurfaceNormal.x * profile.penetrationMm,
+                coneStartPos.y - effectiveSurfaceNormal.y * profile.penetrationMm,
+                coneStartPos.z - effectiveSurfaceNormal.z * profile.penetrationMm,
+            ] : [coneStartPos.x, coneStartPos.y, coneStartPos.z]}>
                 <mesh raycast={raycast} onClick={handleConeClick} onPointerMove={handleConePointerMove} onPointerOut={handleConePointerOut}>
-                    <sphereGeometry args={[contactRadius, sphereSegments, Math.max(6, Math.floor(sphereSegments * 0.75))]} />
+                    <sphereGeometry args={[contactRadius * (profile.type === 'sphere' ? profile.sphereRadiusRatio : 1), sphereSegments, Math.max(6, Math.floor(sphereSegments * 0.75))]} />
                     <meshStandardMaterial
                         color={finalBodyColor}
                         emissive={displayEmissive}

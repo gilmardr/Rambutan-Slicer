@@ -77,7 +77,7 @@ async function syncCargoLock(version) {
       const raw = await readFile(cargoLockPath, 'utf8');
       const updated = replaceWithinMatch(
             raw,
-            /(\[\[package\]\]\r?\nname = "dragonfruit-desktop"\r?\nversion = ")([^"]+)(")/m,
+            /(\[\[package\]\]\r?\nname = "rambutan-slicer"\r?\nversion = ")([^"]+)(")/m,
             ([fullMatch, prefix, , suffix]) => `${prefix}${version}${suffix}`
       );
 

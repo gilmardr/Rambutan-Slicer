@@ -277,7 +277,10 @@ export function runAutoPlaceWorkerRequest(
     let bracingChanged = false;
     if (payload.autoBracingAfterOptimization) {
         onProgress?.({ phase: 'Bracing supports', done: 0, total: 1 });
-        const braced = buildAutoBracedSnapshot(support, getSettings().autoBracing);
+        const braced = buildAutoBracedSnapshot(support, getSettings().autoBracing, {
+            sizingPreset: payload.settingsOverride?.sizingPreset ?? getSettings().autoSupport.sizingPreset,
+            modelIds: [payload.modelId],
+        });
         support = braced.snapshot;
         bracingApplied = true;
         bracingChanged = braced.changed;

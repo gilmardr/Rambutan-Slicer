@@ -22,6 +22,8 @@ import {
     DIAGNOSTIC_AUTO_SUPPORT_KEYS,
     type AutoSupportSettings,
 } from '../autoSupport/settings';
+import { updateRaftSettings } from '../Rafts/Crenelated/RaftState';
+import { getLatticeProfile, latticeProfiles } from '../autoSupport/latticeProfiles';
 import {
     getAutoSupportSettings,
     saveSettingsToLocalStorage,
@@ -76,10 +78,10 @@ export const AUTO_SUPPORT_PRESET_FORMAT_VERSION = 1;
 const DEFAULT_AUTO_SUPPORT_PRESET_NAME = 'Auto-Support Preset';
 
 /**
- * The factory tier. Ids and settings mirror the Auto Support panel's
- * light/medium/heavy quick-select, whose values are the `autoSupport` blocks of
- * the Detail / Structure / Anchor trunk presets — reusing them is what keeps an
- * existing user's settings exactly where they are.
+ * The factory tier. The stable ids continue to map to the original sparse / balanced /
+ * dense settings blocks, while the displayed names are Rambutan-specific. The
+ * values still reuse the Detail / Structure / Anchor sizing bands so saved
+ * settings and presets keep their existing meaning.
  *
  * Every block is built on `createDefaultAutoSupportSettings()` rather than a
  * literal copy, so a key added to the block later lands in the built-ins with
@@ -89,7 +91,7 @@ const DEFAULT_AUTO_SUPPORT_PRESET_NAME = 'Auto-Support Preset';
 const BUILT_IN_PRESETS: readonly AutoSupportPreset[] = [
     {
         id: 'light',
-        name: 'Light',
+        name: 'Filigree',
         isBuiltIn: true,
         settings: {
             ...createDefaultAutoSupportSettings(),
@@ -99,13 +101,13 @@ const BUILT_IN_PRESETS: readonly AutoSupportPreset[] = [
     },
     {
         id: 'medium',
-        name: 'Medium',
+        name: 'Weave',
         isBuiltIn: true,
         settings: snapshotPresetSettings(createDefaultAutoSupportSettings()),
     },
     {
         id: 'heavy',
-        name: 'Heavy',
+        name: 'Buttress',
         isBuiltIn: true,
         settings: {
             ...createDefaultAutoSupportSettings(),
@@ -115,7 +117,7 @@ const BUILT_IN_PRESETS: readonly AutoSupportPreset[] = [
     },
     {
         id: 'interior-pillar',
-        name: 'Interior Pillar',
+        name: 'Hollow Core',
         isBuiltIn: true,
         settings: {
             ...createDefaultAutoSupportSettings(),
@@ -124,6 +126,18 @@ const BUILT_IN_PRESETS: readonly AutoSupportPreset[] = [
             supportScope: 'interior',
         },
     },
+    ...Object.entries(latticeProfiles).map(([id, profile]) => ({
+        id,
+        name: profile.name,
+        isBuiltIn: true,
+        settings: {
+            ...createDefaultAutoSupportSettings(),
+            // Projected square coverage is the native density control.
+            areaPerSupportMm2: profile.anchorSpacingMm ** 2,
+            overhangSelfSupportAngleDeg: profile.overhangAngleDeg,
+            sizingPreset: id,
+        },
+    })),
 ];
 
 const BUILT_IN_IDS: readonly string[] = BUILT_IN_PRESETS.map((preset) => preset.id);
@@ -411,6 +425,16 @@ export function isAutoSupportPresetDirty(): boolean {
  */
 function applyPresetSettings(preset: AutoSupportPreset): void {
     updateAutoSupportSettings(preset.settings);
+    const lattice = getLatticeProfile(preset.settings.sizingPreset);
+    if (lattice) {
+        updateRaftSettings({
+            bottomMode: 'solid',
+            wallEnabled: false,
+            thickness: 0.5,
+            baseReliefEnabled: true,
+            ...lattice.raft,
+        });
+    }
     // Keep the persisted settings and the active id in step: without this, a
     // restart would show one preset as active over the settings of another and
     // read as dirty before the user touched anything.

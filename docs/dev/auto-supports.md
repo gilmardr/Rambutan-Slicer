@@ -662,7 +662,7 @@ The preset UI is the UI for `src/supports/Settings/autoSupportPresets.ts` (see [
 
 Selecting a preset applies the whole block immediately (the store's contract), and the applied block is copied into the dialog's draft so the fields show it; the rest of the dialog stays draft-until-`Save`. The dialog's strip and the panel's row both go through `setActiveAutoSupportPreset`, so the preset a surface shows is the store's active id and not a match against the live block.
 
-The panel's row (`AutoSupportPresetRow`) is the selector and the Auto-Lift toggle at 1:1. The selector offers **every** preset the store holds — the `Light` / `Medium` / `Heavy` built-ins and the profiles a user saved — where it used to render one button per *built-in*, which made a saved profile unreachable from the panel. Each row names its origin (`Built-in` / `Custom`) so a user can tell which rows the store's save-refusal and delete rules apply to. The selector follows the Auto Orientation panel's objective dropdown for its theme: the `--surface-1` fill and centred content.
+The panel's row (`AutoSupportPresetRow`) is the selector and the Auto-Lift toggle at 1:1. The selector offers **every** preset the store holds — the `Filigree` / `Weave` / `Buttress` / `Hollow Core` built-ins and the profiles a user saved — where it used to render one button per *built-in*, which made a saved profile unreachable from the panel. Each row names its origin (`Built-in` / `Custom`) so a user can tell which rows the store's save-refusal and delete rules apply to. The selector follows the Auto Orientation panel's objective dropdown for its theme: the `--surface-1` fill and centred content.
 
 Auto-Lift is the app's standard toggle button: `aria-pressed` for the state, and the accent fill the bracing card's quick-pick and the Cut Panel's segmented selector already use (`color-mix(--accent, --surface-1 85%)`) while it is on. Its label states the state — `Auto-Lift ON` / `Auto-Lift OFF` — so the button reads the same to someone who cannot tell the accent fill from the quiet one, and the off state keeps the `--surface-1` fill the selector beside it carries, so the row holds together rather than a filled control sitting next to a dark one. It writes the app's one auto-lift flag (`useTransformManager`, shared with Prepare → Transform → Lift, and persisted under the `autoLift` key), because the gap it holds under the model is what the generated supports have to span; `docs/workflows/transform-and-positioning.md` describes the flag itself.
 
@@ -715,7 +715,8 @@ store untouched. Progress phases are prefixed with the current step number and
 total, such as `2/3`.
 
 The Auto Supports panel currently builds its Magic Support sequence from the
-enabled `light`, `medium`, and `heavy` auto-support presets in that order. This
+enabled `light`, `medium`, and `heavy` factory IDs (Filigree, Weave and Buttress)
+in that order. This
 uses those presets' current saved settings and remains available when the
 single-pass auto-support toggle is off. The sequence preserves supports from
 earlier passes and counts placements across all enabled steps. It does not

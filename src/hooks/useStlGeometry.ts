@@ -118,7 +118,7 @@ export interface ProcessGeometryOptions {
    * Controls native Tauri mesh processing behavior:
    * - `auto` (default): standard flow; may run repair path.
    * - `classify-only`: lightweight shell split classification (no heavy repair).
-    * - `none`: skip native repair/classification entirely.
+   * - `none`: classify shell sections but do not run automatic repair.
    * - `repair`: force full repair/classification path.
    */
     nativeProcessingMode?: 'auto' | 'classify-only' | 'none' | 'repair';
@@ -168,7 +168,7 @@ export interface ProcessGeometryOptions {
   _isNativePreview?: boolean;
   /** Model section boundary offset extracted directly from the DFMX binary IPC header. @internal */
   _nativeModelTriangleCount?: number;
-  /** Skip classification/repair in Tauri when loading a pre-repaired mesh */
+  /** Skip classification/repair in Tauri for a preprocessed or reduced preview mesh. */
   skipClassification?: boolean;
   /**
    * Classification the source container already carries for this exact
@@ -421,7 +421,21 @@ export async function processGeometry(bufferGeometry: THREE.BufferGeometry, opti
   // A baked classification is the answer the native classify pass would
   // produce for this geometry, so there is nothing left to compute.
   const bakedClassification = options.bakedClassification ?? null;
-  const skipAll = options.skipClassification === true || bakedClassification != null;
+  // A reduced native preview has already been split and decimated on the Rust
+  // side. Reclassifying its multi-million-triangle soup would expand and send
+  // the entire preview back over IPC on the WebView thread, which can make the
+  // renderer unresponsive. Keep the baked model/support boundary and skip the
+  // redundant pass when the preview metadata has no full classification report.
+  const skipPreviewClassification = options._isNativePreview === true;
+  const skipAll = options.skipClassification === true
+    || skipPreviewClassification
+    || bakedClassification != null;
+  if (skipPreviewClassification && bakedClassification == null) {
+    console.info(
+      `[processGeometry] Skipping duplicate shell classification for native preview ` +
+      `(${sourceTriangleEstimate.toLocaleString()} triangles).`,
+    );
+  }
   const checkTauri = options._isTauriRuntime ?? isTauriRuntime;
   
   if (checkTauri() && !skipAll) {

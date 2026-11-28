@@ -1377,9 +1377,9 @@ msgstr "Automatic orientation"
 msgid "Automatic support generation from model analysis. Early access."
 msgstr "Automatic support generation from model analysis. Early access."
 
-#: src/components/controls/AutoSupportPanel.tsx:1022
-msgid "Automatic supports · Light, Medium, Heavy"
-msgstr "Automatic supports · Light, Medium, Heavy"
+#: src/components/controls/AutoSupportPanel.tsx:1093
+msgid "Automatic supports · Filigree, Weave, Buttress"
+msgstr "Automatic supports · Filigree, Weave, Buttress"
 
 #: src/components/controls/AutoSupportPanel.tsx:74
 #: src/components/controls/AutoSupportPanel.tsx:1210
@@ -4508,11 +4508,11 @@ msgstr "Heatmap {index}"
 msgid "Heatmap Color {index}"
 msgstr "Heatmap Color {index}"
 
-#. Built-in auto-support preset for dense supports — the Heavy tier in the Auto Support panel's preset selector.
+#. Built-in dense support layout with the largest contact and shaft sizing tier.
 #: src/supports/Settings/autoSupportPresetMessages.ts:30
 msgctxt "auto-support preset"
-msgid "Heavy"
-msgstr "Heavy"
+msgid "Buttress"
+msgstr "Buttress"
 
 #: src/supports/Settings/presetMessages.ts:31
 msgid "Heavy supports for large overhangs"
@@ -5144,11 +5144,11 @@ msgstr "Interior only"
 msgid "Interior Pillar"
 msgstr "Interior Pillar"
 
-#. Built-in profile for generating large, sparse supports inside hollow models.
+#. Built-in profile for large, sparse supports on interior surfaces.
 #: src/supports/Settings/autoSupportPresetMessages.ts:31
 msgctxt "auto-support preset"
-msgid "Interior Pillar"
-msgstr "Interior Pillar"
+msgid "Hollow Core"
+msgstr "Hollow Core"
 
 #: src/features/hollowing/HollowingPanel.tsx:198
 msgid "Interior suction cup detection:"
@@ -5551,11 +5551,11 @@ msgctxt "Transform panel section"
 msgid "Lift"
 msgstr "Lift"
 
-#. Built-in auto-support preset for sparse supports — the Light tier in the Auto Support panel's preset selector.
+#. Built-in profile for a sparse, fine-contact support layout.
 #: src/supports/Settings/autoSupportPresetMessages.ts:28
 msgctxt "auto-support preset"
-msgid "Light"
-msgstr "Light"
+msgid "Filigree"
+msgstr "Filigree"
 
 #: src/components/layout/FirstRunOnboarding.tsx:259
 msgctxt "Color theme"
@@ -6032,11 +6032,11 @@ msgstr "Measurement type"
 msgid "Measuring distances to the surface"
 msgstr "Measuring distances to the surface"
 
-#. Built-in auto-support preset for balanced supports — the Medium tier in the Auto Support panel's preset selector.
+#. Built-in balanced support layout for general models.
 #: src/supports/Settings/autoSupportPresetMessages.ts:29
 msgctxt "auto-support preset"
-msgid "Medium"
-msgstr "Medium"
+msgid "Weave"
+msgstr "Weave"
 
 #: src/components/controls/autoSupport/autoSupportPanelTabs.ts:175
 msgid "Member / Host Ratio"
@@ -12688,3 +12688,12 @@ msgstr ""
 #: src/components/settings/SupportRambutanCard.tsx
 msgid "Copy Pix code"
 msgstr ""
+
+msgid "Base relief"
+msgstr "Base relief"
+
+msgid "Opening diameter"
+msgstr "Opening diameter"
+
+msgid "Opening pitch"
+msgstr "Opening pitch"

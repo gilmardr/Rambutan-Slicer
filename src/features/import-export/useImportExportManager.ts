@@ -38,6 +38,7 @@ type SceneManager = ReturnType<typeof useSceneCollectionManager>;
 
 const COLD_START_SCENE_HANDOFF_DELAY_MS = 1150;
 const MESH_FILE_EXTS = MESH_FILE_EXTENSION_SET;
+const NATIVE_PATH_MESH_EXTENSIONS = new Set(['.stl', '.obj', '.3mf']);
 
 /** Late / cross-domain dependencies read at event/effect time via deps.current.*.
  *  Home populates this ref AFTER the slicing manager and the select-all model
@@ -443,9 +444,9 @@ export function useImportExportManager({
    * A mesh File that carries its on-disk path, so the native loader can read it
    * directly instead of the renderer parsing bytes in the webview.
    *
-   * STL passes no bytes: the path is the whole story, and a 4M-triangle STL
-   * never enters webview memory. Other formats pass their bytes to the renderer;
-   * STEP in particular is tessellated by the OCCT WebAssembly worker.
+   * STL, OBJ, and 3MF pass metadata plus the path: the native loader reads and
+   * parses them without copying the whole file through WebView memory. Formats
+   * such as STEP still pass bytes for their dedicated parser/worker.
    */
   const createPathBackedMeshFile = React.useCallback((sourcePath: string, name: string, sizeBytes?: number | null, bytes?: ArrayBuffer): File => {
     const file = new File(bytes ? [new Uint8Array(bytes)] : [], name, {
@@ -509,8 +510,8 @@ export function useImportExportManager({
           });
 
           const name = resolvedName;
-          if (getFileExtensionLower(name) === '.stl') {
-            // Metadata only: the STL path stays path-backed and never reads the mesh.
+          if (NATIVE_PATH_MESH_EXTENSIONS.has(getFileExtensionLower(name))) {
+            // These formats have native path loaders; only their metadata crosses IPC.
             files.push(createPathBackedMeshFile(sourcePath, name, await readNativeFileSize(sourcePath)));
           } else {
             const bytes = await core.invoke<ArrayBuffer>('read_print_file_bytes', { sourcePath });
@@ -987,8 +988,8 @@ export function useImportExportManager({
       for (const sourcePath of normalizedSupportedPaths) {
         try {
           const name = getFileNameFromPath(sourcePath);
-          if (getFileExtensionLower(name) === '.stl') {
-            // Metadata only: the STL path stays path-backed and never reads the mesh.
+          if (NATIVE_PATH_MESH_EXTENSIONS.has(getFileExtensionLower(name))) {
+            // These formats have native path loaders; only their metadata crosses IPC.
             files.push(createPathBackedMeshFile(sourcePath, name, await readNativeFileSize(sourcePath)));
           } else {
             const bytes = await core.invoke<ArrayBuffer>('read_print_file_bytes', { sourcePath });

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { RaftSettings, SupportBaseCircle } from '../RaftTypes';
+import { applyRaftBaseRelief } from './raftBaseRelief';
 import { computeFootprint } from './computeFootprint';
 import { MODEL_PLATE_CLEARANCE_MM } from './modelPlateFootprint';
 import {
@@ -186,9 +187,11 @@ export function computeRaftFootprintPolygons(args: {
     if (hull && hull.length >= 3) footprint.push(ringToPolygon(hull));
   }
   if (footprint.length === 0) return [];
-  if (inflated.length === 0) return footprint;
 
   // Whatever a cluster's hull still covers — a model ringed by roots has no pair
   // to split it — is cut out exactly as before.
-  return differencePolygonSets(footprint, inflated);
+  const clearOfModel = inflated.length === 0 ? footprint : differencePolygonSets(footprint, inflated);
+  if (raft.bottomMode !== 'solid' || !raft.baseReliefEnabled) return clearOfModel;
+
+  return applyRaftBaseRelief(clearOfModel, circles, raft);
 }

@@ -27,6 +27,7 @@ import {
 } from '@/supports/Settings/presets';
 import type { SupportPreset } from '@/supports/Settings/types';
 import { LOCKED_PROFILE_HINT, SIZING_TIER_FIELD } from './autoSupportPanelTabs';
+import { getLatticeProfile, latticeProfiles } from '@/supports/autoSupport/latticeProfiles';
 import type { AutoSupportSettings } from '@/supports/autoSupport';
 
 /**
@@ -70,6 +71,8 @@ export function useSupportStudioPresets(): SupportPreset[] {
  * missing, so a broken reference is visible rather than silent.
  */
 export function sizingTierName(id: string, presets: readonly SupportPreset[]): string {
+  const profile = getLatticeProfile(id);
+  if (profile) return profile.name;
   const named = presets.find((preset) => preset.id === id);
   if (named) return named.name;
   const fallback = presets.find((preset) => preset.id === 'structure');
@@ -103,12 +106,16 @@ export function AutoSupportSizingTierField({ draft, setDraft, disabled = false }
       </span>
       <SelectDropdown
         value={draft.sizingPreset}
-        options={presets.map((preset) => ({
+        options={[...presets.map((preset) => ({
           value: preset.id,
           label: preset.name,
           // The reference idiom: the type rides on the right of the row.
           rightContent: FACTORY_TIER_IDS.has(preset.id) ? _(msg`Built-in`) : _(msg`Custom`),
-        }))}
+        })), ...Object.entries(latticeProfiles).map(([id, profile]) => ({
+          value: id,
+          label: profile.name,
+          rightContent: _(msg`Built-in`),
+        }))]}
         onChange={(id) => setDraft((current) => ({ ...current, sizingPreset: id }))}
         ariaLabel={label}
         title={disabled ? undefined : hint}

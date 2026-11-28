@@ -8,6 +8,86 @@ depois **Linux** e por último **macOS**. O que vale para todas as plataformas
 vem em "Todas as plataformas", depois das três. Uma plataforma sem mudanças
 nesta versão aparece com "Nada específico nesta versão".
 
+## [0.7.6] - 2026-11-27
+
+### Windows
+
+- Gera instaladores EXE e MSI para Windows x64.
+
+### Linux
+
+Nada específico nesta versão.
+
+### macOS
+
+Nada específico nesta versão.
+
+### Todas as plataformas
+
+- Adiciona os presets **Sculpture Lattice** e **Fine Lattice** ao seletor de suportes automáticos. Os perfis funcionam com os modelos selecionados e ajustam a densidade, as pontas dos troncos e a treliça lateral.
+- Adiciona dois padrões de raft perfurada com fileiras alternadas e permite ajustar o padrão nas configurações da raft. Os novos presets aplicam uma base de 0,50 mm à cena.
+- Ajusta a geometria da ponta esférica na visualização e no fatiamento.
+- A primeira publicação após a 0.7.2 também inclui as mudanças locais das versões 0.7.3 a 0.7.5, documentadas abaixo.
+
+## [0.7.5] - 2026-11-27
+
+### Windows
+
+Nada específico nesta versão.
+
+### Linux
+
+Nada específico nesta versão.
+
+### macOS
+
+Nada específico nesta versão.
+
+### Todas as plataformas
+
+- A seleção e o arrastar-e-soltar de STL, OBJ e 3MF usam o carregador nativo por caminho e deixam de copiar o arquivo completo para o WebView.
+- O painel de suportes automáticos passa a rolar dentro da área visível, mantendo o cabeçalho acessível em janelas menores.
+
+## [0.7.4] - 2026-11-27
+
+### Windows
+
+- Corrige o travamento ao importar STL grande: a prévia reduzida não é classificada novamente no WebView.
+
+### Linux
+
+Nada específico nesta versão.
+
+### macOS
+
+Nada específico nesta versão.
+
+### Todas as plataformas
+
+Nada específico nesta versão.
+
+## [0.7.3] - 2026-11-27
+
+### Windows
+
+Nada específico nesta versão.
+
+### Linux
+
+Nada específico nesta versão.
+
+### macOS
+
+Nada específico nesta versão.
+
+### Todas as plataformas
+
+**Suportes e raft**
+
+- Os quatro presets automáticos receberam nomes próprios: Filigree, Weave, Buttress e Hollow Core. IDs e parâmetros foram mantidos para compatibilidade com configurações existentes.
+- O raft sólido ganhou alívio circular configurável, com distância mínima entre aberturas e afastamento das raízes dos suportes. O recurso começa desligado; o modo de linhas não é alterado.
+- A sincronização de versão agora atualiza o pacote Rambutan-Slicer pelo nome atual no Cargo.lock.
+
 ## [0.7.2] - 2026-11-27
 
 ### Windows
