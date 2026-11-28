@@ -8,6 +8,12 @@ depois **Linux** e por último **macOS**. O que vale para todas as plataformas
 vem em "Todas as plataformas", depois das três. Uma plataforma sem mudanças
 nesta versão aparece com "Nada específico nesta versão".
 
+## [0.7.9] - 2026-11-27
+
+### Todas as plataformas
+
+- Corrige ligacoes diagonais entre hastes de alturas diferentes. Nos presets Sculpture Lattice e Fine Lattice, tenta alturas alternativas quando os niveis padrao nao deixam ligar um par de hastes.
+
 ## [0.7.8] - 2026-11-27
 
 ### Todas as plataformas

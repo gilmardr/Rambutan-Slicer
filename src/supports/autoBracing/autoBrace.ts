@@ -1177,6 +1177,7 @@ export function buildAutoBracedSnapshot(
     for (const [modelId, pairs] of pairsByModel) {
         const modelTrunks = trunkSamples.filter((s) => s.modelId === modelId);
         const maxZ = Math.max(...modelTrunks.map(s => s.topReferenceZ));
+        const linkedPairs = new Set<string>();
 
         const ladder: number[] = [settings.initialDistanceMm];
         let curr = settings.initialDistanceMm + settings.patternIntervalMm;
@@ -1224,7 +1225,7 @@ export function buildAutoBracedSnapshot(
 
                 if (!ignoreMaxDistance && dzGuess > maxRun * slope + EPS) return;
 
-                if (atZ + dzGuess >= lowS.topReferenceZ - 0.1 || atZ + dzGuess >= highS.topReferenceZ - 0.1) return;
+                if (atZ >= lowS.topReferenceZ - 0.1 || atZ + dzGuess >= highS.topReferenceZ - 0.1) return;
 
                 highAnchor = resolveAnchorAtZ(highS, atZ + dzGuess);
                 if (!highAnchor) return;
@@ -1246,6 +1247,7 @@ export function buildAutoBracedSnapshot(
                 generatedKnots[sId] = { id: sId, parentShaftId: lowAnchor.segmentId, t: lowAnchor.t, pos: lowAnchor.pos, diameter: lowAnchor.hostDiameterMm + JOINT_DIAMETER_OFFSET_MM };
                 generatedKnots[eId] = { id: eId, parentShaftId: highAnchor.segmentId, t: highAnchor.t, pos: highAnchor.pos, diameter: highAnchor.hostDiameterMm + JOINT_DIAMETER_OFFSET_MM };
                 generatedBraces[bId] = { id: bId, modelId: lowAnchor.modelId, startKnotId: sId, endKnotId: eId, profile: braceProfile, debugSection: section, generatedBy: 'autoBracing' };
+                if (lattice) linkedPairs.add(pairKey(lowS.supportId, highS.supportId));
 
                 // Only trunk↔trunk braces count toward the two-axis stability
                 // contract — braces to kickstands are the kickstand's own bracing.
@@ -1309,6 +1311,26 @@ export function buildAutoBracedSnapshot(
                 applyRepeatingPattern(trellisPairs, pattern, placeAtTier);
             }
         });
+
+        if (lattice) {
+            // Fixed tiers can all miss a clear window between a pair of shafts.
+            // Retry only pairs already selected by the sparse lattice.
+            for (const { a, b, hDist } of pairs) {
+                if (!isAutoBraceableShaftType(a.supportKind) || !isAutoBraceableShaftType(b.supportKind)) continue;
+                const key = pairKey(a.supportId, b.supportId);
+                if (linkedPairs.has(key)) continue;
+                for (const [low, high] of [[a, b], [b, a]]) {
+                    const start = Math.max(low.bottomReferenceZ, high.bottomReferenceZ) + 0.1;
+                    const end = Math.min(low.topReferenceZ, high.topReferenceZ - hDist * slope) - 0.1;
+                    if (end <= start) continue;
+                    for (const fraction of [0.5, 0.25, 0.75, 0.05, 0.95]) {
+                        place(low, high, 'repeating', start + (end - start) * fraction);
+                        if (linkedPairs.has(key)) break;
+                    }
+                    if (linkedPairs.has(key)) break;
+                }
+            }
+        }
     }
 
     // ── Post-ladder reconciliation ──────────────────────────────────
