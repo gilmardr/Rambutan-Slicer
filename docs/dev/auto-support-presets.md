@@ -82,8 +82,8 @@ feet, so the exact hole count depends on the scene.
 
 | Profile | Trunk contact | Bracing | Raft openings |
 | --- | --- | --- | --- |
-| Sculpture Lattice | 0.40 mm tip, 0.30 mm penetration | 45° target, 0.90 mm brace, 9 mm span limit | 4 mm hexagons, 4.2 mm pitch |
-| Fine Lattice | 0.35 mm ball, 0.10 mm penetration | 60° target, 0.80 mm brace, 7 mm span limit | 2 mm 12-sided openings, 3 mm pitch |
+| Sculpture Lattice | 0.40 mm tip, 0.30 mm penetration | 45° target, 0.90 mm brace, 9 mm span limit | 0.40 mm thick, 2 mm 12-sided openings, 3 mm pitch |
+| Fine Lattice | 0.35 mm ball, 0.10 mm penetration | 60° target, 0.80 mm brace, 7 mm span limit | 0.50 mm thick, 2 mm 12-sided openings, 3 mm pitch |
 
 `light`, `medium`, `heavy` and `interior-pillar`. They display as Filigree,
 Weave, Buttress and Hollow Core. The first three keep the same blocks the Support

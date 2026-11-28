@@ -8,6 +8,12 @@ depois **Linux** e por último **macOS**. O que vale para todas as plataformas
 vem em "Todas as plataformas", depois das três. Uma plataforma sem mudanças
 nesta versão aparece com "Nada específico nesta versão".
 
+## [0.7.8] - 2026-11-27
+
+### Todas as plataformas
+
+- Sculpture Lattice usa raft de 0,40 mm com furos de 12 lados, 2 mm de diâmetro e passo de 3 mm. Fine Lattice mantém a raft de 0,50 mm. O padrão hexagonal permanece disponível.
+
 ## [0.7.7] - 2026-11-27
 
 ### Windows

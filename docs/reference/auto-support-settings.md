@@ -50,14 +50,15 @@ profiles ship with the app:
 - **Weave** — balanced supports with structure sizing.
 - **Buttress** — dense supports with anchor sizing.
 - **Hollow Core** — sparse, larger supports scoped to interior surfaces.
-- **Sculpture Lattice** - wider trunk contacts, a more open lattice and a raft
-  with staggered hexagonal openings.
+- **Sculpture Lattice** - wider trunk contacts, a more open lattice and a
+  0.4 mm raft with staggered round openings.
 - **Fine Lattice** - spherical trunk contacts, closer bracing and a raft
-  with smaller staggered openings.
+  0.5 mm thick with staggered round openings.
 
 All six are available in the preset selector on the **Auto Supports** panel.
-Selecting either lattice profile applies its perforated 0.5 mm raft to the
-scene. The raft can then be adjusted under **Raft Settings**.
+Selecting either lattice profile applies its raft thickness and staggered
+2 mm openings at a 3 mm pitch. **Raft Settings** also offers the hexagonal
+pattern used by the earlier Sculpture Lattice export reference.
 The support engine uses the profile dimensions as inputs to the Rambutan's
 own placement and collision checks. The number and location of supports
 depend on the model.

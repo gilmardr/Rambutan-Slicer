@@ -430,7 +430,6 @@ function applyPresetSettings(preset: AutoSupportPreset): void {
         updateRaftSettings({
             bottomMode: 'solid',
             wallEnabled: false,
-            thickness: 0.5,
             baseReliefEnabled: true,
             ...lattice.raft,
         });
